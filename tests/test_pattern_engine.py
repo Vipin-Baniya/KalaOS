@@ -186,10 +186,12 @@ class TestAnalyse:
 
     def test_returns_all_keys(self):
         result = analyze(self.POEM)
-        assert "palindrome" in result
-        assert "rhymes" in result
-        assert "syllables" in result
-        assert "structure" in result
+        for key in (
+            "palindrome", "anagrams", "rhymes", "mirror_rhyme",
+            "syllables", "structure", "form_type",
+            "improvisation", "emotional_arc", "cognitive_load",
+        ):
+            assert key in result
 
     def test_syllables_length_matches_lines(self):
         result = analyze(self.POEM)
@@ -198,12 +200,17 @@ class TestAnalyse:
 
     def test_empty_string(self):
         result = analyze("")
-        assert result == {
-            "palindrome": {},
-            "rhymes": {},
-            "syllables": [],
-            "structure": {},
-        }
+        # Empty input returns zeroed values for all analysis keys
+        assert result["palindrome"] == {}
+        assert result["rhymes"] == {}
+        assert result["syllables"] == []
+        assert result["structure"] == {}
+        assert result["anagrams"] == {}
+        assert result["mirror_rhyme"] == {}
+        assert result["form_type"] == {}
+        assert result["improvisation"] == {}
+        assert result["emotional_arc"] == {}
+        assert result["cognitive_load"] == 0.0
 
     def test_blank_lines_ignored(self):
         text = "\n\nRoses are red\n\nViolets are blue\n\n"
@@ -237,13 +244,18 @@ class TestBuildArtGenome:
     def test_to_dict_contains_all_fields(self):
         genome = build_art_genome(self._analysis())
         d = genome.to_dict()
-        for key in [
+        for key in (
             "structure_analysis",
             "rhyme_density",
             "symmetry_score",
             "improvisation_markers",
             "complexity_score",
-        ]:
+            "form_type",
+            "creative_risk_index",
+            "emotional_arc",
+            "cognitive_load",
+            "human_irreducible_zones",
+        ):
             assert key in d
 
     def test_empty_analysis(self):

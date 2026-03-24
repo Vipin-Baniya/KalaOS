@@ -16,6 +16,7 @@ from typing import Literal
 
 from kalacore.pattern_engine import analyze
 from kalacore.art_genome import build_art_genome
+from kalacore.ethics import check_request
 from services.llm_service import generate_explanation, generate_suggestions, ART_DOMAINS
 
 # Build the domain Literal dynamically from ART_DOMAINS so there is
@@ -95,8 +96,16 @@ def root():
 def analyze_art(request: AnalyseRequest):
     """
     Full pipeline:
-    User Input → KalaCore analysis → ArtGenome → LLM explanation
+    User Input → Ethics check → KalaCore analysis → ArtGenome → LLM explanation
     """
+    # Ethics gate (Phase 0 + Phase 10)
+    violations = check_request(request.text)
+    if violations:
+        raise HTTPException(
+            status_code=422,
+            detail=[{"code": v.code, "message": v.message} for v in violations],
+        )
+
     try:
         # Step 1: run pattern analysis
         analysis = analyze(request.text)
@@ -133,11 +142,19 @@ def analyze_art(request: AnalyseRequest):
 def suggest(request: SuggestRequest):
     """
     Improvement suggestions pipeline:
-    User Input + Domain → KalaCore analysis → ArtGenome → LLM suggestions
+    User Input + Domain → Ethics check → KalaCore analysis → ArtGenome → LLM suggestions
 
     The ``art_domain`` field tells the AI which artistic conventions to use
     when generating feedback (lyrics, poetry, music, story, book, or general).
     """
+    # Ethics gate (Phase 0 + Phase 10)
+    violations = check_request(request.text)
+    if violations:
+        raise HTTPException(
+            status_code=422,
+            detail=[{"code": v.code, "message": v.message} for v in violations],
+        )
+
     try:
         # Step 1: pattern analysis
         analysis = analyze(request.text)
