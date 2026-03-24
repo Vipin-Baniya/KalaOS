@@ -20,6 +20,7 @@ POST /temporal    – Phase 9 temporal meaning, ephemeral art, creative ancestry
 import logging
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, field_validator
 from typing import Literal, Optional
 
@@ -42,6 +43,7 @@ from services.llm_service import (
     list_available_models,
     ART_DOMAINS,
 )
+import services.auth_service as auth_service
 
 # Build the domain Literal dynamically from ART_DOMAINS so there is
 # only one source of truth for the allowed values.
@@ -59,6 +61,18 @@ app = FastAPI(
         "structured analysis of music, poetry, and lyrics."
     ),
     version="0.1.0",
+)
+
+# Allow all origins in development; restrict in production via the
+# KALA_CORS_ORIGINS environment variable (comma-separated list).
+import os as _os
+_cors_origins = _os.environ.get("KALA_CORS_ORIGINS", "*").split(",")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
@@ -743,3 +757,82 @@ def models():
     Returns an empty list (not an error) if Ollama is not running.
     """
     return {"models": list_available_models()}
+
+
+# ---------------------------------------------------------------------------
+# Auth – Registration, Login, Forgot/Reset Password
+# ---------------------------------------------------------------------------
+
+class AuthRegisterRequest(BaseModel):
+    email: str
+    password: str
+    name: str = ""
+
+
+class AuthLoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class AuthForgotRequest(BaseModel):
+    email: str
+
+
+class AuthResetRequest(BaseModel):
+    token: str
+    new_password: str
+
+
+@app.post("/auth/register", summary="Register a new artist account")
+def auth_register(request: AuthRegisterRequest):
+    """Create a new user account.  Returns public user info on success."""
+    try:
+        user = auth_service.register(request.email, request.password, request.name)
+        return {"success": True, "user": user}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post("/auth/login", summary="Login and receive a session token")
+def auth_login(request: AuthLoginRequest):
+    """Validate credentials and return a signed session token."""
+    try:
+        token = auth_service.login(request.email, request.password)
+        user  = auth_service.get_user(token)
+        return {"success": True, "token": token, "user": user}
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail=str(exc))
+
+
+@app.post("/auth/forgot-password", summary="Request a password-reset token")
+def auth_forgot(request: AuthForgotRequest):
+    """
+    Generate a password-reset token.  In production this token would be
+    emailed to the user; here it is returned directly for demo purposes.
+    Always responds with success regardless of whether the email exists.
+    """
+    token = auth_service.request_password_reset(request.email)
+    return {
+        "success": True,
+        "reset_token": token,
+        "note": "In production this token would be emailed to you. Copy it and use /auth/reset-password.",
+    }
+
+
+@app.post("/auth/reset-password", summary="Reset password using a reset token")
+def auth_reset(request: AuthResetRequest):
+    """Apply a new password if the reset token is valid and unexpired."""
+    try:
+        auth_service.reset_password(request.token, request.new_password)
+        return {"success": True}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.get("/auth/me", summary="Get current user from session token")
+def auth_me(token: str):
+    """Return public user info for a valid session token."""
+    user = auth_service.get_user(token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid or expired token.")
+    return user
