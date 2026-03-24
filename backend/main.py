@@ -17,9 +17,13 @@ POST /custody     – Phase 6 KalaCustody artistic fingerprint + legacy record
 POST /temporal    – Phase 9 temporal meaning, ephemeral art, creative ancestry
 """
 
+import logging
+
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, field_validator
 from typing import Literal, Optional
+
+logger = logging.getLogger(__name__)
 
 from kalacore.pattern_engine import analyze
 from kalacore.art_genome import build_art_genome
@@ -31,7 +35,13 @@ from kalacore.kalacomposer import compose
 from kalacore.kalaflow import flow
 from kalacore.kalacustody import custody, assess_artistic_lineage
 from kalacore.temporal import analyze_temporal
-from services.llm_service import generate_explanation, generate_suggestions, ART_DOMAINS
+from services.llm_service import (
+    generate_explanation,
+    generate_suggestions,
+    generate_deep_narrative,
+    list_available_models,
+    ART_DOMAINS,
+)
 
 # Build the domain Literal dynamically from ART_DOMAINS so there is
 # only one source of truth for the allowed values.
@@ -560,3 +570,176 @@ def temporal_endpoint(request: AnalyseRequest):
         raise HTTPException(status_code=500, detail=f"Temporal analysis failed: {exc}")
 
     return TemporalResponse(temporal=temporal_data, art_genome=genome.to_dict())
+
+
+# ---------------------------------------------------------------------------
+# Phase 8 – Kala-LLM: Deep Analysis (unified pipeline)
+# ---------------------------------------------------------------------------
+
+class DeepAnalysisRequest(BaseModel):
+    text: str
+    art_domain: ArtDomain = "general"
+    artist_name: Optional[str] = None
+    creation_context: Optional[str] = None
+    model: Optional[str] = None  # override Ollama model; None → DEFAULT_MODEL
+
+    @field_validator("text")
+    @classmethod
+    def text_must_not_be_empty(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("text must not be empty")
+        return v
+
+
+class DeepAnalysisResponse(BaseModel):
+    narrative: str          # Phase 8 LLM deep narrative
+    art_genome: dict        # Phase 1 – ArtGenome
+    analysis: dict          # Phase 1 – raw pattern analysis
+    existential: dict       # Phase 1 + 9 – existential layer
+    craft: dict             # Phase 2 – KalaCraft
+    signal: dict            # Phase 4 – KalaSignal
+    composition: dict       # Phase 3 – KalaComposer
+    flow: dict              # Phase 5 – KalaFlow
+    custody: dict           # Phase 6 – KalaCustody
+    temporal: dict          # Phase 9 – Temporal intelligence
+
+
+@app.post(
+    "/deep-analysis",
+    response_model=DeepAnalysisResponse,
+    summary="Phase 8 Kala-LLM: full-stack analysis + unified artist narrative",
+)
+def deep_analysis(request: DeepAnalysisRequest):
+    """
+    Deep analysis pipeline — runs every KalaOS phase in a single call.
+
+    Text → Ethics check → KalaCore → ArtGenome → Existential → Craft →
+    Signal → Compose → Flow → Custody → Temporal → Kala-LLM narrative
+
+    Returns all phase data plus a unified LLM narrative that weaves
+    everything into a single artist-facing mirror.
+
+    This is the primary endpoint for the KalaOS Studio UX.
+    """
+    violations = check_request(request.text)
+    if violations:
+        raise HTTPException(
+            status_code=422,
+            detail=[{"code": v.code, "message": v.message} for v in violations],
+        )
+
+    # ── KalaCore ────────────────────────────────────────────────────────────
+    try:
+        analysis = analyze(request.text)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Pattern analysis failed: {exc}")
+
+    try:
+        genome = build_art_genome(analysis)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"ArtGenome build failed: {exc}")
+
+    # ── Phase 1 + 9 Existential ─────────────────────────────────────────────
+    try:
+        existential_data = analyze_existential(request.text, analysis)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Existential analysis failed: {exc}")
+
+    # ── Phase 2 Craft ───────────────────────────────────────────────────────
+    try:
+        craft_data = analyze_craft(request.text)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Craft analysis failed: {exc}")
+
+    # ── Phase 4 Signal ──────────────────────────────────────────────────────
+    try:
+        signal_data = analyze_signal(request.text, genome.to_dict())
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Signal analysis failed: {exc}")
+
+    # ── Phase 3 Compose ─────────────────────────────────────────────────────
+    try:
+        composition_data = compose(request.text, analysis, genome.to_dict())
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Composition analysis failed: {exc}")
+
+    # ── Phase 5 Flow ─────────────────────────────────────────────────────────
+    try:
+        flow_data = flow(request.text, analysis, genome.to_dict(), existential_data)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Flow analysis failed: {exc}")
+
+    # ── Phase 6 Custody ──────────────────────────────────────────────────────
+    try:
+        custody_data = custody(
+            request.text,
+            analysis,
+            genome.to_dict(),
+            existential_data,
+            artist_name=request.artist_name,
+            creation_context=request.creation_context,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Custody analysis failed: {exc}")
+
+    # ── Phase 9 Temporal ─────────────────────────────────────────────────────
+    try:
+        raw_lines = request.text.splitlines()
+        lines = [l for l in raw_lines if l.strip()]
+        lineage_data = assess_artistic_lineage(lines, analysis, genome.to_dict())
+        temporal_data = analyze_temporal(
+            request.text, analysis, genome.to_dict(), existential_data, lineage_data
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Temporal analysis failed: {exc}")
+
+    # ── Phase 8 Kala-LLM narrative ───────────────────────────────────────────
+    all_data = {
+        "art_genome": genome.to_dict(),
+        "existential": existential_data,
+        "craft": craft_data,
+        "signal": signal_data,
+        "composition": composition_data,
+        "flow": flow_data,
+        "custody": custody_data,
+        "temporal": temporal_data,
+    }
+    model_override = request.model or None
+    try:
+        narrative = generate_deep_narrative(
+            all_data,
+            **({"model": model_override} if model_override else {}),
+        )
+    except Exception as exc:
+        # LLM narrative failure must never block the structured analysis
+        logger.warning("Deep narrative generation failed: %s", exc)
+        narrative = "[Narrative unavailable — all structured analysis is complete above.]"
+
+    return DeepAnalysisResponse(
+        narrative=narrative,
+        art_genome=genome.to_dict(),
+        analysis=analysis,
+        existential=existential_data,
+        craft=craft_data,
+        signal=signal_data,
+        composition=composition_data,
+        flow=flow_data,
+        custody=custody_data,
+        temporal=temporal_data,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Phase 8 – Model listing
+# ---------------------------------------------------------------------------
+
+@app.get(
+    "/models",
+    summary="List locally available Ollama models",
+)
+def models():
+    """
+    Returns the list of models available on the local Ollama instance.
+    Returns an empty list (not an error) if Ollama is not running.
+    """
+    return {"models": list_available_models()}

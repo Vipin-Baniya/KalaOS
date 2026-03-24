@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KalaOS Studio</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- Header -->
+  <header>
+    <div class="header-inner">
+      <div class="logo">
+        <span class="logo-mark">K</span>
+        <span class="logo-text">KalaOS<span class="logo-sub"> Studio</span></span>
+      </div>
+      <p class="tagline">Art understanding, artist dignity — structure without judgement.</p>
+    </div>
+  </header>
+
+  <!-- Input Panel -->
+  <main>
+    <section class="input-panel" id="inputPanel">
+      <div class="input-card">
+        <div class="input-row">
+          <div class="field-group grow">
+            <label for="artText">Your lyrics, poem, or text</label>
+            <textarea
+              id="artText"
+              placeholder="Paste or type your art here…"
+              rows="10"
+              spellcheck="false"
+            ></textarea>
+          </div>
+        </div>
+
+        <div class="input-meta-row">
+          <div class="field-group">
+            <label for="artDomain">Art domain</label>
+            <select id="artDomain">
+              <option value="lyrics">Song Lyrics</option>
+              <option value="poetry" selected>Poetry</option>
+              <option value="music">Music / Production Notes</option>
+              <option value="story">Short Story</option>
+              <option value="book">Book / Long-form</option>
+              <option value="general">General Creative Writing</option>
+            </select>
+          </div>
+
+          <div class="field-group">
+            <label for="artistName">Artist name <span class="optional">(optional)</span></label>
+            <input
+              type="text"
+              id="artistName"
+              placeholder="For the custody record"
+            />
+          </div>
+
+          <div class="field-group">
+            <label for="ollamaModel">LLM model <span class="optional">(Ollama)</span></label>
+            <input
+              type="text"
+              id="ollamaModel"
+              placeholder="llama3"
+              value="llama3"
+            />
+          </div>
+        </div>
+
+        <div class="action-row">
+          <button id="analyseBtn" class="btn-primary" onclick="runDeepAnalysis()">
+            <span class="btn-icon">◎</span> Full Analysis
+          </button>
+          <button class="btn-ghost" onclick="clearAll()">Clear</button>
+          <span id="statusMsg" class="status-msg" aria-live="polite"></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Results -->
+    <section class="results-panel hidden" id="resultsPanel">
+      <!-- Tab bar -->
+      <nav class="tab-bar" role="tablist" aria-label="Analysis results">
+        <button class="tab active" data-tab="overview"    onclick="switchTab('overview')"    role="tab" aria-selected="true">Overview</button>
+        <button class="tab"        data-tab="craft"       onclick="switchTab('craft')"       role="tab">Craft</button>
+        <button class="tab"        data-tab="signal"      onclick="switchTab('signal')"      role="tab">Signal</button>
+        <button class="tab"        data-tab="compose"     onclick="switchTab('compose')"     role="tab">Compose</button>
+        <button class="tab"        data-tab="flow"        onclick="switchTab('flow')"        role="tab">Flow</button>
+        <button class="tab"        data-tab="custody"     onclick="switchTab('custody')"     role="tab">Custody</button>
+        <button class="tab"        data-tab="temporal"    onclick="switchTab('temporal')"    role="tab">Temporal</button>
+        <button class="tab"        data-tab="raw"         onclick="switchTab('raw')"         role="tab">Raw JSON</button>
+      </nav>
+
+      <!-- Tab panes -->
+      <div class="tab-content">
+
+        <!-- Overview -->
+        <div class="tab-pane active" id="tab-overview" role="tabpanel">
+          <div id="narrativeSection" class="narrative-block hidden">
+            <h2 class="section-heading">Kala-LLM Narrative</h2>
+            <p id="narrativeText" class="narrative-text"></p>
+          </div>
+          <div class="grid-2">
+            <div class="card">
+              <h3>Form & Structure</h3>
+              <dl id="overviewGenome"></dl>
+            </div>
+            <div class="card">
+              <h3>Emotional Arc</h3>
+              <div id="emotionalArcViz"></div>
+            </div>
+            <div class="card">
+              <h3>Why It Was Made</h3>
+              <dl id="overviewExistential"></dl>
+            </div>
+            <div class="card">
+              <h3>Human-Irreducible Zones</h3>
+              <div id="irreducibleZones"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Craft -->
+        <div class="tab-pane hidden" id="tab-craft" role="tabpanel">
+          <div class="grid-2">
+            <div class="card">
+              <h3>Phonetics</h3>
+              <dl id="craftPhonetics"></dl>
+            </div>
+            <div class="card">
+              <h3>Meter Flow</h3>
+              <dl id="craftMeter"></dl>
+            </div>
+            <div class="card">
+              <h3>Breath Points</h3>
+              <div id="craftBreath"></div>
+            </div>
+            <div class="card">
+              <h3>Line Density</h3>
+              <div id="craftDensity"></div>
+            </div>
+            <div class="card full-span">
+              <h3>Semantic Drift</h3>
+              <div id="craftDrift"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Signal -->
+        <div class="tab-pane hidden" id="tab-signal" role="tabpanel">
+          <div class="callout">
+            Viral ≠ Loved ≠ Remembered — these signals are private insight, not ranking.
+          </div>
+          <div class="grid-3">
+            <div class="card">
+              <h3>Memorability</h3>
+              <dl id="signalMemorability"></dl>
+            </div>
+            <div class="card">
+              <h3>Longevity</h3>
+              <dl id="signalLongevity"></dl>
+            </div>
+            <div class="card">
+              <h3>Resonance Spectrum</h3>
+              <dl id="signalResonance"></dl>
+            </div>
+          </div>
+        </div>
+
+        <!-- Compose -->
+        <div class="tab-pane hidden" id="tab-compose" role="tabpanel">
+          <div class="callout">
+            All musical suggestions are optional starting points — the art decides.
+          </div>
+          <div class="grid-2">
+            <div class="card">
+              <h3>Musical Structure</h3>
+              <div id="composeSections"></div>
+            </div>
+            <div class="card">
+              <h3>Harmony</h3>
+              <dl id="composeChords"></dl>
+            </div>
+            <div class="card">
+              <h3>Tempo & Feel</h3>
+              <dl id="composeTempo"></dl>
+            </div>
+            <div class="card">
+              <h3>Arrangement</h3>
+              <div id="composeArrangement"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Flow -->
+        <div class="tab-pane hidden" id="tab-flow" role="tabpanel">
+          <div class="grid-2">
+            <div class="card">
+              <h3>Distribution Readiness</h3>
+              <div id="flowReadiness"></div>
+            </div>
+            <div class="card">
+              <h3>Release Metadata</h3>
+              <dl id="flowMetadata"></dl>
+            </div>
+            <div class="card">
+              <h3>Listener Journey</h3>
+              <div id="flowJourney"></div>
+            </div>
+            <div class="card">
+              <h3>Format Suitability</h3>
+              <div id="flowFormat"></div>
+            </div>
+            <div class="card full-span">
+              <h3>Artist Statement Prompts</h3>
+              <div id="flowPrompts"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Custody -->
+        <div class="tab-pane hidden" id="tab-custody" role="tabpanel">
+          <div class="callout">
+            This record belongs to you. KalaOS does not retain it. Copy and store it wherever you choose.
+          </div>
+          <div class="grid-2">
+            <div class="card">
+              <h3>Artistic Fingerprint</h3>
+              <dl id="custodyFingerprint"></dl>
+            </div>
+            <div class="card">
+              <h3>Custody Record</h3>
+              <dl id="custodyRecord"></dl>
+            </div>
+            <div class="card">
+              <h3>Artistic Lineage</h3>
+              <div id="custodyLineage"></div>
+            </div>
+            <div class="card">
+              <h3>Legacy Annotation</h3>
+              <dl id="custodyLegacy"></dl>
+            </div>
+          </div>
+        </div>
+
+        <!-- Temporal -->
+        <div class="tab-pane hidden" id="tab-temporal" role="tabpanel">
+          <div class="grid-2">
+            <div class="card">
+              <h3>Temporal Meaning</h3>
+              <dl id="temporalMeaning"></dl>
+            </div>
+            <div class="card">
+              <h3>Ephemeral Classification</h3>
+              <dl id="temporalEphemeral"></dl>
+            </div>
+            <div class="card">
+              <h3>Creative Ancestry</h3>
+              <div id="temporalAncestry"></div>
+            </div>
+            <div class="card">
+              <h3>Cultural Preservation</h3>
+              <dl id="temporalPreservation"></dl>
+            </div>
+          </div>
+        </div>
+
+        <!-- Raw JSON -->
+        <div class="tab-pane hidden" id="tab-raw" role="tabpanel">
+          <div class="card">
+            <div class="raw-bar">
+              <h3>Full Analysis JSON</h3>
+              <button class="btn-ghost small" onclick="copyRaw()">Copy</button>
+            </div>
+            <pre id="rawJson" class="raw-json"></pre>
+          </div>
+        </div>
+
+      </div><!-- /tab-content -->
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer>
+    <p>KalaOS — AI-native art platform. Art understanding without judgment. Artist dignity by design.</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

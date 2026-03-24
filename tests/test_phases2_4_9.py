@@ -560,7 +560,7 @@ class TestAnalyzeSignal:
 
     def test_empty_text_safe(self):
         result = analyze_signal("", {})
-        assert result["explanation"] == "No content to analyse."
+        assert result["explanation"] == "No content to analyze."
 
     def test_explanation_is_string(self):
         result = analyze_signal(WONDER_TEXT, _genome_for(WONDER_TEXT))

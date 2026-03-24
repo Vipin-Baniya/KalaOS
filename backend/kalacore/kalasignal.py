@@ -406,7 +406,7 @@ def analyze_signal(text: str, art_genome: Dict[str, Any]) -> dict:
             "emotional_access": {},
             "share_potential": {},
             "separation": {},
-            "explanation": "No content to analyse.",
+            "explanation": "No content to analyze.",
         }
 
     mem = score_memorability(lines, art_genome)
