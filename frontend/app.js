@@ -37,9 +37,11 @@ const THEME_ACCENT_COLORS = {
   "custom":      null,
 };
 
-function applyTheme(themeId) {
+function applyTheme(themeId, save = true) {
   document.documentElement.setAttribute("data-theme", themeId);
-  localStorage.setItem("kala-theme", themeId);
+  if (save) {
+    localStorage.setItem("kala-theme", themeId);
+  }
 
   // Update theme-color meta (affects browser chrome on mobile)
   const color = THEME_ACCENT_COLORS[themeId] || THEME_ACCENT_COLORS["dark-cosmos"];
@@ -88,8 +90,20 @@ function resetCustomTheme() {
 }
 
 function loadSavedTheme() {
-  const saved = localStorage.getItem("kala-theme") || "dark-cosmos";
-  applyTheme(saved);
+  const saved = localStorage.getItem("kala-theme");
+  if (saved) {
+    applyTheme(saved, false);
+  } else {
+    // No explicit preference — follow the OS colour scheme
+    const preferLight = window.matchMedia?.("(prefers-color-scheme: light)").matches;
+    applyTheme(preferLight ? "light" : "dark-cosmos", false);
+  }
+  // Keep in sync with OS changes when the user hasn't pinned a theme
+  window.matchMedia?.("(prefers-color-scheme: light)").addEventListener("change", (e) => {
+    if (!localStorage.getItem("kala-theme")) {
+      applyTheme(e.matches ? "light" : "dark-cosmos", false);
+    }
+  });
   // Re-apply any persisted custom overrides
   const custom = JSON.parse(localStorage.getItem("kala-custom-vars") || "{}");
   Object.entries(custom).forEach(([k, v]) => document.documentElement.style.setProperty(k, v));

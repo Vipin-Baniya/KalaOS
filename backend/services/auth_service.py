@@ -1,51 +1,258 @@
 """
-Auth Service – Registration, Login, Password Reset
-----------------------------------------------------
-Simple in-memory user store with PBKDF2 password hashing and
-HMAC-signed session tokens.  No external dependencies beyond stdlib.
+Auth Service – Registration, Login, Password Reset, Profile
+-------------------------------------------------------------
+Persists users and reset tokens to SQLite (KALA_DB_PATH, default: kalaos.db).
+Passwords are PBKDF2-HMAC-SHA256 hashed; sessions use HMAC-SHA256-signed
+tokens with a 30-day TTL.
 
-In production, replace _USERS / _RESET_TOKENS with a real database
-(e.g. PostgreSQL + SQLAlchemy) and deliver reset links by email.
+Optional SMTP delivery for password-reset tokens:
+  KALA_SMTP_HOST  – SMTP hostname (enables email delivery when set)
+  KALA_SMTP_PORT  – SMTP port (default: 587)
+  KALA_SMTP_USER  – SMTP username
+  KALA_SMTP_PASS  – SMTP password
+  KALA_SMTP_FROM  – Sender address (defaults to KALA_SMTP_USER)
+  KALA_APP_URL    – Public base URL used to build the reset link
 
 Public API
 ----------
-register(email, password, name)           → user dict  or raises ValueError
-login(email, password)                    → token str  or raises ValueError
-request_password_reset(email)             → reset_token str
-reset_password(reset_token, new_password) → None       or raises ValueError
-get_user(token)                           → user dict  or None
+register(email, password, name)                    → user dict  or raises ValueError
+login(email, password)                             → token str  or raises ValueError
+request_password_reset(email)                      → reset_token str (empty str when SMTP delivers it)
+reset_password(reset_token, new_password)          → None       or raises ValueError
+get_user(token)                                    → user dict  or None
+update_profile(token, name)                        → user dict  or raises ValueError
+change_password(token, old_password, new_password) → None       or raises ValueError
 
 Security notes
 --------------
-* Passwords are hashed with PBKDF2-HMAC-SHA256, 200 000 iterations.
-* Session tokens are HMAC-SHA256–signed opaque strings.
-* _APP_SECRET is read from KALA_SECRET env var; falls back to a random
-  value generated at start-up (tokens are therefore invalidated on
-  server restart when the env var is not set — acceptable for demo).
-* request_password_reset() always succeeds regardless of whether the
-  email exists (prevents user enumeration).
+* Passwords: PBKDF2-HMAC-SHA256, 200 000 iterations.
+* Session tokens: HMAC-SHA256-signed; include a 30-day expiry timestamp.
+* _APP_SECRET is read from KALA_SECRET env var; falls back to a per-process
+  random value (tokens are invalidated on restart when the env var is unset).
+* request_password_reset() always succeeds regardless of whether the email
+  exists (prevents user enumeration).
 """
 
 import hashlib
 import hmac
+import logging
 import os
 import secrets
+import smtplib
+import sqlite3
+import threading
 import time
-from typing import Dict, Optional
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# In-memory stores  (swap for a real DB in production)
+# Configuration
 # ---------------------------------------------------------------------------
-_USERS: Dict[str, dict] = {}         # email → user record
-_RESET_TOKENS: Dict[str, dict] = {}  # token → {email, expires_at}
 
-_RESET_TTL  = 3_600                  # seconds – 1 hour
-_APP_SECRET = os.environ.get("KALA_SECRET") or secrets.token_hex(32)
+_APP_SECRET  = os.environ.get("KALA_SECRET") or secrets.token_hex(32)
+_DB_PATH     = os.environ.get("KALA_DB_PATH", "kalaos.db")
+_RESET_TTL   = 3_600           # seconds – 1 hour
+_SESSION_TTL = 30 * 86_400     # seconds – 30 days
+
+# SMTP (all optional; email delivery enabled only when KALA_SMTP_HOST is set)
+_SMTP_HOST = os.environ.get("KALA_SMTP_HOST", "")
+_SMTP_PORT = int(os.environ.get("KALA_SMTP_PORT", "587"))
+_SMTP_USER = os.environ.get("KALA_SMTP_USER", "")
+_SMTP_PASS = os.environ.get("KALA_SMTP_PASS", "")
+_SMTP_FROM = os.environ.get("KALA_SMTP_FROM", "") or _SMTP_USER
+_APP_URL   = os.environ.get("KALA_APP_URL", "http://localhost:8000")
+
+# Consumers can check this to decide whether to expose the reset token in the response.
+SMTP_CONFIGURED: bool = bool(_SMTP_HOST)
 
 
 # ---------------------------------------------------------------------------
-# Internal helpers
+# SQLite helpers
+# ---------------------------------------------------------------------------
+
+_db_lock = threading.Lock()
+
+
+def _get_db() -> sqlite3.Connection:
+    conn = sqlite3.connect(_DB_PATH, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def _db_init() -> None:
+    with _db_lock:
+        with _get_db() as conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    email      TEXT PRIMARY KEY,
+                    name       TEXT NOT NULL,
+                    pw_hash    TEXT NOT NULL,
+                    pw_salt    TEXT NOT NULL,
+                    created_at INTEGER NOT NULL
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS reset_tokens (
+                    token      TEXT PRIMARY KEY,
+                    email      TEXT NOT NULL,
+                    expires_at INTEGER NOT NULL
+                )
+            """)
+
+
+def _db_upsert_user(email: str, user: dict) -> None:
+    with _db_lock:
+        with _get_db() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO users "
+                "(email, name, pw_hash, pw_salt, created_at) VALUES (?,?,?,?,?)",
+                (user["email"], user["name"], user["pw_hash"],
+                 user["pw_salt"], user["created_at"]),
+            )
+
+
+def _db_delete_user(email: str) -> None:
+    with _db_lock:
+        with _get_db() as conn:
+            conn.execute("DELETE FROM users WHERE email = ?", (email,))
+
+
+def _db_clear_users() -> None:
+    with _db_lock:
+        with _get_db() as conn:
+            conn.execute("DELETE FROM users")
+
+
+def _db_upsert_token(token: str, entry: dict) -> None:
+    with _db_lock:
+        with _get_db() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO reset_tokens (token, email, expires_at) VALUES (?,?,?)",
+                (token, entry["email"], entry["expires_at"]),
+            )
+
+
+def _db_delete_token(token: str) -> None:
+    with _db_lock:
+        with _get_db() as conn:
+            conn.execute("DELETE FROM reset_tokens WHERE token = ?", (token,))
+
+
+def _db_clear_tokens() -> None:
+    with _db_lock:
+        with _get_db() as conn:
+            conn.execute("DELETE FROM reset_tokens")
+
+
+# ---------------------------------------------------------------------------
+# SQLite-backed in-memory stores
+# ---------------------------------------------------------------------------
+
+class _UserStore(dict):
+    """dict subclass that mirrors every mutation to the SQLite users table."""
+
+    def __setitem__(self, key: str, value: dict) -> None:
+        super().__setitem__(key, value)
+        _db_upsert_user(key, value)
+
+    def __delitem__(self, key: str) -> None:
+        super().__delitem__(key)
+        _db_delete_user(key)
+
+    def clear(self) -> None:
+        super().clear()
+        _db_clear_users()
+
+
+class _TokenStore(dict):
+    """dict subclass that mirrors every mutation to the SQLite reset_tokens table."""
+
+    def __setitem__(self, key: str, value: dict) -> None:
+        super().__setitem__(key, value)
+        _db_upsert_token(key, value)
+
+    def __delitem__(self, key: str) -> None:
+        super().__delitem__(key)
+        _db_delete_token(key)
+
+    def clear(self) -> None:
+        super().clear()
+        _db_clear_tokens()
+
+
+_USERS: _UserStore = _UserStore()
+_RESET_TOKENS: _TokenStore = _TokenStore()
+
+
+def _bootstrap() -> None:
+    """Initialise DB schema and warm the in-memory caches from SQLite."""
+    _db_init()
+    now = int(time.time())
+    with _db_lock:
+        with _get_db() as conn:
+            for row in conn.execute(
+                "SELECT email, name, pw_hash, pw_salt, created_at FROM users"
+            ):
+                dict.__setitem__(_USERS, row["email"], dict(row))
+            for row in conn.execute(
+                "SELECT token, email, expires_at FROM reset_tokens WHERE expires_at > ?",
+                (now,),
+            ):
+                dict.__setitem__(_RESET_TOKENS, row["token"], dict(row))
+
+
+_bootstrap()
+
+
+# ---------------------------------------------------------------------------
+# SMTP helper
+# ---------------------------------------------------------------------------
+
+def _send_reset_email(to_email: str, reset_token: str) -> None:
+    """
+    Send a password-reset email via SMTP.  Swallows errors so a misconfigured
+    mail server never blocks the API response.
+    """
+    reset_url = f"{_APP_URL.rstrip('/')}/#reset?token={reset_token}"
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = "KalaOS – Reset your password"
+    msg["From"]    = _SMTP_FROM
+    msg["To"]      = to_email
+
+    plain = (
+        f"Hi,\n\n"
+        f"You requested a password reset for your KalaOS account.\n\n"
+        f"Reset link (valid for 1 hour):\n{reset_url}\n\n"
+        f"If you didn't request this, you can safely ignore this email.\n\n"
+        f"— The KalaOS Team"
+    )
+    html = (
+        f"<p>Hi,</p>"
+        f"<p>You requested a password reset for your KalaOS account.</p>"
+        f'<p><a href="{reset_url}">Click here to reset your password</a> '
+        f"(valid for 1 hour).</p>"
+        f"<p>If you didn't request this, you can safely ignore this email.</p>"
+        f"<p>— The KalaOS Team</p>"
+    )
+    msg.attach(MIMEText(plain, "plain"))
+    msg.attach(MIMEText(html, "html"))
+
+    try:
+        with smtplib.SMTP(_SMTP_HOST, _SMTP_PORT, timeout=10) as server:
+            server.starttls()
+            if _SMTP_USER and _SMTP_PASS:
+                server.login(_SMTP_USER, _SMTP_PASS)
+            server.sendmail(_SMTP_FROM, to_email, msg.as_string())
+    except Exception as exc:  # pragma: no cover
+        logger.warning("Failed to send password-reset email to %s: %s", to_email, exc)
+
+
+# ---------------------------------------------------------------------------
+# Internal crypto helpers
 # ---------------------------------------------------------------------------
 
 def _hash_password(password: str, salt: Optional[str] = None) -> tuple:
@@ -63,13 +270,14 @@ def _sign(payload: str) -> str:
 def _make_session_token(email: str) -> str:
     nonce   = secrets.token_hex(16)
     ts      = int(time.time())
-    payload = f"{email}:{nonce}:{ts}"
+    exp     = ts + _SESSION_TTL
+    payload = f"{email}:{nonce}:{ts}:{exp}"
     sig     = _sign(payload)
     return f"{payload}:{sig}"
 
 
 def _verify_session_token(token: str) -> Optional[str]:
-    """Return the email embedded in a valid token, otherwise None."""
+    """Return the email embedded in a valid, unexpired token, otherwise None."""
     try:
         idx = token.rfind(":")
         if idx < 0:
@@ -78,7 +286,12 @@ def _verify_session_token(token: str) -> Optional[str]:
         expected = _sign(payload)
         if not hmac.compare_digest(sig, expected):
             return None
-        email = payload.split(":")[0]
+        parts = payload.split(":")
+        if len(parts) < 4:
+            return None
+        email, _, _, exp = parts[0], parts[1], parts[2], parts[3]
+        if int(time.time()) > int(exp):
+            return None
         return email if email in _USERS else None
     except Exception:  # pragma: no cover – defensive catch-all
         return None
@@ -123,11 +336,13 @@ def login(email: str, password: str) -> str:
 
 def request_password_reset(email: str) -> str:
     """
-    Generate a password-reset token.  Always returns a token string so the
-    caller cannot determine whether the email address exists (anti-enum).
+    Generate a password-reset token.  Always returns a token string (or an
+    empty string when SMTP delivery is enabled) so the caller cannot determine
+    whether the email exists (anti-enumeration).
 
-    In production: do NOT return the token in the API response — email it
-    to the user as a link instead.
+    When KALA_SMTP_HOST is set the token is emailed to the user and an empty
+    string is returned; the API endpoint should omit the token from the response
+    in that case.
     """
     email = email.strip().lower()
     token = secrets.token_urlsafe(32)
@@ -136,6 +351,9 @@ def request_password_reset(email: str) -> str:
             "email":      email,
             "expires_at": int(time.time()) + _RESET_TTL,
         }
+        if SMTP_CONFIGURED:
+            _send_reset_email(email, token)
+            return ""   # token delivered by email; don't expose it in the response
     return token
 
 
@@ -148,8 +366,10 @@ def reset_password(reset_token: str, new_password: str) -> None:
         raise ValueError("Password must be at least 8 characters.")
     email = entry["email"]
     pw_hash, pw_salt = _hash_password(new_password)
-    _USERS[email]["pw_hash"] = pw_hash
-    _USERS[email]["pw_salt"] = pw_salt
+    user = dict(_USERS[email])
+    user["pw_hash"] = pw_hash
+    user["pw_salt"] = pw_salt
+    _USERS[email] = user       # triggers SQLite sync
     del _RESET_TOKENS[reset_token]
 
 
@@ -162,3 +382,35 @@ def get_user(token: str) -> Optional[dict]:
     if not user:
         return None
     return {"email": user["email"], "name": user["name"]}
+
+
+def update_profile(token: str, name: str) -> dict:
+    """Update the display name for the authenticated user."""
+    email = _verify_session_token(token)
+    if not email:
+        raise ValueError("Invalid or expired session token.")
+    name = name.strip()
+    if not name:
+        raise ValueError("Name must not be empty.")
+    user = dict(_USERS[email])
+    user["name"] = name
+    _USERS[email] = user       # triggers SQLite sync
+    return {"email": email, "name": name}
+
+
+def change_password(token: str, old_password: str, new_password: str) -> None:
+    """Change the password for the authenticated user."""
+    email = _verify_session_token(token)
+    if not email:
+        raise ValueError("Invalid or expired session token.")
+    user = _USERS[email]
+    dk, _ = _hash_password(old_password, user["pw_salt"])
+    if not hmac.compare_digest(dk, user["pw_hash"]):
+        raise ValueError("Current password is incorrect.")
+    if len(new_password) < 8:
+        raise ValueError("New password must be at least 8 characters.")
+    pw_hash, pw_salt = _hash_password(new_password)
+    updated = dict(user)
+    updated["pw_hash"] = pw_hash
+    updated["pw_salt"] = pw_salt
+    _USERS[email] = updated    # triggers SQLite sync

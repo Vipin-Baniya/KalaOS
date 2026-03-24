@@ -18,10 +18,14 @@ POST /temporal    – Phase 9 temporal meaning, ephemeral art, creative ancestry
 """
 
 import logging
+import os as _os
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, field_validator
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 from typing import Literal, Optional
 
 logger = logging.getLogger(__name__)
@@ -63,9 +67,16 @@ app = FastAPI(
     version="0.1.0",
 )
 
+# Rate limiter — keyed by client IP.  Limits are configurable via env vars
+# (useful for lowering limits in production or raising them in tests).
+_login_limit  = _os.environ.get("KALA_RATE_LIMIT_LOGIN",  "10/minute")
+_forgot_limit = _os.environ.get("KALA_RATE_LIMIT_FORGOT", "5/minute")
+limiter = Limiter(key_func=get_remote_address, default_limits=[])
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 # Allow all origins in development; restrict in production via the
 # KALA_CORS_ORIGINS environment variable (comma-separated list).
-import os as _os
 _cors_origins = _os.environ.get("KALA_CORS_ORIGINS", "*").split(",")
 app.add_middleware(
     CORSMiddleware,
@@ -783,6 +794,17 @@ class AuthResetRequest(BaseModel):
     new_password: str
 
 
+class AuthUpdateProfileRequest(BaseModel):
+    token: str
+    name: str
+
+
+class AuthChangePasswordRequest(BaseModel):
+    token: str
+    old_password: str
+    new_password: str
+
+
 @app.post("/auth/register", summary="Register a new artist account")
 def auth_register(request: AuthRegisterRequest):
     """Create a new user account.  Returns public user info on success."""
@@ -794,7 +816,8 @@ def auth_register(request: AuthRegisterRequest):
 
 
 @app.post("/auth/login", summary="Login and receive a session token")
-def auth_login(request: AuthLoginRequest):
+@limiter.limit(_login_limit)
+def auth_login(http_request: Request, request: AuthLoginRequest):
     """Validate credentials and return a signed session token."""
     try:
         token = auth_service.login(request.email, request.password)
@@ -805,18 +828,24 @@ def auth_login(request: AuthLoginRequest):
 
 
 @app.post("/auth/forgot-password", summary="Request a password-reset token")
-def auth_forgot(request: AuthForgotRequest):
+@limiter.limit(_forgot_limit)
+def auth_forgot(http_request: Request, request: AuthForgotRequest):
     """
-    Generate a password-reset token.  In production this token would be
-    emailed to the user; here it is returned directly for demo purposes.
+    Generate a password-reset token.  When KALA_SMTP_HOST is configured the
+    token is emailed and the response omits it (recommended for production).
     Always responds with success regardless of whether the email exists.
     """
     token = auth_service.request_password_reset(request.email)
-    return {
-        "success": True,
-        "reset_token": token,
-        "note": "In production this token would be emailed to you. Copy it and use /auth/reset-password.",
-    }
+    resp: dict = {"success": True}
+    if auth_service.SMTP_CONFIGURED:
+        resp["note"] = "If that email exists, a reset link has been sent."
+    else:
+        resp["reset_token"] = token
+        resp["note"] = (
+            "In production this token would be emailed to you. "
+            "Copy it and use /auth/reset-password."
+        )
+    return resp
 
 
 @app.post("/auth/reset-password", summary="Reset password using a reset token")
@@ -836,3 +865,25 @@ def auth_me(token: str):
     if not user:
         raise HTTPException(status_code=401, detail="Invalid or expired token.")
     return user
+
+
+@app.post("/auth/update-profile", summary="Update display name")
+def auth_update_profile(request: AuthUpdateProfileRequest):
+    """Update the display name for the authenticated user."""
+    try:
+        user = auth_service.update_profile(request.token, request.name)
+        return {"success": True, "user": user}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post("/auth/change-password", summary="Change password while logged in")
+def auth_change_password(request: AuthChangePasswordRequest):
+    """Change the password for the authenticated user."""
+    try:
+        auth_service.change_password(
+            request.token, request.old_password, request.new_password
+        )
+        return {"success": True}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))

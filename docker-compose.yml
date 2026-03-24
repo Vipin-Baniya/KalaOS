@@ -8,6 +8,19 @@ services:
       - "8000:8000"
     environment:
       - OLLAMA_HOST=http://ollama:11434
+      # Set a stable secret so session tokens survive restarts.
+      # Generate one with: python -c "import secrets; print(secrets.token_hex(32))"
+      - KALA_SECRET=${KALA_SECRET:-change-me-in-production}
+      # Restrict CORS to your frontend origin in production, e.g.:
+      # - KALA_CORS_ORIGINS=https://studio.example.com
+      - KALA_CORS_ORIGINS=${KALA_CORS_ORIGINS:-*}
+      # Optional: set KALA_SMTP_HOST and friends to enable email delivery
+      # - KALA_SMTP_HOST=smtp.sendgrid.net
+      # - KALA_SMTP_PORT=587
+      # - KALA_SMTP_USER=apikey
+      # - KALA_SMTP_PASS=your-sendgrid-api-key
+      # - KALA_SMTP_FROM=noreply@example.com
+      # - KALA_APP_URL=https://studio.example.com
     depends_on:
       ollama:
         condition: service_healthy
