@@ -11,11 +11,15 @@ POST /suggest     – domain-aware artist improvement suggestions
 POST /existential – Phase 1 existential layer + Phase 9 deep features
 POST /craft       – Phase 2 KalaCraft tools (phonetics, stress, meter, drift)
 POST /signal      – Phase 4 KalaSignal resonance analysis
+POST /compose     – Phase 3 KalaComposer musical structure + chord/tempo hints
+POST /flow        – Phase 5 KalaFlow distribution readiness + release metadata
+POST /custody     – Phase 6 KalaCustody artistic fingerprint + legacy record
+POST /temporal    – Phase 9 temporal meaning, ephemeral art, creative ancestry
 """
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, field_validator
-from typing import Literal
+from typing import Literal, Optional
 
 from kalacore.pattern_engine import analyze
 from kalacore.art_genome import build_art_genome
@@ -23,6 +27,10 @@ from kalacore.ethics import check_request
 from kalacore.existential import analyze_existential
 from kalacore.kalacraft import analyze_craft
 from kalacore.kalasignal import analyze_signal
+from kalacore.kalacomposer import compose
+from kalacore.kalaflow import flow
+from kalacore.kalacustody import custody, assess_artistic_lineage
+from kalacore.temporal import analyze_temporal
 from services.llm_service import generate_explanation, generate_suggestions, ART_DOMAINS
 
 # Build the domain Literal dynamically from ART_DOMAINS so there is
@@ -305,3 +313,250 @@ def signal(request: AnalyseRequest):
         raise HTTPException(status_code=500, detail=f"Signal analysis failed: {exc}")
 
     return SignalResponse(signal=signal_data, art_genome=genome.to_dict())
+
+
+# ---------------------------------------------------------------------------
+# Phase 3 KalaComposer
+# ---------------------------------------------------------------------------
+
+class ComposeRequest(BaseModel):
+    text: str
+
+    @field_validator("text")
+    @classmethod
+    def text_must_not_be_empty(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("text must not be empty")
+        return v
+
+
+class ComposeResponse(BaseModel):
+    composition: dict
+    art_genome: dict
+
+
+@app.post(
+    "/compose",
+    response_model=ComposeResponse,
+    summary="KalaComposer: musical structure, chord suggestions, tempo, arrangement (Phase 3)",
+)
+def compose_endpoint(request: ComposeRequest):
+    """
+    Composition pipeline:
+    Text → Ethics check → KalaCore → ArtGenome → KalaComposer musical suggestions
+
+    All musical suggestions are optional starting points for the artist.
+    """
+    violations = check_request(request.text)
+    if violations:
+        raise HTTPException(
+            status_code=422,
+            detail=[{"code": v.code, "message": v.message} for v in violations],
+        )
+    try:
+        analysis = analyze(request.text)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Pattern analysis failed: {exc}")
+
+    try:
+        genome = build_art_genome(analysis)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"ArtGenome build failed: {exc}")
+
+    try:
+        composition_data = compose(request.text, analysis, genome.to_dict())
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Composition analysis failed: {exc}")
+
+    return ComposeResponse(composition=composition_data, art_genome=genome.to_dict())
+
+
+# ---------------------------------------------------------------------------
+# Phase 5 KalaFlow
+# ---------------------------------------------------------------------------
+
+class FlowRequest(BaseModel):
+    text: str
+
+    @field_validator("text")
+    @classmethod
+    def text_must_not_be_empty(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("text must not be empty")
+        return v
+
+
+class FlowResponse(BaseModel):
+    flow: dict
+    art_genome: dict
+
+
+@app.post(
+    "/flow",
+    response_model=FlowResponse,
+    summary="KalaFlow: distribution readiness, release metadata, listener journey (Phase 5)",
+)
+def flow_endpoint(request: FlowRequest):
+    """
+    Flow pipeline:
+    Text → Ethics check → KalaCore → ArtGenome → Existential → KalaFlow
+
+    All distribution suggestions are artist-editable and optional.
+    """
+    violations = check_request(request.text)
+    if violations:
+        raise HTTPException(
+            status_code=422,
+            detail=[{"code": v.code, "message": v.message} for v in violations],
+        )
+    try:
+        analysis = analyze(request.text)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Pattern analysis failed: {exc}")
+
+    try:
+        genome = build_art_genome(analysis)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"ArtGenome build failed: {exc}")
+
+    try:
+        existential_data = analyze_existential(request.text, analysis)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Existential analysis failed: {exc}")
+
+    try:
+        flow_data = flow(request.text, analysis, genome.to_dict(), existential_data)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Flow analysis failed: {exc}")
+
+    return FlowResponse(flow=flow_data, art_genome=genome.to_dict())
+
+
+# ---------------------------------------------------------------------------
+# Phase 6 KalaCustody
+# ---------------------------------------------------------------------------
+
+class CustodyRequest(BaseModel):
+    text: str
+    artist_name: Optional[str] = None
+    creation_context: Optional[str] = None
+
+    @field_validator("text")
+    @classmethod
+    def text_must_not_be_empty(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("text must not be empty")
+        return v
+
+
+class CustodyResponse(BaseModel):
+    custody: dict
+    art_genome: dict
+
+
+@app.post(
+    "/custody",
+    response_model=CustodyResponse,
+    summary="KalaCustody: artistic fingerprint, custody record, lineage, legacy (Phase 6)",
+)
+def custody_endpoint(request: CustodyRequest):
+    """
+    Custody pipeline:
+    Text → Ethics check → KalaCore → ArtGenome → Existential → KalaCustody
+
+    The custody record belongs to the artist. KalaOS does not retain it.
+    """
+    violations = check_request(request.text)
+    if violations:
+        raise HTTPException(
+            status_code=422,
+            detail=[{"code": v.code, "message": v.message} for v in violations],
+        )
+    try:
+        analysis = analyze(request.text)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Pattern analysis failed: {exc}")
+
+    try:
+        genome = build_art_genome(analysis)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"ArtGenome build failed: {exc}")
+
+    try:
+        existential_data = analyze_existential(request.text, analysis)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Existential analysis failed: {exc}")
+
+    try:
+        custody_data = custody(
+            request.text,
+            analysis,
+            genome.to_dict(),
+            existential_data,
+            artist_name=request.artist_name,
+            creation_context=request.creation_context,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Custody analysis failed: {exc}")
+
+    return CustodyResponse(custody=custody_data, art_genome=genome.to_dict())
+
+
+# ---------------------------------------------------------------------------
+# Phase 9 Temporal Intelligence
+# ---------------------------------------------------------------------------
+
+class TemporalResponse(BaseModel):
+    temporal: dict
+    art_genome: dict
+
+
+@app.post(
+    "/temporal",
+    response_model=TemporalResponse,
+    summary="Phase 9 temporal: meaning across time, ephemeral art, creative ancestry, preservation",
+)
+def temporal_endpoint(request: AnalyseRequest):
+    """
+    Temporal pipeline:
+    Text → Ethics check → KalaCore → ArtGenome → Existential → Custody lineage → Temporal
+
+    Explores how this piece exists across time, its creative ancestry,
+    and its cultural preservation record.
+    """
+    violations = check_request(request.text)
+    if violations:
+        raise HTTPException(
+            status_code=422,
+            detail=[{"code": v.code, "message": v.message} for v in violations],
+        )
+    try:
+        analysis = analyze(request.text)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Pattern analysis failed: {exc}")
+
+    try:
+        genome = build_art_genome(analysis)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"ArtGenome build failed: {exc}")
+
+    try:
+        existential_data = analyze_existential(request.text, analysis)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Existential analysis failed: {exc}")
+
+    try:
+        raw_lines = request.text.splitlines()
+        lines = [l for l in raw_lines if l.strip()]
+        lineage_data = assess_artistic_lineage(lines, analysis, genome.to_dict())
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Lineage analysis failed: {exc}")
+
+    try:
+        temporal_data = analyze_temporal(
+            request.text, analysis, genome.to_dict(), existential_data, lineage_data
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Temporal analysis failed: {exc}")
+
+    return TemporalResponse(temporal=temporal_data, art_genome=genome.to_dict())
