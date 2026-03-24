@@ -6,12 +6,16 @@
  * All results are rendered in-page; no data is sent anywhere else.
  *
  * No build step required — plain ES2020 JavaScript.
+ *
+ * To point the UI at a different backend, set the global before this script
+ * loads:
+ *   <script>window.KALA_API_BASE = "https://your-backend.example.com";</script>
  */
 
 /* ──────────────────────────────────────────────
    Configuration
 ────────────────────────────────────────────── */
-const API_BASE = "http://localhost:8000";
+const API_BASE = (typeof window !== "undefined" && window.KALA_API_BASE) || "http://localhost:8000";
 
 /* ──────────────────────────────────────────────
    State

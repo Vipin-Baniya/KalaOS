@@ -1,8 +1,9 @@
 """
 LLM Service – Ollama Integration
 ---------------------------------
-Connects to a locally running Ollama instance (http://localhost:11434)
-and generates respectful, insightful explanations of artistic patterns
+Connects to a locally running Ollama instance (http://localhost:11434 by
+default; override with the ``OLLAMA_HOST`` environment variable) and
+generates respectful, insightful explanations of artistic patterns
 detected by KalaCore.
 
 Requires Ollama to be running locally with a model pulled.
@@ -18,6 +19,7 @@ generate_deep_narrative(all_data, model)        – Phase 8 unified narrative
 
 import json
 import logging
+import os
 import urllib.request
 import urllib.error
 from typing import Any, Dict
@@ -25,7 +27,7 @@ from typing import Any, Dict
 logger = logging.getLogger(__name__)
 
 
-OLLAMA_BASE_URL = "http://localhost:11434"
+OLLAMA_BASE_URL = os.environ.get("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
 DEFAULT_MODEL = "llama3"
 
 # Timeout constants (seconds) — explanation is faster; suggestions / deep narrative need more time
