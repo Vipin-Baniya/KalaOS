@@ -352,6 +352,103 @@ function handleLogout() {
   showAuth();
 }
 
+/* ══════════════════════════════════════════════
+   PROFILE MODAL
+══════════════════════════════════════════════ */
+
+function showProfileModal() {
+  const overlay = el("profileModalOverlay");
+  if (!overlay) return;
+  // Pre-fill name
+  if (_currentUser) {
+    const nameInput = el("profileName");
+    if (nameInput) nameInput.value = _currentUser.name || "";
+  }
+  // Clear messages
+  ["profileError", "profileSuccess"].forEach(id => {
+    const e = el(id);
+    if (e) { e.textContent = ""; e.classList.add("hidden"); }
+  });
+  el("profileOldPass").value = "";
+  el("profileNewPass").value = "";
+  overlay.classList.remove("hidden");
+}
+
+function hideProfileModal() {
+  const overlay = el("profileModalOverlay");
+  if (overlay) overlay.classList.add("hidden");
+}
+
+function _setProfileMessage(id, msg, isError) {
+  const e = el(id);
+  if (!e) return;
+  e.textContent = msg;
+  e.classList.toggle("hidden", !msg);
+  e.className = "auth-alert " + (isError ? "auth-error" : "auth-success") + (msg ? "" : " hidden");
+}
+
+async function handleUpdateProfile() {
+  const btn  = el("profileSaveBtn");
+  const name = el("profileName").value.trim();
+  _setProfileMessage("profileError",   "", true);
+  _setProfileMessage("profileSuccess", "", false);
+  if (!name) {
+    _setProfileMessage("profileError", "Name must not be empty.", true);
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = "Saving…";
+  try {
+    const resp = await fetch(`${API_BASE}/auth/update-profile`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: _authToken, name }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.detail || "Update failed.");
+    _currentUser = data.user;
+    _saveSession(_authToken, _currentUser);
+    _updateUserUI();
+    _setProfileMessage("profileSuccess", "Name updated successfully.", false);
+  } catch (err) {
+    _setProfileMessage("profileError", err.message, true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Save Name";
+  }
+}
+
+async function handleChangePassword() {
+  const btn     = el("profilePassBtn");
+  const oldPass = el("profileOldPass").value;
+  const newPass = el("profileNewPass").value;
+  _setProfileMessage("profileError",   "", true);
+  _setProfileMessage("profileSuccess", "", false);
+  if (!oldPass || !newPass) {
+    _setProfileMessage("profileError", "Please enter both current and new password.", true);
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = "Changing…";
+  try {
+    const resp = await fetch(`${API_BASE}/auth/change-password`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: _authToken, old_password: oldPass, new_password: newPass }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.detail || "Password change failed.");
+    _setProfileMessage("profileSuccess", "Password changed successfully.", false);
+    el("profileOldPass").value = "";
+    el("profileNewPass").value = "";
+  } catch (err) {
+    _setProfileMessage("profileError", err.message, true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Change Password";
+  }
+}
+
 function continueAsGuest() {
   _saveSession(null, null);
   _currentUser = null;

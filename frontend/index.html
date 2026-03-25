@@ -229,6 +229,7 @@
               <span id="dropdownEmail" class="user-email-hint"></span>
             </div>
             <hr class="dropdown-divider" />
+            <button onclick="showProfileModal(); hide('userDropdown'); el('userMenuBtn').setAttribute('aria-expanded','false');" class="dropdown-item" role="menuitem">Edit Profile</button>
             <button onclick="handleLogout()" class="dropdown-item danger" role="menuitem">Sign Out</button>
           </div>
         </div>
@@ -371,6 +372,47 @@
   <footer class="app-footer" role="contentinfo">
     <p>KalaOS &#8212; AI-native art platform. Art understanding without judgment. Artist dignity by design.</p>
   </footer>
+
+  <!-- Profile Modal -->
+  <div id="profileModalOverlay" class="auth-overlay hidden" role="dialog" aria-modal="true" aria-label="Edit profile">
+    <div class="auth-card" style="max-width:420px;width:100%">
+      <div class="auth-logo">
+        <span class="logo-mark">K</span>
+        <span class="auth-logo-text">KalaOS<span class="auth-logo-sub"> Studio</span></span>
+      </div>
+      <h1 class="auth-title">Edit Profile</h1>
+      <div id="profileError"   class="auth-alert auth-error   hidden" role="alert"></div>
+      <div id="profileSuccess" class="auth-alert auth-success hidden" role="status"></div>
+
+      <fieldset style="border:none;padding:0;margin:0 0 1.2rem">
+        <legend style="font-weight:600;font-size:.9rem;color:var(--text-dim);margin-bottom:.6rem">Display name</legend>
+        <div class="form-group" style="margin-bottom:.6rem">
+          <label for="profileName">Name</label>
+          <input type="text" id="profileName" placeholder="Your display name" autocomplete="name" />
+        </div>
+        <button class="btn-primary btn-full" id="profileSaveBtn" onclick="handleUpdateProfile()">Save Name</button>
+      </fieldset>
+
+      <hr class="dropdown-divider" style="margin:1rem 0" />
+
+      <fieldset style="border:none;padding:0;margin:0">
+        <legend style="font-weight:600;font-size:.9rem;color:var(--text-dim);margin-bottom:.6rem">Change password</legend>
+        <div class="form-group">
+          <label for="profileOldPass">Current password</label>
+          <input type="password" id="profileOldPass" placeholder="••••••••" autocomplete="current-password" />
+        </div>
+        <div class="form-group">
+          <label for="profileNewPass">New password <span class="field-hint">(min. 8 characters)</span></label>
+          <input type="password" id="profileNewPass" placeholder="••••••••" autocomplete="new-password" />
+        </div>
+        <button class="btn-primary btn-full" id="profilePassBtn" onclick="handleChangePassword()">Change Password</button>
+      </fieldset>
+
+      <div class="auth-links" style="margin-top:1rem;text-align:center">
+        <a href="#" onclick="hideProfileModal(); return false;">&#8592; Close</a>
+      </div>
+    </div>
+  </div>
 
 </div>
 

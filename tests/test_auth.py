@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 
 
 # ---------------------------------------------------------------------------
-# Helpers — reload auth_service between tests so the in-memory store is fresh
+# Helpers — clear auth_service state between tests
 # ---------------------------------------------------------------------------
 
 def _fresh_client():
@@ -24,12 +24,13 @@ def _fresh_client():
 
 @pytest.fixture(autouse=True)
 def fresh_auth():
-    """Reload auth_service before every test."""
-    for mod in list(sys.modules.keys()):
-        if "auth_service" in mod:
-            del sys.modules[mod]
-    # Re-import auth_service in the already-loaded main module
-    import services.auth_service as auth_svc
+    """Clear auth_service state before (and after) every test.
+
+    We clear the module that *main* actually holds a reference to rather than
+    a freshly re-imported copy, so that endpoint handlers pick up the clean slate.
+    """
+    import main as _main
+    auth_svc = _main.auth_service
     auth_svc._USERS.clear()
     auth_svc._RESET_TOKENS.clear()
     yield
@@ -41,7 +42,6 @@ def fresh_auth():
 def client():
     from main import app
     return TestClient(app)
-
 
 # ---------------------------------------------------------------------------
 # Register
@@ -253,3 +253,171 @@ class TestMe:
     def test_me_invalid_token(self, client):
         resp = client.get("/auth/me?token=bogus")
         assert resp.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# Session expiry
+# ---------------------------------------------------------------------------
+
+class TestSessionExpiry:
+    def _register_and_login(self, client):
+        client.post("/auth/register", json={
+            "email": "exp@example.com",
+            "password": "password123",
+            "name": "Exp",
+        })
+        resp = client.post("/auth/login", json={
+            "email": "exp@example.com",
+            "password": "password123",
+        })
+        return resp.json()["token"]
+
+    def test_valid_token_accepted(self, client):
+        token = self._register_and_login(client)
+        resp = client.get(f"/auth/me?token={token}")
+        assert resp.status_code == 200
+
+    def test_expired_token_rejected(self, client):
+        import services.auth_service as auth_svc
+        import time as _time
+        token = self._register_and_login(client)
+        # Rewrite expiry to the past by monkeypatching time inside the token
+        # Instead, forge a token whose exp field is in the past.
+        parts = token.rsplit(":", 1)          # split off signature
+        payload = parts[0]
+        fields = payload.split(":")           # [email, nonce, ts, exp]
+        fields[3] = str(int(_time.time()) - 1)  # exp = 1 second ago
+        bad_payload = ":".join(fields)
+        bad_sig = auth_svc._sign(bad_payload)
+        expired_token = f"{bad_payload}:{bad_sig}"
+        resp = client.get(f"/auth/me?token={expired_token}")
+        assert resp.status_code == 401
+
+    def test_tampered_token_rejected(self, client):
+        token = self._register_and_login(client)
+        # Flip last character of signature
+        bad = token[:-1] + ("0" if token[-1] != "0" else "1")
+        resp = client.get(f"/auth/me?token={bad}")
+        assert resp.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# /auth/update-profile
+# ---------------------------------------------------------------------------
+
+class TestUpdateProfile:
+    def _setup(self, client):
+        client.post("/auth/register", json={
+            "email": "profile@example.com",
+            "password": "password123",
+            "name": "Old Name",
+        })
+        resp = client.post("/auth/login", json={
+            "email": "profile@example.com",
+            "password": "password123",
+        })
+        return resp.json()["token"]
+
+    def test_update_name_success(self, client):
+        token = self._setup(client)
+        resp = client.post("/auth/update-profile", json={"token": token, "name": "New Name"})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["success"] is True
+        assert data["user"]["name"] == "New Name"
+
+    def test_update_name_reflected_in_me(self, client):
+        token = self._setup(client)
+        client.post("/auth/update-profile", json={"token": token, "name": "Updated"})
+        resp = client.get(f"/auth/me?token={token}")
+        assert resp.json()["name"] == "Updated"
+
+    def test_update_empty_name_rejected(self, client):
+        token = self._setup(client)
+        resp = client.post("/auth/update-profile", json={"token": token, "name": "   "})
+        assert resp.status_code == 400
+
+    def test_update_invalid_token_rejected(self, client):
+        resp = client.post("/auth/update-profile", json={"token": "bogus", "name": "X"})
+        assert resp.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# /auth/change-password
+# ---------------------------------------------------------------------------
+
+class TestChangePassword:
+    def _setup(self, client):
+        client.post("/auth/register", json={
+            "email": "chpass@example.com",
+            "password": "oldpassword1",
+            "name": "User",
+        })
+        resp = client.post("/auth/login", json={
+            "email": "chpass@example.com",
+            "password": "oldpassword1",
+        })
+        return resp.json()["token"]
+
+    def test_change_password_success(self, client):
+        token = self._setup(client)
+        resp = client.post("/auth/change-password", json={
+            "token": token,
+            "old_password": "oldpassword1",
+            "new_password": "newpassword2",
+        })
+        assert resp.status_code == 200
+        assert resp.json()["success"] is True
+
+    def test_new_password_works_for_login(self, client):
+        token = self._setup(client)
+        client.post("/auth/change-password", json={
+            "token": token,
+            "old_password": "oldpassword1",
+            "new_password": "newpassword2",
+        })
+        resp = client.post("/auth/login", json={
+            "email": "chpass@example.com",
+            "password": "newpassword2",
+        })
+        assert resp.status_code == 200
+
+    def test_old_password_rejected_after_change(self, client):
+        token = self._setup(client)
+        client.post("/auth/change-password", json={
+            "token": token,
+            "old_password": "oldpassword1",
+            "new_password": "newpassword2",
+        })
+        resp = client.post("/auth/login", json={
+            "email": "chpass@example.com",
+            "password": "oldpassword1",
+        })
+        assert resp.status_code == 401
+
+    def test_wrong_old_password_rejected(self, client):
+        token = self._setup(client)
+        resp = client.post("/auth/change-password", json={
+            "token": token,
+            "old_password": "wrongpassword",
+            "new_password": "newpassword2",
+        })
+        assert resp.status_code == 400
+        assert "incorrect" in resp.json()["detail"]
+
+    def test_new_password_too_short_rejected(self, client):
+        token = self._setup(client)
+        resp = client.post("/auth/change-password", json={
+            "token": token,
+            "old_password": "oldpassword1",
+            "new_password": "short",
+        })
+        assert resp.status_code == 400
+
+    def test_invalid_token_rejected(self, client):
+        resp = client.post("/auth/change-password", json={
+            "token": "bogus",
+            "old_password": "anything",
+            "new_password": "newpassword2",
+        })
+        assert resp.status_code == 400
