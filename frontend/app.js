@@ -1587,3 +1587,304 @@ function renderVisualAnalysis(d) {
       ${compCard}${styleCard}${emoCard}${colourCard}${preserveCard}
     </div>`;
 }
+
+
+/* ════════════════════════════════════════════════════════════════════
+   MUSIC STUDIO  🎵  (Phase 12 – KalaProducer)
+════════════════════════════════════════════════════════════════════ */
+
+// ── Studio switcher update ───────────────────────────────────────────────
+// Wrap the original switchStudio to handle the music tab.
+(function () {
+  const _origSwitchStudio = switchStudio;
+  switchStudio = function (mode) {
+    const musicStudio = el("musicStudio");
+    const musicBtn    = el("musicStudioBtn");
+    if (musicStudio) {
+      if (mode === "music") {
+        // Hide other studios
+        const textStudio   = el("textStudio");
+        const visualStudio = el("visualStudio");
+        const textBtn      = el("textStudioBtn");
+        const visualBtn    = el("visualStudioBtn");
+        if (textStudio)   textStudio.style.display   = "none";
+        if (visualStudio) visualStudio.style.display = "none";
+        if (textBtn)      textBtn.classList.remove("active");
+        if (visualBtn)    visualBtn.classList.remove("active");
+        musicStudio.style.display = "block";
+        musicBtn.classList.add("active");
+        return;
+      } else {
+        musicStudio.style.display = "none";
+        if (musicBtn) musicBtn.classList.remove("active");
+      }
+    }
+    _origSwitchStudio(mode);
+  };
+})();
+
+// ── Music Studio helpers ─────────────────────────────────────────────────
+function setMusicStatus(msg, isErr) {
+  const s = el("musicStatusMsg");
+  if (!s) return;
+  s.textContent = msg;
+  s.style.color = isErr ? "var(--negative, #e23270)" : "var(--text-muted)";
+}
+
+function clearMusicStudio() {
+  if (el("musicText"))       el("musicText").value = "";
+  if (el("musicArtistName")) el("musicArtistName").value = "";
+  hide("musicResultsPanel");
+  setMusicStatus("");
+}
+
+// ── Music Tab switcher ───────────────────────────────────────────────────
+function switchMusicTab(tabId) {
+  document.querySelectorAll(".tab[data-mtab]").forEach(t => {
+    const active = t.dataset.mtab === tabId;
+    t.classList.toggle("active", active);
+    t.setAttribute("aria-selected", String(active));
+  });
+  document.querySelectorAll("#musicStudio .tab-pane").forEach(p => {
+    p.classList.toggle("hidden", p.id !== `mtab-${tabId}`);
+    p.classList.toggle("active", p.id === `mtab-${tabId}`);
+  });
+}
+
+// ── Produce API call ──────────────────────────────────────────────────────
+async function runProduce() {
+  const text = el("musicText") && el("musicText").value.trim();
+  if (!text) { setMusicStatus("Please enter some lyrics or text first.", true); return; }
+
+  const artistName = el("musicArtistName") && el("musicArtistName").value.trim() || null;
+
+  setMusicStatus("Producing…");
+  el("produceBtn").disabled = true;
+
+  try {
+    const resp = await fetch(`${API_BASE}/produce`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, artist_name: artistName }),
+    });
+
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ detail: resp.statusText }));
+      const msg = Array.isArray(err.detail)
+        ? err.detail.map(d => d.message || d.msg || JSON.stringify(d)).join("; ")
+        : (err.detail || "Unknown error");
+      throw new Error(msg);
+    }
+
+    const data = await resp.json();
+    renderProduceResults(data);
+    setMusicStatus("");
+    show("musicResultsPanel");
+    switchMusicTab("production");
+
+  } catch (err) {
+    setMusicStatus("Error: " + err.message, true);
+  } finally {
+    el("produceBtn").disabled = false;
+  }
+}
+
+// ── Render all produce sections ───────────────────────────────────────────
+function renderProduceResults(data) {
+  renderProductionPlan(data.production_plan || {});
+  renderBeatPattern(data.beat_pattern || {});
+  renderInstruments(data.instruments || {});
+  renderMelodyContour(data.melody_contour || {});
+  renderDistribution(data.distribution || {});
+  renderStreamingMetadata(data.streaming_metadata || {});
+  renderSamplePalette(data.sample_palette || {});
+}
+
+// ── 1. Production Plan ───────────────────────────────────────────────────
+function renderProductionPlan(plan) {
+  const bpm = Array.isArray(plan.suggested_bpm_range) ? plan.suggested_bpm_range : ["-", "-"];
+  elDl("prodBpm", [
+    ["BPM Range", `${bpm[0]} – ${bpm[1]}`],
+    ["Suggested Key", plan.suggested_key || "—"],
+    ["Time Signature", plan.time_signature || "—"],
+    ["Master Loudness", plan.mastering_target_lufs !== undefined ? `${plan.mastering_target_lufs} LUFS` : "—"],
+  ]);
+
+  const genreEl = el("prodGenre");
+  if (genreEl && Array.isArray(plan.genre_palette)) {
+    genreEl.innerHTML = plan.genre_palette.map(g =>
+      `<span class="tag">${esc(g)}</span>`
+    ).join("");
+  }
+
+  const styleEl = el("prodStyle");
+  if (styleEl) styleEl.textContent = plan.production_style || "";
+
+  elList("prodMixing", plan.mixing_notes);
+  elList("prodNotes", plan.production_notes);
+}
+
+// ── 2. Beat Pattern ──────────────────────────────────────────────────────
+function renderBeatPattern(bp) {
+  const nameEl = el("beatPatternName");
+  if (nameEl) nameEl.textContent = `${bp.pattern_name || "—"} beat grid`;
+
+  const gridEl = el("beatGrid");
+  if (gridEl) {
+    const rows = [
+      { label: "Kick",  steps: bp.kick  || "" },
+      { label: "Snare", steps: bp.snare || "" },
+      { label: "Hi-Hat",steps: bp.hihat || "" },
+    ];
+    gridEl.innerHTML = rows.map(row => {
+      const cells = row.steps.split(" ").map(s => {
+        const cls = s === "X" ? "step hit-kick"
+                  : s === "x" ? "step hit-hat"
+                  : s === "." ? "step rest"
+                  : "step";
+        return `<div class="${cls}" title="${esc(s)}"></div>`;
+      }).join("");
+      return `<div class="beat-row"><span class="beat-label">${esc(row.label)}</span><div class="beat-steps">${cells}</div></div>`;
+    }).join("");
+  }
+
+  const noteEl = el("beatPatternNote");
+  if (noteEl) noteEl.textContent = bp.pattern_note || "";
+
+  const velEl = el("beatVelocity");
+  if (velEl) velEl.textContent = bp.velocity_hint || "";
+
+  const humanEl = el("beatHumanise");
+  if (humanEl) humanEl.textContent = bp.humanise_tip || "";
+}
+
+// ── 3. Instruments ───────────────────────────────────────────────────────
+function renderInstruments(instr) {
+  elList("instrPrimary", instr.primary_instruments);
+  elList("instrTexture", instr.texture_instruments);
+  const lEl = el("instrLayering");
+  if (lEl) lEl.textContent = instr.layering_hint || "";
+  const aEl = el("instrAvoid");
+  if (aEl) aEl.textContent = instr.avoid_note ? `Avoid: ${instr.avoid_note}` : "";
+}
+
+// ── 4. Melody Contour ────────────────────────────────────────────────────
+function renderMelodyContour(mc) {
+  elDl("melodyScale", [
+    ["Scale Family", mc.scale_quality || "—"],
+    ["Scale Degrees", Array.isArray(mc.scale_degrees) ? mc.scale_degrees.join(" · ") : "—"],
+  ]);
+
+  const cEl = el("melodyContour");
+  if (cEl) cEl.textContent = mc.contour_description || "";
+
+  const phrasesEl = el("melodyPhrases");
+  if (phrasesEl && Array.isArray(mc.phrase_suggestions)) {
+    phrasesEl.innerHTML = mc.phrase_suggestions.map(p => `
+      <div class="phrase-row">
+        <span class="phrase-preview">${esc(p.line_preview || "")}</span>
+        <span class="phrase-syl">(${p.syllable_count || 0} syl)</span>
+        <span class="phrase-dir">${esc(p.melodic_direction || "")}</span>
+      </div>
+    `).join("");
+  }
+
+  elList("melodyOrnamentation", mc.ornamentation_tips);
+}
+
+// ── 5. Distribution ──────────────────────────────────────────────────────
+function renderDistribution(dist) {
+  const platEl = el("distPlatforms");
+  if (platEl && Array.isArray(dist.recommended_platforms)) {
+    platEl.innerHTML = dist.recommended_platforms.map(p => `
+      <div class="dist-card">
+        <div class="dist-name">${esc(p.platform || "—")}</div>
+        <div class="dist-reach">🌍 ${esc(p.reach || "—")}</div>
+        <div class="dist-notes">${esc(p.notes || "")}</div>
+        <div class="dist-lufs">Target: ${p.loudness_target_lufs} LUFS</div>
+      </div>
+    `).join("");
+  }
+
+  const svcEl = el("distServices");
+  if (svcEl && Array.isArray(dist.distribution_services)) {
+    svcEl.innerHTML = `<table class="dist-table">
+      <thead><tr><th>Service</th><th>Model</th><th>Royalties</th><th>Notes</th></tr></thead>
+      <tbody>
+        ${dist.distribution_services.map(s => `
+          <tr>
+            <td><strong>${esc(s.name)}</strong></td>
+            <td>${esc(s.model)}</td>
+            <td>${esc(s.keep_royalties)}</td>
+            <td>${esc(s.notes)}</td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>`;
+  }
+
+  elList("distStrategy", dist.release_strategy_tips);
+
+  const rightsEl = el("distRights");
+  if (rightsEl) rightsEl.textContent = dist.rights_reminder || "";
+}
+
+// ── 6. Streaming Metadata ────────────────────────────────────────────────
+function renderStreamingMetadata(meta) {
+  const twEl = el("streamTitleWords");
+  if (twEl && Array.isArray(meta.suggested_title_words)) {
+    twEl.innerHTML = meta.suggested_title_words.map(w =>
+      `<span class="tag tag-title">${esc(w)}</span>`
+    ).join("");
+  }
+
+  elDl("streamTags", [
+    ["Genre Tags", meta.genre_tags || "—"],
+    ["Mood Tags",  Array.isArray(meta.mood_tags) ? meta.mood_tags.join(", ") : "—"],
+  ]);
+
+  const loudEl = el("streamLoudness");
+  if (loudEl && Array.isArray(meta.loudness_targets)) {
+    loudEl.innerHTML = meta.loudness_targets.map(lt =>
+      `<div class="loudness-row"><span class="loudness-plat">${esc(lt.platform)}</span><span class="loudness-val">${lt.target_lufs} LUFS</span></div>`
+    ).join("");
+  }
+
+  const fmtEl = el("streamFormat");
+  if (fmtEl) fmtEl.textContent = meta.audio_format_note || "";
+
+  const isrcEl = el("streamIsrc");
+  if (isrcEl) isrcEl.textContent = meta.isrc_note || "";
+
+  const ckEl = el("streamChecklist");
+  if (ckEl && Array.isArray(meta.release_checklist)) {
+    ckEl.innerHTML = meta.release_checklist.map(item =>
+      `<li>${esc(item)}</li>`
+    ).join("");
+  }
+}
+
+// ── 7. Sample Palette ────────────────────────────────────────────────────
+function renderSamplePalette(sp) {
+  elList("sampleCategories", sp.sample_categories);
+  elList("sampleTextures", sp.texture_suggestions);
+  elList("sampleCrateDigging", sp.crate_digging_tips);
+  const cEl = el("sampleClearance");
+  if (cEl) cEl.textContent = sp.clearance_reminder || "";
+}
+
+// ── Utility: populate a <dl> with pairs ──────────────────────────────────
+function elDl(id, pairs) {
+  const dlEl = el(id);
+  if (!dlEl) return;
+  dlEl.innerHTML = pairs.map(([k, v]) =>
+    `<dt>${esc(String(k))}</dt><dd>${esc(String(v))}</dd>`
+  ).join("");
+}
+
+// ── Utility: populate a <ul> from an array ───────────────────────────────
+function elList(id, arr) {
+  const ulEl = el(id);
+  if (!ulEl || !Array.isArray(arr)) return;
+  ulEl.innerHTML = arr.map(item => `<li>${esc(String(item))}</li>`).join("");
+}

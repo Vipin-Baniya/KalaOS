@@ -14,6 +14,7 @@ from .kalaflow       import flow
 from .kalacustody    import custody
 from .temporal       import analyze_temporal
 from .kalavisual     import analyze_visual
+from .kalaproducer   import produce
 
 __all__ = [
     "analyze",
@@ -27,4 +28,5 @@ __all__ = [
     "custody",
     "analyze_temporal",
     "analyze_visual",
+    "produce",
 ]

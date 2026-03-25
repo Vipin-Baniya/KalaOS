@@ -41,6 +41,7 @@ from kalacore.kalaflow import flow
 from kalacore.kalacustody import custody, assess_artistic_lineage
 from kalacore.temporal import analyze_temporal
 from kalacore.kalavisual import analyze_visual
+from kalacore.kalaproducer import produce
 from services.llm_service import (
     generate_explanation,
     generate_suggestions,
@@ -774,6 +775,89 @@ def models():
     Returns an empty list (not an error) if Ollama is not running.
     """
     return {"models": list_available_models()}
+
+
+# ---------------------------------------------------------------------------
+# Phase 12 – KalaProducer: Music Production, Generation, Distribution & Streaming
+# ---------------------------------------------------------------------------
+
+
+class ProduceRequest(BaseModel):
+    text: str
+    artist_name: Optional[str] = None
+
+    @field_validator("text")
+    @classmethod
+    def text_must_not_be_empty(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("text must not be empty")
+        return v
+
+
+class ProduceResponse(BaseModel):
+    production_plan:    dict
+    beat_pattern:       dict
+    instruments:        dict
+    melody_contour:     dict
+    distribution:       dict
+    streaming_metadata: dict
+    sample_palette:     dict
+    art_genome:         dict
+
+
+@app.post(
+    "/produce",
+    response_model=ProduceResponse,
+    summary="Phase 12 KalaProducer: music production plan, beat, melody, distribution & streaming",
+)
+def produce_endpoint(request: ProduceRequest):
+    """
+    Music production pipeline.
+
+    Text → Ethics check → KalaCore → ArtGenome →
+    KalaProducer (production plan + beat pattern + instruments +
+    melody contour + distribution channels + streaming metadata +
+    sample palette)
+
+    All results are artist-facing suggestions — not prescriptions.
+    """
+    violations = check_request(request.text)
+    if violations:
+        raise HTTPException(
+            status_code=422,
+            detail=[{"code": v.code, "message": v.message} for v in violations],
+        )
+
+    try:
+        analysis = analyze(request.text)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Pattern analysis failed: {exc}")
+
+    try:
+        genome = build_art_genome(analysis)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"ArtGenome build failed: {exc}")
+
+    try:
+        producer_data = produce(
+            request.text,
+            analysis,
+            genome.to_dict(),
+            artist_name=request.artist_name,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Production analysis failed: {exc}")
+
+    return ProduceResponse(
+        production_plan=producer_data["production_plan"],
+        beat_pattern=producer_data["beat_pattern"],
+        instruments=producer_data["instruments"],
+        melody_contour=producer_data["melody_contour"],
+        distribution=producer_data["distribution"],
+        streaming_metadata=producer_data["streaming_metadata"],
+        sample_palette=producer_data["sample_palette"],
+        art_genome=genome.to_dict(),
+    )
 
 
 # ---------------------------------------------------------------------------
