@@ -1,0 +1,28 @@
+{
+  "appId": "com.kalaos.studio",
+  "appName": "KalaOS Studio",
+  "webDir": "frontend",
+  "server": {
+    "androidScheme": "https",
+    "cleartext": false
+  },
+  "ios": {
+    "scheme": "KalaOS",
+    "backgroundColor": "#0a0b14"
+  },
+  "android": {
+    "backgroundColor": "#0a0b14"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 1500,
+      "backgroundColor": "#0a0b14",
+      "androidScaleType": "CENTER_CROP",
+      "showSpinner": false
+    },
+    "StatusBar": {
+      "style": "Dark",
+      "backgroundColor": "#0a0b14"
+    }
+  }
+}

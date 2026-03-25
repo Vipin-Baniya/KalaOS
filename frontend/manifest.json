@@ -1,0 +1,35 @@
+{
+  "name": "KalaOS Studio",
+  "short_name": "KalaOS",
+  "description": "AI-native art platform — creation, analysis, and dignity for artists.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0a0b14",
+  "theme_color": "#7c5af1",
+  "orientation": "any",
+  "lang": "en-US",
+  "categories": ["productivity", "music", "entertainment"],
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Analyse My Art",
+      "short_name": "Analyse",
+      "description": "Run a deep analysis on your art",
+      "url": "./?action=analyse"
+    }
+  ]
+}
