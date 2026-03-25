@@ -1580,3 +1580,165 @@ dd.value-negative { color: var(--negative); }
   .filter-controls { grid-template-columns: 1fr; }
   .visual-analysis-grid { grid-template-columns: 1fr; }
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   MUSIC STUDIO  🎵
+════════════════════════════════════════════════════════════════════ */
+
+/* Card body text */
+.card-body-text {
+  font-size: .87rem;
+  line-height: 1.6;
+  color: var(--text-dim, var(--text));
+  margin: 0;
+}
+.card-body-text.muted { opacity: .75; }
+
+/* Bullet list inside cards */
+.bullet-list {
+  margin: 0;
+  padding-left: 1.25rem;
+  list-style: disc;
+  font-size: .86rem;
+  line-height: 1.65;
+  color: var(--text-dim, var(--text));
+}
+.bullet-list li + li { margin-top: .25rem; }
+.bullet-list.checklist { list-style: none; padding-left: 0; }
+.bullet-list.checklist li { font-size: .85rem; }
+
+/* ── Beat Grid ──────────────────────────────────────────────────── */
+.beat-grid-wrap {
+  overflow-x: auto;
+  border-radius: var(--radius-sm);
+}
+.beat-grid {
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+  min-width: 600px;
+}
+.beat-row {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
+.beat-label {
+  width: 3.5rem;
+  font-size: .75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-align: right;
+  flex-shrink: 0;
+}
+.beat-steps {
+  display: flex;
+  gap: .2rem;
+  flex: 1;
+}
+.step {
+  width: 2rem;
+  height: 2rem;
+  border-radius: .3rem;
+  background: var(--surface-3, var(--surface));
+  border: 1.5px solid var(--border);
+  transition: background .15s;
+  flex-shrink: 0;
+}
+.step.hit-kick  { background: var(--accent); border-color: var(--accent); }
+.step.hit-hat   { background: color-mix(in srgb, var(--accent) 50%, transparent); border-color: var(--accent); }
+.step.rest      { background: transparent; }
+
+/* ── Distribution cards ─────────────────────────────────────────── */
+.dist-card {
+  background: var(--surface-3, var(--surface));
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: .75rem 1rem;
+  margin-bottom: .55rem;
+  transition: border-color .15s;
+}
+.dist-card:hover { border-color: var(--border-focus); }
+.dist-name  { font-weight: 700; font-size: .95rem; color: var(--text); }
+.dist-reach { font-size: .78rem; color: var(--text-muted); margin: .15rem 0; }
+.dist-notes { font-size: .82rem; line-height: 1.5; color: var(--text-dim, var(--text)); }
+.dist-lufs  { font-size: .78rem; color: var(--accent); margin-top: .35rem; font-weight: 600; }
+
+/* Distribution services table */
+.dist-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .83rem;
+  color: var(--text);
+}
+.dist-table th {
+  text-align: left;
+  padding: .35rem .6rem;
+  border-bottom: 2px solid var(--border);
+  color: var(--text-muted);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.dist-table td {
+  padding: .4rem .6rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.dist-table tr:last-child td { border-bottom: none; }
+
+/* ── Streaming metadata ─────────────────────────────────────────── */
+.loudness-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: .25rem 0;
+  border-bottom: 1px solid var(--border);
+  font-size: .84rem;
+}
+.loudness-row:last-child { border-bottom: none; }
+.loudness-plat { color: var(--text-dim, var(--text)); }
+.loudness-val  { font-weight: 700; color: var(--accent); }
+
+.tag-title {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+/* ── Melody phrase list ─────────────────────────────────────────── */
+.phrase-row {
+  display: grid;
+  grid-template-columns: 1fr 4rem auto;
+  gap: .5rem;
+  align-items: baseline;
+  padding: .3rem 0;
+  border-bottom: 1px solid var(--border);
+  font-size: .83rem;
+}
+.phrase-row:last-child { border-bottom: none; }
+.phrase-preview {
+  font-style: italic;
+  color: var(--text-dim, var(--text));
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.phrase-syl {
+  color: var(--text-muted);
+  font-size: .76rem;
+  text-align: right;
+}
+.phrase-dir {
+  color: var(--accent);
+  font-size: .78rem;
+  white-space: nowrap;
+}
+
+/* ── Responsive tweaks ──────────────────────────────────────────── */
+@media (max-width: 700px) {
+  .beat-grid { min-width: 400px; }
+  .step { width: 1.4rem; height: 1.4rem; }
+  .phrase-row { grid-template-columns: 1fr; }
+  .dist-table { font-size: .76rem; }
+  .dist-table th, .dist-table td { padding: .3rem .4rem; }
+}

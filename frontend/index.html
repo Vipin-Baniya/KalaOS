@@ -243,6 +243,7 @@
     <!-- Studio mode switcher -->
     <div class="studio-switcher" role="tablist" aria-label="Studio mode">
       <button class="studio-mode-btn active" id="textStudioBtn" onclick="switchStudio('text')" role="tab" aria-selected="true">✍️ Text Studio</button>
+      <button class="studio-mode-btn" id="musicStudioBtn" onclick="switchStudio('music')" role="tab" aria-selected="false">🎵 Music Studio</button>
       <button class="studio-mode-btn" id="visualStudioBtn" onclick="switchStudio('visual')" role="tab" aria-selected="false">🎨 Visual Studio</button>
     </div>
 
@@ -378,8 +379,219 @@
     </div><!-- /textStudio -->
 
     <!-- ═══════════════════════════════════════════
-         VISUAL STUDIO  🎨
+         MUSIC STUDIO  🎵
          ═══════════════════════════════════════════ -->
+    <div id="musicStudio" class="input-panel hidden">
+
+      <!-- Input card -->
+      <div class="input-card">
+        <div class="input-row">
+          <div class="field-group grow">
+            <label for="musicText">Lyrics, poem, or production notes</label>
+            <textarea id="musicText" placeholder="Paste your lyrics or describe the track you're making…" rows="8" spellcheck="false"></textarea>
+          </div>
+        </div>
+        <div class="input-meta-row">
+          <div class="field-group">
+            <label for="musicArtistName">Artist name <span class="optional">(optional)</span></label>
+            <input type="text" id="musicArtistName" placeholder="For streaming metadata" />
+          </div>
+        </div>
+        <div class="action-row">
+          <button id="produceBtn" class="btn-primary" onclick="runProduce()">
+            <span class="btn-icon" aria-hidden="true">🎛️</span> Produce
+          </button>
+          <button class="btn-ghost" onclick="clearMusicStudio()">Clear</button>
+          <span id="musicStatusMsg" class="status-msg" aria-live="polite" role="status"></span>
+        </div>
+      </div>
+
+      <!-- Results -->
+      <section class="results-panel hidden" id="musicResultsPanel">
+        <nav class="tab-bar" role="tablist" aria-label="Music production results">
+          <button class="tab active" data-mtab="production" onclick="switchMusicTab('production')" role="tab" aria-selected="true">🎛️ Production</button>
+          <button class="tab" data-mtab="beat" onclick="switchMusicTab('beat')" role="tab" aria-selected="false">🥁 Beat</button>
+          <button class="tab" data-mtab="instruments" onclick="switchMusicTab('instruments')" role="tab" aria-selected="false">🎸 Instruments</button>
+          <button class="tab" data-mtab="melody" onclick="switchMusicTab('melody')" role="tab" aria-selected="false">🎵 Melody</button>
+          <button class="tab" data-mtab="distribute" onclick="switchMusicTab('distribute')" role="tab" aria-selected="false">🌍 Distribute</button>
+          <button class="tab" data-mtab="stream" onclick="switchMusicTab('stream')" role="tab" aria-selected="false">📡 Stream</button>
+          <button class="tab" data-mtab="samples" onclick="switchMusicTab('samples')" role="tab" aria-selected="false">🎚️ Samples</button>
+        </nav>
+
+        <div class="tab-content">
+          <!-- Production Plan -->
+          <div class="tab-pane active" id="mtab-production" role="tabpanel">
+            <div class="callout">All production notes are starting-point suggestions — your sonic vision is sovereign.</div>
+            <div class="grid-2">
+              <div class="card">
+                <h3>BPM &amp; Key</h3>
+                <dl id="prodBpm"></dl>
+              </div>
+              <div class="card">
+                <h3>Genre Palette</h3>
+                <div id="prodGenre"></div>
+              </div>
+              <div class="card">
+                <h3>Production Style</h3>
+                <p id="prodStyle" class="card-body-text"></p>
+              </div>
+              <div class="card">
+                <h3>Mixing Notes</h3>
+                <ul id="prodMixing" class="bullet-list"></ul>
+              </div>
+              <div class="card full-span">
+                <h3>Production Notes</h3>
+                <ul id="prodNotes" class="bullet-list"></ul>
+              </div>
+            </div>
+          </div>
+
+          <!-- Beat Pattern -->
+          <div class="tab-pane hidden" id="mtab-beat" role="tabpanel">
+            <div class="callout">A 16-step drum-machine grid — X = hit, . = rest, x = hi-hat hit</div>
+            <div class="grid-2">
+              <div class="card full-span">
+                <h3 id="beatPatternName"></h3>
+                <div class="beat-grid-wrap">
+                  <div class="beat-grid" id="beatGrid"></div>
+                </div>
+                <p id="beatPatternNote" class="card-body-text" style="margin-top:.8rem"></p>
+              </div>
+              <div class="card">
+                <h3>Velocity Guide</h3>
+                <p id="beatVelocity" class="card-body-text"></p>
+              </div>
+              <div class="card">
+                <h3>Humanise Tip</h3>
+                <p id="beatHumanise" class="card-body-text"></p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Instruments -->
+          <div class="tab-pane hidden" id="mtab-instruments" role="tabpanel">
+            <div class="grid-2">
+              <div class="card">
+                <h3>Primary Instruments</h3>
+                <ul id="instrPrimary" class="bullet-list"></ul>
+              </div>
+              <div class="card">
+                <h3>Texture &amp; Atmosphere</h3>
+                <ul id="instrTexture" class="bullet-list"></ul>
+              </div>
+              <div class="card full-span">
+                <h3>Layering Approach</h3>
+                <p id="instrLayering" class="card-body-text"></p>
+              </div>
+              <div class="card full-span">
+                <h3>What to Avoid</h3>
+                <p id="instrAvoid" class="card-body-text muted"></p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Melody Contour -->
+          <div class="tab-pane hidden" id="mtab-melody" role="tabpanel">
+            <div class="callout">Melodic shape derived from the text's syllable stress and emotional arc.</div>
+            <div class="grid-2">
+              <div class="card">
+                <h3>Scale</h3>
+                <dl id="melodyScale"></dl>
+              </div>
+              <div class="card">
+                <h3>Melodic Contour</h3>
+                <p id="melodyContour" class="card-body-text"></p>
+              </div>
+              <div class="card full-span">
+                <h3>Per-Phrase Suggestions</h3>
+                <div id="melodyPhrases"></div>
+              </div>
+              <div class="card full-span">
+                <h3>Ornamentation Tips</h3>
+                <ul id="melodyOrnamentation" class="bullet-list"></ul>
+              </div>
+            </div>
+          </div>
+
+          <!-- Distribution -->
+          <div class="tab-pane hidden" id="mtab-distribute" role="tabpanel">
+            <div class="callout">Distribute your music independently. You own your master recordings.</div>
+            <div class="grid-2">
+              <div class="card full-span">
+                <h3>Recommended Platforms</h3>
+                <div id="distPlatforms"></div>
+              </div>
+              <div class="card full-span">
+                <h3>Distribution Services</h3>
+                <div id="distServices"></div>
+              </div>
+              <div class="card full-span">
+                <h3>Release Strategy</h3>
+                <ul id="distStrategy" class="bullet-list"></ul>
+              </div>
+              <div class="card full-span">
+                <h3>Artist Rights Reminder</h3>
+                <p id="distRights" class="card-body-text" style="color:var(--accent)"></p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Streaming Metadata -->
+          <div class="tab-pane hidden" id="mtab-stream" role="tabpanel">
+            <div class="callout">Streaming metadata serves findability — not algorithmic ranking.</div>
+            <div class="grid-2">
+              <div class="card">
+                <h3>Title Words</h3>
+                <div id="streamTitleWords"></div>
+              </div>
+              <div class="card">
+                <h3>Genre &amp; Mood Tags</h3>
+                <dl id="streamTags"></dl>
+              </div>
+              <div class="card">
+                <h3>Loudness Targets</h3>
+                <div id="streamLoudness"></div>
+              </div>
+              <div class="card">
+                <h3>Audio Format</h3>
+                <p id="streamFormat" class="card-body-text"></p>
+              </div>
+              <div class="card full-span">
+                <h3>ISRC &amp; Rights</h3>
+                <p id="streamIsrc" class="card-body-text"></p>
+              </div>
+              <div class="card full-span">
+                <h3>Pre-Release Checklist</h3>
+                <ul id="streamChecklist" class="bullet-list checklist"></ul>
+              </div>
+            </div>
+          </div>
+
+          <!-- Samples -->
+          <div class="tab-pane hidden" id="mtab-samples" role="tabpanel">
+            <div class="grid-2">
+              <div class="card">
+                <h3>Sample Categories</h3>
+                <ul id="sampleCategories" class="bullet-list"></ul>
+              </div>
+              <div class="card">
+                <h3>Texture Ideas</h3>
+                <ul id="sampleTextures" class="bullet-list"></ul>
+              </div>
+              <div class="card full-span">
+                <h3>Crate Digging Tips</h3>
+                <ul id="sampleCrateDigging" class="bullet-list"></ul>
+              </div>
+              <div class="card full-span">
+                <h3>Sample Clearance Reminder</h3>
+                <p id="sampleClearance" class="card-body-text" style="color:var(--accent)"></p>
+              </div>
+            </div>
+          </div>
+        </div><!-- /tab-content -->
+      </section>
+
+    </div><!-- /musicStudio -->
     <div id="visualStudio" class="input-panel">
       <div class="input-card" style="padding:.8rem 1.2rem .3rem">
         <div class="visual-tab-bar" role="tablist" aria-label="Visual tools">
