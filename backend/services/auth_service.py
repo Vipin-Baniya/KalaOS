@@ -17,11 +17,13 @@ Public API
 ----------
 register(email, password, name)                    → user dict  or raises ValueError
 login(email, password)                             → token str  or raises ValueError
+logout(token)                                      → None (revokes the token server-side)
 request_password_reset(email)                      → reset_token str (empty str when SMTP delivers it)
 reset_password(reset_token, new_password)          → None       or raises ValueError
 get_user(token)                                    → user dict  or None
 update_profile(token, name)                        → user dict  or raises ValueError
 change_password(token, old_password, new_password) → None       or raises ValueError
+delete_account(token, password)                    → None       or raises ValueError
 
 Security notes
 --------------
@@ -31,6 +33,8 @@ Security notes
   random value (tokens are invalidated on restart when the env var is unset).
 * request_password_reset() always succeeds regardless of whether the email
   exists (prevents user enumeration).
+* logout() adds the token to a short-lived revocation list (TTL = remaining
+  token lifetime) so it cannot be reused even before its natural expiry.
 """
 
 import hashlib
@@ -187,6 +191,33 @@ class _TokenStore(dict):
 _USERS: _UserStore = _UserStore()
 _RESET_TOKENS: _TokenStore = _TokenStore()
 
+# ---------------------------------------------------------------------------
+# In-memory revocation list for logged-out session tokens.
+# Entries: { token_sig: expires_at_unix_int }.  Expired entries are pruned
+# lazily on each revocation check so the dict stays small.
+# ---------------------------------------------------------------------------
+_REVOKED_TOKENS: dict = {}
+_revoked_lock = threading.Lock()
+
+
+def _revoke_token(token: str, exp: int) -> None:
+    """Add a token's signature to the revocation list until its natural expiry."""
+    sig = token.rsplit(":", 1)[-1]  # use the HMAC signature as the key
+    with _revoked_lock:
+        _REVOKED_TOKENS[sig] = exp
+        # Prune expired entries while we have the lock
+        now = int(time.time())
+        expired = [k for k, v in _REVOKED_TOKENS.items() if v <= now]
+        for k in expired:
+            del _REVOKED_TOKENS[k]
+
+
+def _is_revoked(token: str) -> bool:
+    sig = token.rsplit(":", 1)[-1]
+    with _revoked_lock:
+        exp = _REVOKED_TOKENS.get(sig)
+    return exp is not None and int(time.time()) <= exp
+
 
 def _bootstrap() -> None:
     """Initialise DB schema and warm the in-memory caches from SQLite."""
@@ -277,7 +308,7 @@ def _make_session_token(email: str) -> str:
 
 
 def _verify_session_token(token: str) -> Optional[str]:
-    """Return the email embedded in a valid, unexpired token, otherwise None."""
+    """Return the email embedded in a valid, unexpired, non-revoked token, or None."""
     try:
         idx = token.rfind(":")
         if idx < 0:
@@ -291,6 +322,8 @@ def _verify_session_token(token: str) -> Optional[str]:
             return None
         email, _, _, exp = parts[0], parts[1], parts[2], parts[3]
         if int(time.time()) > int(exp):
+            return None
+        if _is_revoked(token):
             return None
         return email if email in _USERS else None
     except Exception:  # pragma: no cover – defensive catch-all
@@ -414,3 +447,47 @@ def change_password(token: str, old_password: str, new_password: str) -> None:
     updated["pw_hash"] = pw_hash
     updated["pw_salt"] = pw_salt
     _USERS[email] = updated    # triggers SQLite sync
+
+
+def logout(token: str) -> None:
+    """Revoke a session token so it cannot be used again before its natural expiry.
+
+    This is a best-effort server-side revocation: the token is added to an
+    in-memory revocation list keyed by its HMAC signature.  If the process
+    restarts, previously-issued tokens will still expire naturally via their
+    embedded ``exp`` timestamp.
+    """
+    try:
+        idx = token.rfind(":")
+        if idx < 0:
+            return
+        payload = token[:idx]
+        parts = payload.split(":")
+        if len(parts) >= 4:
+            exp = int(parts[3])
+            _revoke_token(token, exp)
+    except Exception:  # pragma: no cover
+        pass  # silently ignore malformed tokens on logout
+
+
+def delete_account(token: str, password: str) -> None:
+    """Permanently delete the authenticated user's account.
+
+    Requires the current password as confirmation, then revokes the session
+    token and removes all user data (users row + any pending reset tokens).
+    """
+    email = _verify_session_token(token)
+    if not email:
+        raise ValueError("Invalid or expired session token.")
+    user = _USERS[email]
+    dk, _ = _hash_password(password, user["pw_salt"])
+    if not hmac.compare_digest(dk, user["pw_hash"]):
+        raise ValueError("Password is incorrect.")
+    # Revoke the token immediately
+    logout(token)
+    # Delete the user (triggers SQLite sync via _UserStore.__delitem__)
+    del _USERS[email]
+    # Remove any pending reset tokens belonging to this email
+    stale = [k for k, v in list(_RESET_TOKENS.items()) if v.get("email") == email]
+    for k in stale:
+        del _RESET_TOKENS[k]

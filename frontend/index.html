@@ -408,6 +408,17 @@
         <button class="btn-primary btn-full" id="profilePassBtn" onclick="handleChangePassword()">Change Password</button>
       </fieldset>
 
+      <hr class="dropdown-divider" style="margin:1rem 0" />
+
+      <fieldset style="border:none;padding:0;margin:0">
+        <legend style="font-weight:600;font-size:.9rem;color:var(--error,#e23270);margin-bottom:.6rem">Danger zone</legend>
+        <div class="form-group">
+          <label for="profileDeletePass">Confirm your password to delete account</label>
+          <input type="password" id="profileDeletePass" placeholder="••••••••" autocomplete="current-password" />
+        </div>
+        <button class="btn-primary btn-full" id="profileDeleteBtn" onclick="handleDeleteAccount()" style="background:var(--error,#e23270);border-color:var(--error,#e23270)">Delete Account</button>
+      </fieldset>
+
       <div class="auth-links" style="margin-top:1rem;text-align:center">
         <a href="#" onclick="hideProfileModal(); return false;">&#8592; Close</a>
       </div>

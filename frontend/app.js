@@ -346,6 +346,14 @@ async function handleResetPassword() {
 }
 
 function handleLogout() {
+  // Revoke the token server-side (best-effort; don't block the UI on failure)
+  if (_authToken) {
+    fetch(`${API_BASE}/auth/logout`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: _authToken }),
+    }).catch(() => { /* ignore network errors on logout */ });
+  }
   _saveSession(null, null);
   hide("userDropdown");
   el("userMenuBtn").setAttribute("aria-expanded", "false");
@@ -449,6 +457,39 @@ async function handleChangePassword() {
   }
 }
 
+async function handleDeleteAccount() {
+  const btn  = el("profileDeleteBtn");
+  const pass = el("profileDeletePass").value;
+  _setProfileMessage("profileError",   "", true);
+  _setProfileMessage("profileSuccess", "", false);
+  if (!pass) {
+    _setProfileMessage("profileError", "Please enter your current password to confirm deletion.", true);
+    return;
+  }
+  if (!confirm("This will permanently delete your account and all your data. This cannot be undone. Continue?")) {
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = "Deleting…";
+  try {
+    const resp = await fetch(`${API_BASE}/auth/delete-account`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: _authToken, password: pass }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.detail || "Account deletion failed.");
+    // Deletion succeeded — clear session and return to auth screen
+    _saveSession(null, null);
+    hideProfileModal();
+    showAuth();
+  } catch (err) {
+    _setProfileMessage("profileError", err.message, true);
+    btn.disabled = false;
+    btn.textContent = "Delete Account";
+  }
+}
+
 function continueAsGuest() {
   _saveSession(null, null);
   _currentUser = null;
@@ -542,6 +583,11 @@ document.addEventListener("keydown", (e) => {
       dd.classList.add("hidden");
       document.getElementById("userMenuBtn")?.setAttribute("aria-expanded", "false");
     }
+    // Close profile modal
+    const profileModal = document.getElementById("profileModalOverlay");
+    if (profileModal && !profileModal.classList.contains("hidden")) {
+      hideProfileModal();
+    }
   }
   // Ctrl/Cmd+Enter to run analysis
   if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
@@ -551,9 +597,24 @@ document.addEventListener("keydown", (e) => {
 });
 
 // Enter key in auth forms
-["loginPassword"].forEach(id => {
+["loginEmail", "loginPassword"].forEach(id => {
   document.getElementById(id)?.addEventListener("keydown", (e) => {
     if (e.key === "Enter") handleLogin();
+  });
+});
+["registerName", "registerEmail", "registerPassword"].forEach(id => {
+  document.getElementById(id)?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") handleRegister();
+  });
+});
+["forgotEmail"].forEach(id => {
+  document.getElementById(id)?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") handleForgotPassword();
+  });
+});
+["resetToken", "resetPassword"].forEach(id => {
+  document.getElementById(id)?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") handleResetPassword();
   });
 });
 

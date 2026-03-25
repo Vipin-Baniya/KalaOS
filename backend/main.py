@@ -69,8 +69,9 @@ app = FastAPI(
 
 # Rate limiter — keyed by client IP.  Limits are configurable via env vars
 # (useful for lowering limits in production or raising them in tests).
-_login_limit  = _os.environ.get("KALA_RATE_LIMIT_LOGIN",  "10/minute")
-_forgot_limit = _os.environ.get("KALA_RATE_LIMIT_FORGOT", "5/minute")
+_login_limit    = _os.environ.get("KALA_RATE_LIMIT_LOGIN",    "10/minute")
+_forgot_limit   = _os.environ.get("KALA_RATE_LIMIT_FORGOT",   "5/minute")
+_register_limit = _os.environ.get("KALA_RATE_LIMIT_REGISTER", "5/minute")
 limiter = Limiter(key_func=get_remote_address, default_limits=[])
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -805,11 +806,21 @@ class AuthChangePasswordRequest(BaseModel):
     new_password: str
 
 
+class AuthLogoutRequest(BaseModel):
+    token: str
+
+
+class AuthDeleteAccountRequest(BaseModel):
+    token: str
+    password: str
+
+
 @app.post("/auth/register", summary="Register a new artist account")
-def auth_register(request: AuthRegisterRequest):
+@limiter.limit(_register_limit)
+def auth_register(request: Request, body: AuthRegisterRequest):
     """Create a new user account.  Returns public user info on success."""
     try:
-        user = auth_service.register(request.email, request.password, request.name)
+        user = auth_service.register(body.email, body.password, body.name)
         return {"success": True, "user": user}
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -884,6 +895,23 @@ def auth_change_password(request: AuthChangePasswordRequest):
         auth_service.change_password(
             request.token, request.old_password, request.new_password
         )
+        return {"success": True}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post("/auth/logout", summary="Revoke the current session token")
+def auth_logout(request: AuthLogoutRequest):
+    """Invalidate the session token server-side so it cannot be reused."""
+    auth_service.logout(request.token)
+    return {"success": True}
+
+
+@app.delete("/auth/delete-account", summary="Permanently delete the authenticated user's account")
+def auth_delete_account(request: AuthDeleteAccountRequest):
+    """Delete the account and revoke the session token.  Requires password confirmation."""
+    try:
+        auth_service.delete_account(request.token, request.password)
         return {"success": True}
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
