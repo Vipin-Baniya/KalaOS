@@ -43,6 +43,12 @@ ART_DOMAINS = {
     "story": "short story or narrative",
     "book": "book or long-form writing",
     "general": "creative writing",
+    # Visual art domains (used by the /visual endpoint)
+    "painting": "painting, drawing or mixed media visual art",
+    "sketch": "sketch, illustration or line art",
+    "photo": "photograph or digital photography",
+    "video": "video, film or motion art",
+    "logo": "logo, brand identity or graphic design",
 }
 
 

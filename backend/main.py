@@ -26,7 +26,7 @@ from pydantic import BaseModel, field_validator
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
-from typing import Literal, Optional
+from typing import List, Literal, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +40,7 @@ from kalacore.kalacomposer import compose
 from kalacore.kalaflow import flow
 from kalacore.kalacustody import custody, assess_artistic_lineage
 from kalacore.temporal import analyze_temporal
+from kalacore.kalavisual import analyze_visual
 from services.llm_service import (
     generate_explanation,
     generate_suggestions,
@@ -51,7 +52,11 @@ import services.auth_service as auth_service
 
 # Build the domain Literal dynamically from ART_DOMAINS so there is
 # only one source of truth for the allowed values.
-ArtDomain = Literal["lyrics", "poetry", "music", "story", "book", "general"]  # type: ignore[assignment]
+ArtDomain = Literal[  # type: ignore[assignment]
+    "lyrics", "poetry", "music", "story", "book", "general",
+    # Visual art domains
+    "painting", "sketch", "photo", "video", "logo",
+]
 # Note: Python does not support constructing Literal from a runtime list, so we
 # keep both in sync by asserting equality at import time.
 assert set(ArtDomain.__args__) == set(ART_DOMAINS.keys()), (  # type: ignore[attr-defined]
@@ -769,6 +774,89 @@ def models():
     Returns an empty list (not an error) if Ollama is not running.
     """
     return {"models": list_available_models()}
+
+
+# ---------------------------------------------------------------------------
+# Phase 11 – Visual Art Intelligence
+# ---------------------------------------------------------------------------
+
+_VISUAL_MEDIA = {"painting", "sketch", "photo", "video", "logo"}
+
+
+class VisualAnalysisRequest(BaseModel):
+    description: str
+    medium: str = "painting"
+    color_palette: Optional[List[str]] = None
+    dimensions: Optional[str] = None
+    style_tags: Optional[List[str]] = None
+
+    @field_validator("description")
+    @classmethod
+    def description_must_not_be_empty(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("description must not be empty")
+        return v
+
+    @field_validator("medium")
+    @classmethod
+    def medium_must_be_valid(cls, v: str) -> str:
+        if v.lower() not in _VISUAL_MEDIA:
+            raise ValueError(f"medium must be one of {sorted(_VISUAL_MEDIA)}")
+        return v.lower()
+
+
+class VisualAnalysisResponse(BaseModel):
+    medium: str
+    dimensions: Optional[str]
+    summary: str
+    colour: dict
+    composition: dict
+    style: dict
+    emotion: dict
+    intent: dict
+    technical: dict
+    narrative: dict
+    preservation: dict
+
+
+@app.post(
+    "/visual",
+    response_model=VisualAnalysisResponse,
+    summary="Phase 11 Visual Art Intelligence: analyse a visual artwork from description",
+)
+def visual_analysis(request: VisualAnalysisRequest):
+    """
+    Visual art analysis pipeline.
+
+    Accepts an artist-provided description of a painting, sketch, photograph,
+    video or logo and returns comprehensive analysis covering:
+
+    - Colour theory (palette harmony, temperature, saturation, value)
+    - Composition (balance, depth, leading lines, negative space)
+    - Style / movement classification
+    - Emotional register
+    - Artistic intent
+    - Medium-specific technical observations
+    - Visual narrative (subjects, narrative complexity)
+    - Preservation and archival recommendations
+
+    No image data is required — privacy by design.
+    """
+    try:
+        result = analyze_visual(
+            description=request.description,
+            medium=request.medium,
+            color_palette=request.color_palette,
+            dimensions=request.dimensions,
+            style_tags=request.style_tags,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Visual analysis failed: {exc}")
+
+    if "error" in result:
+        raise HTTPException(status_code=422, detail=result["error"])
+
+    return VisualAnalysisResponse(**result)
 
 
 # ---------------------------------------------------------------------------

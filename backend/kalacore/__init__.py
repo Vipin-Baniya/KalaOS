@@ -13,6 +13,7 @@ from .kalacomposer   import compose
 from .kalaflow       import flow
 from .kalacustody    import custody
 from .temporal       import analyze_temporal
+from .kalavisual     import analyze_visual
 
 __all__ = [
     "analyze",
@@ -25,4 +26,5 @@ __all__ = [
     "flow",
     "custody",
     "analyze_temporal",
+    "analyze_visual",
 ]
