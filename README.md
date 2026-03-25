@@ -242,7 +242,7 @@ Runs **all phases** in a single call and returns every phase's output plus a uni
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `text` | `string` | — | Art text to analyse (**required**) |
-| `art_domain` | `string` | `"general"` | `lyrics`, `poetry`, `music`, `story`, `book`, `general` |
+| `art_domain` | `string` | `"general"` | `lyrics`, `poetry`, `music`, `story`, `book`, `general`, `painting`, `sketch`, `photo`, `video`, `logo` |
 | `artist_name` | `string` | `null` | Included in the LLM narrative prompt |
 | `creation_context` | `string` | `null` | Background provided to the LLM |
 | `model` | `string` | `null` | Override the Ollama model (e.g. `"mistral"`) |
@@ -366,7 +366,81 @@ Phase 9 Temporal intelligence — meaning across time, ephemeral art, creative a
 
 ---
 
-## Studio UI
+### `POST /visual`  *(Phase 11 – Visual Art Intelligence)*
+
+Analyses a visual artwork from an artist-provided description — no image upload required.
+
+```json
+{
+  "description": "An impressionistic oil painting on canvas of a misty river at dawn...",
+  "medium": "painting",
+  "color_palette": ["#4a90d9", "#87ceeb"],
+  "dimensions": "24x36 inches",
+  "style_tags": ["impressionism", "plein air"]
+}
+```
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `description` | `string` | — | Text description of the artwork (**required**) |
+| `medium` | `string` | `"painting"` | `painting`, `sketch`, `photo`, `video`, `logo` |
+| `color_palette` | `string[]` | `null` | Hex colour strings e.g. `["#ff4500","#2ecc71"]` |
+| `dimensions` | `string` | `null` | Freeform e.g. `"60×80 cm"` |
+| `style_tags` | `string[]` | `null` | Artist-supplied style hints e.g. `["impressionism"]` |
+
+**Response** — `VisualAnalysisResponse`
+
+```json
+{
+  "medium": "painting",
+  "summary": "A painting in an impressionism style with analogous colour harmony...",
+  "colour": { "colour_harmony": "analogous", "dominant_temperature": "cool", ... },
+  "composition": { "balance": "asymmetric...", "detected_elements": [...], ... },
+  "style": { "primary_style": "impressionism", "detection_confidence": "high", ... },
+  "emotion": { "primary_register": "peaceful", ... },
+  "intent": { "primary_intent": "expressive", ... },
+  "technical": { "paint_medium": "oil paint", "surface": "canvas", ... },
+  "narrative": { "detected_subjects": ["landscape"], "word_count": 42, ... },
+  "preservation": { "digital": [...], "physical": [...], "distribution": [...] }
+}
+```
+
+---
+
+## Visual Studio
+
+The KalaOS Studio includes a full **Visual Studio** alongside the existing Text Studio. Toggle between them with the mode switcher at the top of the page.
+
+### 🖌️ Paint & Sketch
+- HTML5 Canvas drawing with pencil, brush, eraser, line, rectangle, and circle tools
+- Adjustable brush size and opacity
+- Dual colour pickers (stroke + fill)
+- 25-level undo history
+- PNG export
+- Describe the work and call `/visual` for AI analysis
+
+### 📷 Photo Editor
+- Drag-and-drop or click to upload JPEG / PNG / WebP
+- 8 real-time CSS filter sliders: brightness, contrast, saturation, hue-rotate, blur, sepia, grayscale, invert
+- Flip horizontal/vertical, rotate 90°
+- Export edited image as PNG
+- Describe the photograph for AI colour/composition analysis
+
+### 🎬 Video Editor
+- Local video upload (MP4, WebM, MOV) — nothing is sent to any server
+- Playback speed control (0.25× – 4×)
+- Frame snapshot (exports current frame as PNG)
+- Timestamped text annotations with JSON export
+- Describe the video work for AI style/narrative analysis
+
+### ✏️ Logo Maker
+- Canvas text with custom font family, size, bold, italic, and XY position controls
+- Shape stamps: circle, rectangle, star, hexagon
+- Colour pickers for text, background, and shapes
+- Export as PNG or SVG (infinite scalability)
+- Describe the logo for AI brand/style analysis
+
+---
 
 Open `frontend/index.html` in any modern browser, or serve it with a static file server. No build step, no Node.js required.
 
