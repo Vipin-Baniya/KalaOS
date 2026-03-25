@@ -817,10 +817,10 @@ def auth_register(request: AuthRegisterRequest):
 
 @app.post("/auth/login", summary="Login and receive a session token")
 @limiter.limit(_login_limit)
-def auth_login(http_request: Request, request: AuthLoginRequest):
+def auth_login(request: Request, body: AuthLoginRequest):
     """Validate credentials and return a signed session token."""
     try:
-        token = auth_service.login(request.email, request.password)
+        token = auth_service.login(body.email, body.password)
         user  = auth_service.get_user(token)
         return {"success": True, "token": token, "user": user}
     except ValueError as exc:
@@ -829,13 +829,13 @@ def auth_login(http_request: Request, request: AuthLoginRequest):
 
 @app.post("/auth/forgot-password", summary="Request a password-reset token")
 @limiter.limit(_forgot_limit)
-def auth_forgot(http_request: Request, request: AuthForgotRequest):
+def auth_forgot(request: Request, body: AuthForgotRequest):
     """
     Generate a password-reset token.  When KALA_SMTP_HOST is configured the
     token is emailed and the response omits it (recommended for production).
     Always responds with success regardless of whether the email exists.
     """
-    token = auth_service.request_password_reset(request.email)
+    token = auth_service.request_password_reset(body.email)
     resp: dict = {"success": True}
     if auth_service.SMTP_CONFIGURED:
         resp["note"] = "If that email exists, a reset link has been sent."
