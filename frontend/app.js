@@ -1118,3 +1118,472 @@ document.addEventListener("DOMContentLoaded", () => {
     showAuth();
   }
 });
+
+/* ══════════════════════════════════════════════
+   VISUAL STUDIO
+══════════════════════════════════════════════ */
+
+// Studio mode switcher
+function switchStudio(mode) {
+  const textStudio = el("textStudio");
+  const visualStudio = el("visualStudio");
+  const textBtn = el("textStudioBtn");
+  const visualBtn = el("visualStudioBtn");
+  if (mode === "visual") {
+    textStudio.style.display = "none";
+    visualStudio.style.display = "block";
+    textBtn.classList.remove("active");
+    visualBtn.classList.add("active");
+    if (!_paintInitDone) initPaintCanvas();
+    if (!_logoInitDone) initLogoCanvas();
+  } else {
+    textStudio.style.display = "";
+    visualStudio.style.display = "none";
+    textBtn.classList.add("active");
+    visualBtn.classList.remove("active");
+  }
+}
+
+function switchVisualTab(tab) {
+  document.querySelectorAll(".visual-tab").forEach(t => t.classList.remove("active"));
+  document.querySelectorAll(".visual-pane").forEach(p => p.classList.add("hidden"));
+  document.querySelector(`[data-vtab="${tab}"]`).classList.add("active");
+  el(`vpane-${tab}`).classList.remove("hidden");
+}
+
+// ── Paint / Sketch Canvas ──────────────────────────────────────────────────
+
+let _paintInitDone = false;
+let _paintCtx = null;
+let _paintCanvas = null;
+let _painting = false;
+let _paintTool = "pencil";
+let _paintSize = 6;
+let _paintOpacity = 1;
+let _paintColor = "#7c5af1";
+let _paintFill = "#ffffff";
+let _paintHistory = [];
+let _paintStartX = 0;
+let _paintStartY = 0;
+let _paintSnapshot = null;
+
+function initPaintCanvas() {
+  _paintCanvas = el("paintCanvas");
+  _paintCtx = _paintCanvas.getContext("2d");
+  _paintCtx.fillStyle = "#ffffff";
+  _paintCtx.fillRect(0, 0, _paintCanvas.width, _paintCanvas.height);
+  _paintHistory.push(_paintCtx.getImageData(0, 0, _paintCanvas.width, _paintCanvas.height));
+
+  _paintCanvas.addEventListener("mousedown", paintStart);
+  _paintCanvas.addEventListener("mousemove", paintMove);
+  _paintCanvas.addEventListener("mouseup", paintEnd);
+  _paintCanvas.addEventListener("mouseleave", paintEnd);
+  _paintCanvas.addEventListener("touchstart", e => { e.preventDefault(); paintStart(e.touches[0]); }, { passive: false });
+  _paintCanvas.addEventListener("touchmove", e => { e.preventDefault(); paintMove(e.touches[0]); }, { passive: false });
+  _paintCanvas.addEventListener("touchend", e => { e.preventDefault(); paintEnd(); }, { passive: false });
+  _paintInitDone = true;
+}
+
+function _paintPos(evt) {
+  const r = _paintCanvas.getBoundingClientRect();
+  const scaleX = _paintCanvas.width / r.width;
+  const scaleY = _paintCanvas.height / r.height;
+  return { x: (evt.clientX - r.left) * scaleX, y: (evt.clientY - r.top) * scaleY };
+}
+
+function paintStart(evt) {
+  _painting = true;
+  const { x, y } = _paintPos(evt);
+  _paintStartX = x; _paintStartY = y;
+  _paintSnapshot = _paintCtx.getImageData(0, 0, _paintCanvas.width, _paintCanvas.height);
+  if (_paintTool === "pencil" || _paintTool === "brush" || _paintTool === "eraser") {
+    _paintCtx.beginPath();
+    _paintCtx.moveTo(x, y);
+  }
+}
+
+function paintMove(evt) {
+  if (!_painting) return;
+  const { x, y } = _paintPos(evt);
+  _paintCtx.globalAlpha = _paintOpacity;
+  if (_paintTool === "eraser") {
+    _paintCtx.globalCompositeOperation = "destination-out";
+    _paintCtx.lineWidth = _paintSize * 2;
+    _paintCtx.lineTo(x, y); _paintCtx.stroke();
+    return;
+  }
+  _paintCtx.globalCompositeOperation = "source-over";
+  _paintCtx.strokeStyle = _paintColor;
+  _paintCtx.fillStyle = _paintFill;
+  if (_paintTool === "pencil") {
+    _paintCtx.lineWidth = _paintSize;
+    _paintCtx.lineCap = "round";
+    _paintCtx.lineJoin = "round";
+    _paintCtx.lineTo(x, y); _paintCtx.stroke();
+  } else if (_paintTool === "brush") {
+    _paintCtx.lineWidth = _paintSize * 2.5;
+    _paintCtx.lineCap = "round";
+    _paintCtx.lineJoin = "round";
+    _paintCtx.lineTo(x, y); _paintCtx.stroke();
+  } else if (_paintTool === "line" || _paintTool === "rect" || _paintTool === "circle") {
+    _paintCtx.putImageData(_paintSnapshot, 0, 0);
+    _paintCtx.globalAlpha = _paintOpacity;
+    _paintCtx.lineWidth = _paintSize;
+    _paintCtx.strokeStyle = _paintColor;
+    _paintCtx.fillStyle = _paintFill;
+    _paintCtx.beginPath();
+    if (_paintTool === "line") {
+      _paintCtx.moveTo(_paintStartX, _paintStartY);
+      _paintCtx.lineTo(x, y);
+      _paintCtx.stroke();
+    } else if (_paintTool === "rect") {
+      _paintCtx.rect(_paintStartX, _paintStartY, x - _paintStartX, y - _paintStartY);
+      _paintCtx.fill(); _paintCtx.stroke();
+    } else {
+      const rx = Math.abs(x - _paintStartX) / 2, ry = Math.abs(y - _paintStartY) / 2;
+      _paintCtx.ellipse(_paintStartX + (x - _paintStartX) / 2, _paintStartY + (y - _paintStartY) / 2, rx, ry, 0, 0, Math.PI * 2);
+      _paintCtx.fill(); _paintCtx.stroke();
+    }
+  }
+}
+
+function paintEnd() {
+  if (!_painting) return;
+  _painting = false;
+  _paintCtx.globalAlpha = 1;
+  _paintCtx.globalCompositeOperation = "source-over";
+  _paintCtx.closePath();
+  _paintHistory.push(_paintCtx.getImageData(0, 0, _paintCanvas.width, _paintCanvas.height));
+  if (_paintHistory.length > 25) _paintHistory.shift();
+}
+
+function selectPaintTool(tool) {
+  _paintTool = tool;
+  document.querySelectorAll("[id^='tool-']").forEach(b => b.classList.remove("active"));
+  const btn = el(`tool-${tool}`);
+  if (btn) btn.classList.add("active");
+}
+function updatePaintSize(v) { _paintSize = parseInt(v); el("paintSizeLabel").textContent = v; }
+function updatePaintOpacity(v) { _paintOpacity = parseInt(v) / 100; el("paintOpacityLabel").textContent = v + "%"; }
+document.addEventListener("DOMContentLoaded", () => {
+  const pc = el("paintColor"); if (pc) pc.addEventListener("input", e => { _paintColor = e.target.value; });
+  const pf = el("paintFill"); if (pf) pf.addEventListener("input", e => { _paintFill = e.target.value; });
+});
+function undoPaint() {
+  if (_paintHistory.length <= 1) return;
+  _paintHistory.pop();
+  _paintCtx.putImageData(_paintHistory[_paintHistory.length - 1], 0, 0);
+}
+function clearPaintCanvas() {
+  _paintCtx.fillStyle = "#ffffff";
+  _paintCtx.fillRect(0, 0, _paintCanvas.width, _paintCanvas.height);
+  _paintHistory = [_paintCtx.getImageData(0, 0, _paintCanvas.width, _paintCanvas.height)];
+}
+function downloadCanvas(canvasId, name) {
+  const c = el(canvasId);
+  const a = document.createElement("a");
+  a.download = name + ".png";
+  a.href = c.toDataURL("image/png");
+  a.click();
+}
+
+// ── Photo Editor ───────────────────────────────────────────────────────────
+
+let _photoOriginalImage = null;
+let _photoRotation = 0;
+let _photoFlipH = false;
+let _photoFlipV = false;
+
+function handlePhotoDrop(e) {
+  e.preventDefault();
+  const file = e.dataTransfer.files[0];
+  if (file && file.type.startsWith("image/")) loadPhotoFile(file);
+}
+
+function loadPhotoFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const img = new Image();
+    img.onload = () => {
+      _photoOriginalImage = img;
+      _photoRotation = 0; _photoFlipH = false; _photoFlipV = false;
+      el("photoPreview").src = ev.target.result;
+      el("photoPreviewWrap").classList.remove("hidden");
+      el("photoUploadZone").classList.add("has-image");
+      el("photoFilterPanel").classList.remove("hidden");
+      applyPhotoFilters();
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function applyPhotoFilters() {
+  if (!_photoOriginalImage) return;
+  const brightness = el("fBrightness").value;
+  const contrast   = el("fContrast").value;
+  const saturation = el("fSaturation").value;
+  const hue        = el("fHue").value;
+  const blur       = el("fBlur").value;
+  const sepia      = el("fSepia").value;
+  const grayscale  = el("fGrayscale").value;
+  const invert     = el("fInvert").value;
+
+  el("brightnessVal").textContent = brightness + "%";
+  el("contrastVal").textContent   = contrast + "%";
+  el("saturationVal").textContent = saturation + "%";
+  el("hueVal").textContent        = hue + "°";
+  el("blurVal").textContent       = blur + "px";
+  el("sepiaVal").textContent      = sepia + "%";
+  el("grayscaleVal").textContent  = grayscale + "%";
+  el("invertVal").textContent     = invert + "%";
+
+  const filterStr = `brightness(${brightness}%) contrast(${contrast}%) saturate(${saturation}%) hue-rotate(${hue}deg) blur(${blur}px) sepia(${sepia}%) grayscale(${grayscale}%) invert(${invert}%)`;
+  el("photoPreview").style.filter = filterStr;
+
+  // Render to canvas for download
+  const img = _photoOriginalImage;
+  const canvas = el("photoCanvas");
+  canvas.width = img.naturalWidth;
+  canvas.height = img.naturalHeight;
+  const ctx = canvas.getContext("2d");
+  ctx.filter = filterStr;
+  ctx.save();
+  ctx.translate(canvas.width / 2, canvas.height / 2);
+  if (_photoFlipH) ctx.scale(-1, 1);
+  if (_photoFlipV) ctx.scale(1, -1);
+  ctx.rotate(_photoRotation * Math.PI / 180);
+  ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
+  ctx.restore();
+}
+
+function resetPhotoFilters() {
+  ["fBrightness","fContrast","fSaturation"].forEach(id => el(id).value = 100);
+  ["fHue","fBlur","fSepia","fGrayscale","fInvert"].forEach(id => el(id).value = 0);
+  _photoRotation = 0; _photoFlipH = false; _photoFlipV = false;
+  applyPhotoFilters();
+}
+function flipPhoto(axis) {
+  if (axis === "h") _photoFlipH = !_photoFlipH;
+  else _photoFlipV = !_photoFlipV;
+  applyPhotoFilters();
+}
+function rotatePhoto(deg) {
+  _photoRotation = (_photoRotation + deg) % 360;
+  applyPhotoFilters();
+}
+
+// ── Video Editor ───────────────────────────────────────────────────────────
+
+let _videoAnnotations = [];
+
+function loadVideoFile(file) {
+  if (!file) return;
+  const url = URL.createObjectURL(file);
+  const vid = el("videoPlayer");
+  vid.src = url;
+  el("videoUploadZone").classList.add("has-video");
+  el("videoPlayerSection").classList.remove("hidden");
+}
+function setVideoSpeed(v) { el("videoPlayer").playbackRate = parseFloat(v); }
+function snapVideoFrame() {
+  const vid = el("videoPlayer");
+  const c = document.createElement("canvas");
+  c.width = vid.videoWidth; c.height = vid.videoHeight;
+  c.getContext("2d").drawImage(vid, 0, 0);
+  const a = document.createElement("a");
+  a.download = "kala-frame.png"; a.href = c.toDataURL("image/png"); a.click();
+}
+function addVideoAnnotation() {
+  const input = el("annotationInput");
+  const text = input.value.trim();
+  if (!text) return;
+  const vid = el("videoPlayer");
+  const t = isNaN(vid.currentTime) ? 0 : vid.currentTime;
+  const mins = String(Math.floor(t / 60)).padStart(2, "0");
+  const secs = String(Math.floor(t % 60)).padStart(2, "0");
+  const ts = `${mins}:${secs}`;
+  _videoAnnotations.push({ ts, t, text });
+  _videoAnnotations.sort((a, b) => a.t - b.t);
+  renderAnnotationList();
+  input.value = "";
+}
+function renderAnnotationList() {
+  const list = el("annotationList");
+  list.innerHTML = _videoAnnotations.map((a, i) =>
+    `<div class="annotation-item">
+      <span class="annotation-time">${esc(a.ts)}</span>
+      <span class="annotation-text">${esc(a.text)}</span>
+      <button class="annotation-del" onclick="deleteAnnotation(${i})" aria-label="Delete">✕</button>
+    </div>`
+  ).join("");
+}
+function deleteAnnotation(i) { _videoAnnotations.splice(i, 1); renderAnnotationList(); }
+function exportAnnotations() {
+  const blob = new Blob([JSON.stringify(_videoAnnotations, null, 2)], { type: "application/json" });
+  const a = document.createElement("a"); a.download = "kala-annotations.json";
+  a.href = URL.createObjectURL(blob); a.click();
+}
+
+// ── Logo Maker ─────────────────────────────────────────────────────────────
+
+let _logoInitDone = false;
+let _logoShapes = [];
+
+function initLogoCanvas() {
+  _logoInitDone = true;
+  renderLogo();
+}
+function addLogoShape(type) {
+  _logoShapes.push({ type, color: el("logoShapeColor").value, x: 300, y: 200, r: 60 });
+  renderLogo();
+}
+function clearLogo() { _logoShapes = []; renderLogo(); }
+function renderLogo() {
+  const c = el("logoCanvas"); if (!c) return;
+  const ctx = c.getContext("2d");
+  const bg = el("logoBgColor").value;
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, c.width, c.height);
+
+  _logoShapes.forEach(s => {
+    ctx.fillStyle = s.color;
+    ctx.beginPath();
+    if (s.type === "circle") {
+      ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+    } else if (s.type === "rect") {
+      ctx.rect(s.x - s.r, s.y - s.r, s.r * 2, s.r * 2);
+    } else if (s.type === "star") {
+      drawStar(ctx, s.x, s.y, 5, s.r, s.r * 0.45);
+    } else if (s.type === "hex") {
+      drawPolygon(ctx, s.x, s.y, s.r, 6);
+    }
+    ctx.fill();
+  });
+
+  const text  = el("logoText") ? el("logoText").value : "";
+  const fsize = parseInt(el("logoFontSize") ? el("logoFontSize").value : 72) || 72;
+  const font  = el("logoFont") ? el("logoFont").value : "Inter, sans-serif";
+  const bold  = el("logoBold") && el("logoBold").checked ? "bold " : "";
+  const ital  = el("logoItalic") && el("logoItalic").checked ? "italic " : "";
+  const tx    = parseInt(el("logoTextX") ? el("logoTextX").value : 300);
+  const ty    = parseInt(el("logoTextY") ? el("logoTextY").value : 200);
+  ctx.font = `${ital}${bold}${fsize}px ${font}`;
+  ctx.fillStyle = el("logoTextColor") ? el("logoTextColor").value : "#7c5af1";
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  if (text) ctx.fillText(text, tx, ty);
+}
+function drawStar(ctx, cx, cy, spikes, outerR, innerR) {
+  let rot = (Math.PI / 2) * 3, step = Math.PI / spikes;
+  ctx.moveTo(cx, cy - outerR);
+  for (let i = 0; i < spikes; i++) {
+    ctx.lineTo(cx + Math.cos(rot) * outerR, cy + Math.sin(rot) * outerR); rot += step;
+    ctx.lineTo(cx + Math.cos(rot) * innerR, cy + Math.sin(rot) * innerR); rot += step;
+  }
+  ctx.lineTo(cx, cy - outerR); ctx.closePath();
+}
+function drawPolygon(ctx, cx, cy, r, sides) {
+  ctx.moveTo(cx + r * Math.cos(0), cy + r * Math.sin(0));
+  for (let i = 1; i <= sides; i++) {
+    const a = (i * 2 * Math.PI) / sides;
+    ctx.lineTo(cx + r * Math.cos(a), cy + r * Math.sin(a));
+  }
+  ctx.closePath();
+}
+function downloadLogoSVG() {
+  const c = el("logoCanvas");
+  const text  = el("logoText").value;
+  const fsize = el("logoFontSize").value;
+  const font  = el("logoFont").value.split(",")[0].replace(/'/g, "");
+  const color = el("logoTextColor").value;
+  const bg    = el("logoBgColor").value;
+  const tx    = el("logoTextX").value;
+  const ty    = el("logoTextY").value;
+  const bold  = el("logoBold").checked ? "bold" : "normal";
+  const ital  = el("logoItalic").checked ? "italic" : "normal";
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${c.width}" height="${c.height}">
+  <rect width="100%" height="100%" fill="${esc(bg)}"/>
+  <text x="${tx}" y="${ty}" font-family="${esc(font)}" font-size="${fsize}" fill="${esc(color)}" font-weight="${bold}" font-style="${ital}" text-anchor="middle" dominant-baseline="middle">${esc(text)}</text>
+</svg>`;
+  const a = document.createElement("a");
+  a.download = "kala-logo.svg";
+  a.href = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+  a.click();
+}
+
+// ── Visual Analysis via /visual endpoint ───────────────────────────────────
+
+async function analyseVisualWork(mode) {
+  const mediumMap = { paint: el("paintMedium")?.value || "painting", photo: "photo", video: "video", logo: "logo" };
+  const descMap   = { paint: "paintDesc", photo: "photoDesc", video: "videoDesc", logo: "logoDesc" };
+  const resMap    = { paint: "paintAnalysisResult", photo: "photoAnalysisResult", video: "videoAnalysisResult", logo: "logoAnalysisResult" };
+
+  const desc = el(descMap[mode])?.value.trim();
+  const resultEl = el(resMap[mode]);
+  if (!desc) { resultEl.innerHTML = '<p style="color:var(--negative);font-size:.83rem">Please add a description first.</p>'; resultEl.classList.remove("hidden"); return; }
+
+  resultEl.innerHTML = '<p style="color:var(--text-muted);font-size:.83rem">Analysing…</p>';
+  resultEl.classList.remove("hidden");
+
+  const palette = mode === "paint" ? (el("paintPalette")?.value || "").split(",").map(s => s.trim()).filter(Boolean) : [];
+  const body = { description: desc, medium: mediumMap[mode] };
+  if (palette.length) body.color_palette = palette;
+
+  try {
+    const resp = await fetch(`${_BASE_URL}/visual`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!resp.ok) { const e = await resp.json().catch(() => ({})); throw new Error(e.detail || resp.statusText); }
+    const data = await resp.json();
+    resultEl.innerHTML = renderVisualAnalysis(data);
+  } catch (err) {
+    resultEl.innerHTML = `<p style="color:var(--negative);font-size:.83rem">Analysis error: ${esc(String(err.message || err))}</p>`;
+  }
+}
+
+function renderVisualAnalysis(d) {
+  const tag = (t) => `<span class="tag">${esc(t)}</span>`;
+  const tags = (arr) => Array.isArray(arr) ? arr.map(tag).join("") : "";
+
+  const colourCard = d.colour && d.colour.palette_size > 0 ? `
+    <div class="visual-card">
+      <h4>Colour</h4>
+      <p><strong>${esc(d.colour.colour_harmony || "—")}</strong> harmony · ${esc(d.colour.dominant_temperature || "—")} · ${esc(d.colour.saturation || "—")}</p>
+      <p style="margin-top:.3rem;font-size:.78rem;color:var(--text-muted)">${esc(d.colour.insight || "")}</p>
+    </div>` : "";
+
+  const compCard = `
+    <div class="visual-card">
+      <h4>Composition</h4>
+      <p>${esc(d.composition.balance || "—")}</p>
+      <div class="tag-list">${tags(d.composition.detected_elements)}</div>
+    </div>`;
+
+  const styleCard = `
+    <div class="visual-card">
+      <h4>Style</h4>
+      <p><strong>${esc(d.style.primary_style || "—")}</strong> <span style="color:var(--text-muted);font-size:.78rem">(${esc(d.style.detection_confidence)} confidence)</span></p>
+      <div class="tag-list">${tags(d.style.style_influences)}</div>
+    </div>`;
+
+  const emoCard = `
+    <div class="visual-card">
+      <h4>Emotion &amp; Intent</h4>
+      <p>${esc(d.emotion.primary_register || "—")} · ${esc(d.intent.primary_intent || "—")}</p>
+      <div class="tag-list">${tags(d.emotion.secondary_registers)}</div>
+    </div>`;
+
+  const preserveCard = `
+    <div class="visual-card">
+      <h4>Preservation</h4>
+      ${(d.preservation.digital || []).slice(0, 2).map(r => `<p style="font-size:.78rem">💾 ${esc(r)}</p>`).join("")}
+    </div>`;
+
+  return `
+    <p style="font-size:.83rem;color:var(--text-muted);margin:.5rem 0 .3rem">${esc(d.summary || "")}</p>
+    <div class="visual-analysis-grid">
+      ${compCard}${styleCard}${emoCard}${colourCard}${preserveCard}
+    </div>`;
+}

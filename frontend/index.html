@@ -240,6 +240,14 @@
   <!-- Main Content -->
   <main class="app-main" id="appMain" role="main">
 
+    <!-- Studio mode switcher -->
+    <div class="studio-switcher" role="tablist" aria-label="Studio mode">
+      <button class="studio-mode-btn active" id="textStudioBtn" onclick="switchStudio('text')" role="tab" aria-selected="true">✍️ Text Studio</button>
+      <button class="studio-mode-btn" id="visualStudioBtn" onclick="switchStudio('visual')" role="tab" aria-selected="false">🎨 Visual Studio</button>
+    </div>
+
+    <!-- Text Studio (existing) -->
+    <div id="textStudio">
     <section class="input-panel" id="inputPanel">
       <div class="input-card">
         <div class="input-row">
@@ -366,6 +374,219 @@
         </div>
       </div>
     </section>
+
+    </div><!-- /textStudio -->
+
+    <!-- ═══════════════════════════════════════════
+         VISUAL STUDIO  🎨
+         ═══════════════════════════════════════════ -->
+    <div id="visualStudio" class="input-panel">
+      <div class="input-card" style="padding:.8rem 1.2rem .3rem">
+        <div class="visual-tab-bar" role="tablist" aria-label="Visual tools">
+          <button class="visual-tab active" data-vtab="paint" onclick="switchVisualTab('paint')" role="tab">🖌️ Paint &amp; Sketch</button>
+          <button class="visual-tab" data-vtab="photo" onclick="switchVisualTab('photo')" role="tab">📷 Photo Editor</button>
+          <button class="visual-tab" data-vtab="video" onclick="switchVisualTab('video')" role="tab">🎬 Video Editor</button>
+          <button class="visual-tab" data-vtab="logo" onclick="switchVisualTab('logo')" role="tab">✏️ Logo Maker</button>
+        </div>
+
+        <!-- ─── Paint / Sketch ─── -->
+        <div class="visual-pane" id="vpane-paint" role="tabpanel">
+          <div class="canvas-toolbar">
+            <button class="tool-btn active" id="tool-pencil" onclick="selectPaintTool('pencil')">✏️ Pencil</button>
+            <button class="tool-btn" id="tool-brush" onclick="selectPaintTool('brush')">🖌️ Brush</button>
+            <button class="tool-btn" id="tool-eraser" onclick="selectPaintTool('eraser')">⬜ Eraser</button>
+            <button class="tool-btn" id="tool-line" onclick="selectPaintTool('line')">📏 Line</button>
+            <button class="tool-btn" id="tool-rect" onclick="selectPaintTool('rect')">⬛ Rect</button>
+            <button class="tool-btn" id="tool-circle" onclick="selectPaintTool('circle')">⭕ Circle</button>
+            <div class="tool-sep"></div>
+            <div class="tool-slider-group">
+              <span>Size</span>
+              <input type="range" id="paintSize" min="1" max="60" value="6" oninput="updatePaintSize(this.value)" />
+              <span id="paintSizeLabel">6</span>
+            </div>
+            <div class="tool-slider-group">
+              <span>Opacity</span>
+              <input type="range" id="paintOpacity" min="5" max="100" value="100" oninput="updatePaintOpacity(this.value)" />
+              <span id="paintOpacityLabel">100%</span>
+            </div>
+            <div class="tool-sep"></div>
+            <input type="color" id="paintColor" class="color-swatch-picker" value="#7c5af1" title="Brush colour" />
+            <input type="color" id="paintFill" class="color-swatch-picker" value="#ffffff" title="Fill colour" style="border-color:var(--border-focus)" />
+            <div class="tool-sep"></div>
+            <button class="tool-btn" onclick="undoPaint()">↩ Undo</button>
+            <button class="tool-btn" onclick="clearPaintCanvas()">🗑 Clear</button>
+            <button class="tool-btn" onclick="downloadCanvas('paintCanvas','kala-sketch')">⬇ Save PNG</button>
+          </div>
+          <div class="kala-canvas-wrap" id="paintCanvasWrap">
+            <canvas id="paintCanvas" width="1200" height="680" aria-label="Drawing canvas"></canvas>
+          </div>
+          <!-- Analyse description -->
+          <div class="visual-analysis-section">
+            <h3 class="section-heading" style="font-size:.9rem">Describe &amp; Analyse this work</h3>
+            <div class="visual-desc-form">
+              <textarea id="paintDesc" placeholder="Describe your painting or sketch for AI analysis…" rows="2"></textarea>
+              <div class="visual-desc-row">
+                <select id="paintMedium">
+                  <option value="painting">Painting</option>
+                  <option value="sketch">Sketch / Drawing</option>
+                </select>
+                <input type="text" id="paintPalette" placeholder="Colours e.g. #ff4500, #2ecc71" style="flex:1;min-width:150px" />
+                <button class="btn-primary" style="padding:.4rem 1rem;font-size:.82rem" onclick="analyseVisualWork('paint')">✦ Analyse</button>
+              </div>
+            </div>
+            <div id="paintAnalysisResult" class="hidden"></div>
+          </div>
+        </div><!-- /vpane-paint -->
+
+        <!-- ─── Photo Editor ─── -->
+        <div class="visual-pane hidden" id="vpane-photo" role="tabpanel">
+          <div class="photo-upload-zone" id="photoUploadZone" onclick="el('photoFileInput').click()" ondragover="event.preventDefault()" ondrop="handlePhotoDrop(event)">
+            <input type="file" id="photoFileInput" accept="image/*" style="display:none" onchange="loadPhotoFile(this.files[0])" />
+            <p>📷 Click or drag &amp; drop an image to edit</p>
+            <p style="font-size:.78rem;margin-top:.3rem;opacity:.7">JPEG, PNG, WebP, GIF supported</p>
+          </div>
+          <canvas id="photoCanvas" style="display:none"></canvas>
+          <div id="photoPreviewWrap" class="photo-preview-wrap hidden">
+            <img id="photoPreview" alt="Uploaded photo" />
+          </div>
+          <div id="photoFilterPanel" class="hidden">
+            <div class="filter-controls">
+              <div class="filter-row"><label>Brightness <span id="brightnessVal">100%</span></label><input type="range" id="fBrightness" min="0" max="200" value="100" oninput="applyPhotoFilters()" /></div>
+              <div class="filter-row"><label>Contrast <span id="contrastVal">100%</span></label><input type="range" id="fContrast" min="0" max="200" value="100" oninput="applyPhotoFilters()" /></div>
+              <div class="filter-row"><label>Saturation <span id="saturationVal">100%</span></label><input type="range" id="fSaturation" min="0" max="200" value="100" oninput="applyPhotoFilters()" /></div>
+              <div class="filter-row"><label>Hue Rotate <span id="hueVal">0°</span></label><input type="range" id="fHue" min="0" max="360" value="0" oninput="applyPhotoFilters()" /></div>
+              <div class="filter-row"><label>Blur <span id="blurVal">0px</span></label><input type="range" id="fBlur" min="0" max="20" value="0" step=".5" oninput="applyPhotoFilters()" /></div>
+              <div class="filter-row"><label>Sepia <span id="sepiaVal">0%</span></label><input type="range" id="fSepia" min="0" max="100" value="0" oninput="applyPhotoFilters()" /></div>
+              <div class="filter-row"><label>Grayscale <span id="grayscaleVal">0%</span></label><input type="range" id="fGrayscale" min="0" max="100" value="0" oninput="applyPhotoFilters()" /></div>
+              <div class="filter-row"><label>Invert <span id="invertVal">0%</span></label><input type="range" id="fInvert" min="0" max="100" value="0" oninput="applyPhotoFilters()" /></div>
+            </div>
+            <div style="display:flex;gap:.5rem;margin-top:.7rem;flex-wrap:wrap">
+              <button class="btn-ghost" onclick="resetPhotoFilters()">↺ Reset</button>
+              <button class="btn-ghost" onclick="flipPhoto('h')">↔ Flip H</button>
+              <button class="btn-ghost" onclick="flipPhoto('v')">↕ Flip V</button>
+              <button class="btn-ghost" onclick="rotatePhoto(90)">↻ Rotate 90°</button>
+              <button class="btn-primary" onclick="downloadCanvas('photoCanvas','kala-photo')" style="padding:.4rem 1rem;font-size:.82rem">⬇ Save PNG</button>
+            </div>
+          </div>
+          <!-- Analyse -->
+          <div class="visual-analysis-section">
+            <h3 class="section-heading" style="font-size:.9rem">Describe &amp; Analyse this photograph</h3>
+            <div class="visual-desc-form">
+              <textarea id="photoDesc" placeholder="Describe the photograph — subject, lighting, mood, technique…" rows="2"></textarea>
+              <div class="visual-desc-row">
+                <button class="btn-primary" style="padding:.4rem 1rem;font-size:.82rem" onclick="analyseVisualWork('photo')">✦ Analyse</button>
+              </div>
+            </div>
+            <div id="photoAnalysisResult" class="hidden"></div>
+          </div>
+        </div><!-- /vpane-photo -->
+
+        <!-- ─── Video Editor ─── -->
+        <div class="visual-pane hidden" id="vpane-video" role="tabpanel">
+          <div class="video-upload-zone" id="videoUploadZone" onclick="el('videoFileInput').click()">
+            <input type="file" id="videoFileInput" accept="video/*" style="display:none" onchange="loadVideoFile(this.files[0])" />
+            <p>🎬 Click to upload a video file</p>
+            <p style="font-size:.78rem;margin-top:.3rem;opacity:.7">MP4, WebM, MOV supported (processed locally — nothing uploaded)</p>
+          </div>
+          <div id="videoPlayerSection" class="hidden">
+            <div class="video-player-wrap">
+              <video id="videoPlayer" controls preload="metadata"></video>
+            </div>
+            <div class="video-controls-bar">
+              <div class="tool-slider-group">
+                <span>Speed</span>
+                <select id="videoSpeed" onchange="setVideoSpeed(this.value)" style="padding:.25rem .4rem;background:var(--surface-3);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:.8rem">
+                  <option value="0.25">0.25×</option>
+                  <option value="0.5">0.5×</option>
+                  <option value="0.75">0.75×</option>
+                  <option value="1" selected>1×</option>
+                  <option value="1.5">1.5×</option>
+                  <option value="2">2×</option>
+                  <option value="4">4×</option>
+                </select>
+              </div>
+              <button class="tool-btn" onclick="snapVideoFrame()">📸 Snapshot</button>
+              <button class="tool-btn" onclick="exportAnnotations()">⬇ Export Annotations</button>
+            </div>
+            <div style="margin-top:.7rem">
+              <div style="display:flex;gap:.45rem;align-items:center;flex-wrap:wrap">
+                <input type="text" id="annotationInput" placeholder="Add note at current timestamp…" style="flex:1;min-width:180px;padding:.35rem .55rem;border-radius:var(--radius-sm);border:1.5px solid var(--border);background:var(--bg-alt);color:var(--text);font-size:.83rem;font-family:var(--font-ui)" />
+                <button class="tool-btn" onclick="addVideoAnnotation()">+ Add Note</button>
+              </div>
+              <div id="annotationList" class="annotation-list"></div>
+            </div>
+          </div>
+          <!-- Analyse -->
+          <div class="visual-analysis-section">
+            <h3 class="section-heading" style="font-size:.9rem">Describe &amp; Analyse this video work</h3>
+            <div class="visual-desc-form">
+              <textarea id="videoDesc" placeholder="Describe the video — style, technique, mood, pacing, narrative…" rows="2"></textarea>
+              <div class="visual-desc-row">
+                <button class="btn-primary" style="padding:.4rem 1rem;font-size:.82rem" onclick="analyseVisualWork('video')">✦ Analyse</button>
+              </div>
+            </div>
+            <div id="videoAnalysisResult" class="hidden"></div>
+          </div>
+        </div><!-- /vpane-video -->
+
+        <!-- ─── Logo Maker ─── -->
+        <div class="visual-pane hidden" id="vpane-logo" role="tabpanel">
+          <div class="logo-toolbar">
+            <input type="text" id="logoText" class="logo-text-input" placeholder="Logo text…" oninput="renderLogo()" />
+            <select id="logoFont" class="logo-font-select" onchange="renderLogo()">
+              <option value="Inter, sans-serif">Inter (Sans)</option>
+              <option value="'Playfair Display', Georgia, serif">Playfair (Serif)</option>
+              <option value="Georgia, serif">Georgia</option>
+              <option value="'Courier New', monospace">Courier (Mono)</option>
+              <option value="Impact, sans-serif">Impact (Display)</option>
+            </select>
+            <input type="number" id="logoFontSize" class="logo-size-input" value="72" min="12" max="300" oninput="renderLogo()" />
+            <input type="color" id="logoTextColor" value="#7c5af1" title="Text colour" class="color-swatch-picker" oninput="renderLogo()" />
+            <input type="color" id="logoBgColor" value="#0a0b14" title="Background colour" class="color-swatch-picker" oninput="renderLogo()" />
+            <div class="tool-sep"></div>
+            <span style="font-size:.75rem;color:var(--text-muted)">Shape:</span>
+            <button class="tool-btn" onclick="addLogoShape('circle')">⭕</button>
+            <button class="tool-btn" onclick="addLogoShape('rect')">⬛</button>
+            <button class="tool-btn" onclick="addLogoShape('star')">⭐</button>
+            <button class="tool-btn" onclick="addLogoShape('hex')">⬡</button>
+            <div class="tool-sep"></div>
+            <input type="color" id="logoShapeColor" value="#7c5af1" title="Shape colour" class="color-swatch-picker" oninput="renderLogo()" />
+            <div class="tool-sep"></div>
+            <button class="tool-btn" onclick="clearLogo()">🗑 Clear</button>
+            <button class="tool-btn" onclick="downloadCanvas('logoCanvas','kala-logo')">⬇ PNG</button>
+            <button class="tool-btn" onclick="downloadLogoSVG()">⬇ SVG</button>
+          </div>
+          <!-- Text position controls -->
+          <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.6rem;align-items:center;font-size:.8rem;color:var(--text-muted)">
+            <span>Text X:</span>
+            <input type="range" id="logoTextX" min="0" max="600" value="300" oninput="renderLogo()" style="width:90px;accent-color:var(--accent)" />
+            <span>Y:</span>
+            <input type="range" id="logoTextY" min="0" max="400" value="200" oninput="renderLogo()" style="width:90px;accent-color:var(--accent)" />
+            <label style="display:flex;align-items:center;gap:.3rem">
+              <input type="checkbox" id="logoBold" onchange="renderLogo()" style="accent-color:var(--accent)" />Bold
+            </label>
+            <label style="display:flex;align-items:center;gap:.3rem">
+              <input type="checkbox" id="logoItalic" onchange="renderLogo()" style="accent-color:var(--accent)" />Italic
+            </label>
+          </div>
+          <div class="logo-canvas-wrap">
+            <canvas id="logoCanvas" width="600" height="400" aria-label="Logo canvas"></canvas>
+          </div>
+          <!-- Analyse -->
+          <div class="visual-analysis-section">
+            <h3 class="section-heading" style="font-size:.9rem">Describe &amp; Analyse this logo</h3>
+            <div class="visual-desc-form">
+              <textarea id="logoDesc" placeholder="Describe the logo — concept, style, brand intent, colour choices…" rows="2"></textarea>
+              <div class="visual-desc-row">
+                <button class="btn-primary" style="padding:.4rem 1rem;font-size:.82rem" onclick="analyseVisualWork('logo')">✦ Analyse</button>
+              </div>
+            </div>
+            <div id="logoAnalysisResult" class="hidden"></div>
+          </div>
+        </div><!-- /vpane-logo -->
+
+      </div><!-- /input-card -->
+    </div><!-- /visualStudio -->
 
   </main>
 
