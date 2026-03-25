@@ -26,7 +26,7 @@ KalaOS is an AI-native art platform for creation, streaming, and distribution th
 
 ## Overview
 
-KalaOS analyses text-based art (lyrics, poetry, prose) through a multi-phase pipeline:
+KalaOS analyses text-based art (lyrics, poetry, music, stories, and more) through a multi-phase pipeline:
 
 | Phase | Module | What it does |
 |---|---|---|
@@ -125,19 +125,22 @@ KalaOS requires a free account to use the Studio UI.  All `/auth/*` endpoints ar
 
 | Endpoint | Method | Description |
 |---|---|---|
-| `/auth/register` | POST | Create a new account (`email`, `password`, `name`) |
+| `/auth/register` | POST | Create a new account (`email`, `password`, `name`) — rate-limited: 5/min |
 | `/auth/login` | POST | Sign in — returns a 30-day signed session token |
 | `/auth/forgot-password` | POST | Request a password-reset token (rate-limited: 5/min) |
 | `/auth/reset-password` | POST | Apply a new password using the reset token |
 | `/auth/me` | GET | Return the current user's public info |
 | `/auth/update-profile` | POST | Update the authenticated user's display name |
 | `/auth/change-password` | POST | Change password while logged in |
+| `/auth/logout` | POST | Revoke the current session token (server-side) |
+| `/auth/delete-account` | DELETE | Permanently delete the account (requires password confirmation) |
 
 **Security highlights:**
 - Passwords hashed with PBKDF2-HMAC-SHA256 (200 000 iterations).
 - Session tokens are HMAC-SHA256–signed and carry a 30-day expiry (`exp` field).
 - `forgot-password` always returns 200 regardless of whether the email exists (anti-enumeration).
-- Login is rate-limited (default 10/min per IP) via [slowapi](https://github.com/laurentS/slowapi).
+- Login and registration are rate-limited (default 10/min and 5/min per IP, respectively) via [slowapi](https://github.com/laurentS/slowapi).
+- `logout` adds the token to a server-side revocation list so it cannot be reused before its natural expiry.
 - Users are stored in SQLite (`kalaos.db`). Path is configurable via `KALA_DB_PATH`.
 
 **Email delivery (optional):**  By default the reset token is returned in the API response (demo mode).  To deliver tokens by email set these environment variables:
@@ -239,7 +242,7 @@ Runs **all phases** in a single call and returns every phase's output plus a uni
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `text` | `string` | — | Art text to analyse (**required**) |
-| `art_domain` | `string` | `"general"` | `lyrics`, `poetry`, `prose`, `script`, `general` |
+| `art_domain` | `string` | `"general"` | `lyrics`, `poetry`, `music`, `story`, `book`, `general` |
 | `artist_name` | `string` | `null` | Included in the LLM narrative prompt |
 | `creation_context` | `string` | `null` | Background provided to the LLM |
 | `model` | `string` | `null` | Override the Ollama model (e.g. `"mistral"`) |
@@ -386,7 +389,7 @@ pip install -r requirements.txt
 pytest ../tests/ -v
 ```
 
-All **422 tests** should pass. The test suite covers every endpoint and every kalacore module with unit and integration tests, including auth registration/login/reset, session expiry, profile updates, and password changes.
+All **431 tests** should pass. The test suite covers every endpoint and every kalacore module with unit and integration tests, including auth registration/login/reset, session expiry, profile updates, password changes, logout (token revocation), and account deletion.
 
 ---
 
@@ -419,7 +422,7 @@ KalaOS/
 │   └── sw.js                    # Service worker (offline cache)
 ├── tests/
 │   ├── conftest.py              # Shared pytest config (rate limits, DB path)
-│   └── ...                      # 422 tests across all modules
+│   └── ...                      # 431 tests across all modules
 ├── capacitor.config.json        # Capacitor native app config (iOS/Android/Win)
 ├── docker-compose.yml           # One-command startup (includes KALA_SECRET)
 └── README.md
