@@ -19,6 +19,7 @@ KalaOS is an AI-native art platform for creation, streaming, and distribution th
   - [Auth endpoints](#auth-endpoints)
   - [Analysis endpoints](#analysis-endpoints)
 - [Studio UI](#studio-ui)
+- [Cloudflare Worker](#cloudflare-worker--optional-edge-layer)
 - [Running the Tests](#running-the-tests)
 - [Project Layout](#project-layout)
 
@@ -26,7 +27,7 @@ KalaOS is an AI-native art platform for creation, streaming, and distribution th
 
 ## Overview
 
-KalaOS analyses text-based art (lyrics, poetry, music, stories, and more) through a multi-phase pipeline:
+KalaOS analyses text-based and visual art (lyrics, poetry, music, stories, and more) through a multi-phase pipeline:
 
 | Phase | Module | What it does |
 |---|---|---|
@@ -40,6 +41,8 @@ KalaOS analyses text-based art (lyrics, poetry, music, stories, and more) throug
 | 7 | `frontend/` | Browser-based Studio UI (no build step) |
 | 8 | `llm_service` | Kala-LLM — unified artist narrative via Ollama |
 | 9 | `temporal` | Temporal meaning, ephemeral art, creative ancestry |
+| 11 | `kalavisual` | Visual art intelligence — colour, composition, style |
+| 12 | `kalaproducer` | Music production planning, beat patterns, distribution |
 
 ---
 
@@ -49,11 +52,11 @@ KalaOS analyses text-based art (lyrics, poetry, music, stories, and more) throug
 ┌─────────────────────────────────────────┐
 │            KalaOS Studio UI             │  frontend/  (static HTML/CSS/JS + PWA)
 └──────────────────┬──────────────────────┘
-                   │ HTTP (POST /deep-analysis, /auth/*)
+                   │ HTTP (POST /deep-analysis, /produce, /auth/*, …)
 ┌──────────────────▼──────────────────────┐
 │         FastAPI Backend (Python)        │  backend/
 │  ┌─────────────────────────────────┐    │
-│  │  kalacore/   (10 modules)       │    │
+│  │  kalacore/   (12 modules)       │    │
 │  │  services/llm_service.py        │    │
 │  │  services/auth_service.py       │    │
 │  └─────────────────────────────────┘    │
@@ -61,6 +64,12 @@ KalaOS analyses text-based art (lyrics, poetry, music, stories, and more) throug
                    │ HTTP (Ollama REST API)
 ┌──────────────────▼──────────────────────┐
 │        Ollama  (local LLM runtime)      │
+└─────────────────────────────────────────┘
+
+┌─────────────────────────────────────────┐
+│  Cloudflare Worker  (worker/index.js)   │  optional edge layer
+│  D1 SQLite — artworks persistence       │
+│  POST /api/analyze  GET /api/artworks   │
 └─────────────────────────────────────────┘
 ```
 
@@ -366,6 +375,40 @@ Phase 9 Temporal intelligence — meaning across time, ephemeral art, creative a
 
 ---
 
+### `POST /produce`  *(Phase 12 – KalaProducer)*
+
+Music production planning — BPM & key suggestions, beat grid, instrument palette, melody contour, distribution channels, and streaming metadata, all derived from the artist's lyrics or text.
+
+**Request**
+
+```json
+{
+  "text": "Your lyrics here",
+  "artist_name": "Optional artist name"
+}
+```
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `text` | `string` | — | Lyrics or text to produce around (**required**) |
+| `artist_name` | `string` | `null` | Included in distribution & streaming metadata |
+
+**Response** — `ProduceResponse`
+
+```json
+{
+  "production_plan":      { "suggested_bpm_range": [85, 100], "suggested_key": "C minor", ... },
+  "beat_pattern":         { "pattern_name": "boom-bap", "kick": "X . . . X . . .", ... },
+  "instruments":          { "primary_instruments": ["piano", "bass"], ... },
+  "melody_contour":       { "scale_quality": "minor", "contour_description": "arch", ... },
+  "distribution":         { "recommended_platforms": [...], "distribution_services": [...], ... },
+  "streaming_metadata":   { "suggested_title_words": [...], "mood_tags": [...], ... },
+  "sample_palette":       { "sample_categories": [...], "crate_digging_tips": [...], ... }
+}
+```
+
+---
+
 ### `POST /visual`  *(Phase 11 – Visual Art Intelligence)*
 
 Analyses a visual artwork from an artist-provided description — no image upload required.
@@ -409,7 +452,21 @@ Analyses a visual artwork from an artist-provided description — no image uploa
 
 ## Visual Studio
 
-The KalaOS Studio includes a full **Visual Studio** alongside the existing Text Studio. Toggle between them with the mode switcher at the top of the page.
+The KalaOS Studio includes a full **Visual Studio** and a **Music Studio** alongside the existing Text Studio. Toggle between them with the mode switcher at the top of the page.
+
+## Music Studio 🎵  *(Phase 12 – KalaProducer)*
+
+Enter lyrics or any descriptive text and press **Produce** to get:
+
+- **Production Plan** — BPM range, suggested key & time signature, genre palette, mixing notes
+- **Beat Pattern** — visual drum-grid (kick / snare / hi-hat) with velocity and humanisation hints
+- **Instruments** — primary and texture instrument palettes with layering guidance
+- **Melody Contour** — scale quality, scale degrees, phrase-level melodic direction
+- **Distribution** — per-platform loudness targets and recommended distribution services
+- **Streaming Metadata** — title words, genre/mood tags, ISRC notes, release checklist
+- **Sample Palette** — sample categories, texture suggestions, and crate-digging tips
+
+---
 
 ### 🖌️ Paint & Sketch
 - HTML5 Canvas drawing with pencil, brush, eraser, line, rectangle, and circle tools
@@ -455,6 +512,43 @@ By default the UI talks to `http://localhost:8000`. To point it at a different b
 
 ---
 
+## Cloudflare Worker  *(optional edge layer)*
+
+`worker/` contains a [Cloudflare Worker](https://developers.cloudflare.com/workers/) that stores and retrieves artworks via [Cloudflare D1](https://developers.cloudflare.com/d1/) (edge SQLite).
+
+### Setup
+
+```bash
+# Install Wrangler CLI (once)
+npm install -g wrangler
+
+# Authenticate
+wrangler login
+
+# Create the D1 database and copy the returned UUID into wrangler.toml
+wrangler d1 create kalaos-db
+
+# Apply the schema
+wrangler d1 execute kalaos-db --file=worker/schema.sql
+
+# Deploy the worker
+cd worker
+wrangler deploy
+```
+
+### Endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/api/analyze` | Save an artwork (`text`, optional `title`) to D1 |
+| `GET` | `/api/artworks` | List all artworks (newest first) |
+| `GET` | `/api/artworks/:id` | Fetch a single artwork |
+| `DELETE` | `/api/artworks/:id` | Delete an artwork |
+
+All endpoints include CORS headers.
+
+---
+
 ## Running the Tests
 
 ```bash
@@ -463,7 +557,9 @@ pip install -r requirements.txt
 pytest ../tests/ -v
 ```
 
-All **431 tests** should pass. The test suite covers every endpoint and every kalacore module with unit and integration tests, including auth registration/login/reset, session expiry, profile updates, password changes, logout (token revocation), and account deletion.
+All **574 tests** should pass. The test suite covers every endpoint and every kalacore module with unit and integration tests, including auth registration/login/reset, session expiry, profile updates, password changes, logout (token revocation), and account deletion.
+
+> **Worker testing:** The Cloudflare Worker (`worker/`) runs in the Workers runtime and cannot be tested with pytest.  Use `wrangler dev` for local testing against a local D1 instance, or `wrangler d1 execute --local` to inspect the database.
 
 ---
 
@@ -484,7 +580,9 @@ KalaOS/
 │   │   ├── kalacomposer.py      # Phase 3 – musical structure
 │   │   ├── kalaflow.py          # Phase 5 – distribution
 │   │   ├── kalacustody.py       # Phase 6 – custody & legacy
-│   │   └── temporal.py          # Phase 9 – temporal intelligence
+│   │   ├── temporal.py          # Phase 9 – temporal intelligence
+│   │   ├── kalavisual.py        # Phase 11 – visual art intelligence
+│   │   └── kalaproducer.py      # Phase 12 – music production & distribution
 │   └── services/
 │       ├── auth_service.py      # Auth – register/login/reset/profile (SQLite)
 │       └── llm_service.py       # Phase 8 – Kala-LLM (Ollama)
@@ -494,9 +592,13 @@ KalaOS/
 │   ├── app.js                   # Vanilla ES2020 application logic
 │   ├── manifest.json            # PWA manifest
 │   └── sw.js                    # Service worker (offline cache)
+├── worker/
+│   ├── index.js                 # Cloudflare Worker – artworks CRUD via D1
+│   ├── wrangler.toml            # Worker config (D1 binding)
+│   └── schema.sql               # D1 database schema (artworks table)
 ├── tests/
 │   ├── conftest.py              # Shared pytest config (rate limits, DB path)
-│   └── ...                      # 431 tests across all modules
+│   └── ...                      # 574 tests across all modules
 ├── capacitor.config.json        # Capacitor native app config (iOS/Android/Win)
 ├── docker-compose.yml           # One-command startup (includes KALA_SECRET)
 └── README.md

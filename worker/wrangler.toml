@@ -2,3 +2,9 @@ name = "kalaos-worker"
 main = "index.js"
 compatibility_date = "2024-01-01"
 
+# D1 database binding.  Replace `database_id` with the UUID returned by:
+#   wrangler d1 create kalaos-db
+[[d1_databases]]
+binding = "DB"
+database_name = "kalaos-db"
+database_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"

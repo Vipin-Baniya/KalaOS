@@ -45,7 +45,17 @@ self.addEventListener("fetch", (event) => {
     url.pathname.startsWith("/deep-analysis") ||
     url.pathname.startsWith("/analyze-art") ||
     url.pathname.startsWith("/suggest") ||
-    url.pathname.startsWith("/models");
+    url.pathname.startsWith("/models") ||
+    url.pathname.startsWith("/existential") ||
+    url.pathname.startsWith("/craft") ||
+    url.pathname.startsWith("/signal") ||
+    url.pathname.startsWith("/compose") ||
+    url.pathname.startsWith("/flow") ||
+    url.pathname.startsWith("/custody") ||
+    url.pathname.startsWith("/temporal") ||
+    url.pathname.startsWith("/visual") ||
+    url.pathname.startsWith("/produce") ||
+    url.pathname.startsWith("/api/");
 
   if (isApiCall) {
     event.respondWith(
