@@ -7,4 +7,4 @@ compatibility_date = "2024-01-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "kalaos-db"
-database_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+database_id = "d3581d1c-68d1-4bf6-b7bc-1b4997aacdbd"
