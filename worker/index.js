@@ -1,5 +1,5 @@
 export default {
-  async fetch(request) {
+  async fetch(request,env) {
 
     if (request.method === "OPTIONS") {
       return new Response(null, {
