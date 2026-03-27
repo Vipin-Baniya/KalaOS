@@ -245,6 +245,7 @@
       <button class="studio-mode-btn active" id="textStudioBtn" onclick="switchStudio('text')" role="tab" aria-selected="true">✍️ Text Studio</button>
       <button class="studio-mode-btn" id="musicStudioBtn" onclick="switchStudio('music')" role="tab" aria-selected="false">🎵 Music Studio</button>
       <button class="studio-mode-btn" id="visualStudioBtn" onclick="switchStudio('visual')" role="tab" aria-selected="false">🎨 Visual Studio</button>
+      <button class="studio-mode-btn" id="chatStudioBtn" onclick="switchStudio('chat')" role="tab" aria-selected="false">💬 Kala Chat</button>
     </div>
 
     <!-- Text Studio (existing) -->
@@ -383,213 +384,661 @@
          ═══════════════════════════════════════════ -->
     <div id="musicStudio" class="input-panel hidden">
 
-      <!-- Input card -->
-      <div class="input-card">
-        <div class="input-row">
-          <div class="field-group grow">
-            <label for="musicText">Lyrics, poem, or production notes</label>
-            <textarea id="musicText" placeholder="Paste your lyrics or describe the track you're making…" rows="8" spellcheck="false"></textarea>
+      <!-- ── Music Studio Inner Tabs ── -->
+      <div class="music-tools-bar" role="tablist" aria-label="Music studio tools">
+        <button class="music-tool-btn active" data-mtool="beat" onclick="switchMusicTool('beat')" role="tab" aria-selected="true">🥁 Beat Maker</button>
+        <button class="music-tool-btn" data-mtool="mixer" onclick="switchMusicTool('mixer')" role="tab" aria-selected="false">🎚️ Mixer</button>
+        <button class="music-tool-btn" data-mtool="mastering" onclick="switchMusicTool('mastering')" role="tab" aria-selected="false">🔊 Mastering</button>
+        <button class="music-tool-btn" data-mtool="chords" onclick="switchMusicTool('chords')" role="tab" aria-selected="false">🎹 Chords</button>
+        <button class="music-tool-btn" data-mtool="produce" onclick="switchMusicTool('produce')" role="tab" aria-selected="false">✦ AI Produce</button>
+      </div>
+
+      <!-- ── Beat Maker ── -->
+      <div class="music-tool-pane" id="mtool-beat" role="tabpanel">
+        <div class="input-card music-tool-card">
+          <div class="beat-maker-header">
+            <h2 class="section-heading">🥁 Beat Sequencer</h2>
+            <p class="beat-maker-hint">Click cells to toggle hits. Press Play to audition.</p>
+            <div class="beat-controls-row">
+              <div class="beat-bpm-group">
+                <label for="beatBpm">BPM</label>
+                <input type="number" id="beatBpm" min="40" max="300" value="90" class="beat-bpm-input" />
+              </div>
+              <div class="beat-swing-group">
+                <label for="beatSwing">Swing <span id="beatSwingLabel">0%</span></label>
+                <input type="range" id="beatSwing" min="0" max="100" value="0" class="music-range" oninput="el('beatSwingLabel').textContent=this.value+'%'" />
+              </div>
+              <button id="beatPlayBtn" class="btn-primary beat-play-btn" onclick="toggleBeat()">▶ Play</button>
+              <button class="btn-ghost" onclick="clearBeatGrid()">🗑 Clear</button>
+              <button class="btn-ghost" onclick="randomiseBeat()">🎲 Random</button>
+            </div>
           </div>
-        </div>
-        <div class="input-meta-row">
-          <div class="field-group">
-            <label for="musicArtistName">Artist name <span class="optional">(optional)</span></label>
-            <input type="text" id="musicArtistName" placeholder="For streaming metadata" />
+          <div class="beat-sequencer">
+            <!-- Step numbers -->
+            <div class="beat-step-numbers">
+              <span class="beat-row-label-pad"></span>
+              <div class="beat-step-nums">
+                <span>1</span><span>2</span><span>3</span><span>4</span>
+                <span>5</span><span>6</span><span>7</span><span>8</span>
+                <span>9</span><span>10</span><span>11</span><span>12</span>
+                <span>13</span><span>14</span><span>15</span><span>16</span>
+              </div>
+            </div>
+            <!-- Kick -->
+            <div class="beat-row-seq" id="seq-kick">
+              <span class="beat-row-label">Kick</span>
+              <div class="beat-cells" id="cells-kick"></div>
+            </div>
+            <!-- Snare -->
+            <div class="beat-row-seq" id="seq-snare">
+              <span class="beat-row-label">Snare</span>
+              <div class="beat-cells" id="cells-snare"></div>
+            </div>
+            <!-- Hi-Hat Closed -->
+            <div class="beat-row-seq" id="seq-hihat">
+              <span class="beat-row-label">Hi-Hat</span>
+              <div class="beat-cells" id="cells-hihat"></div>
+            </div>
+            <!-- Open Hat -->
+            <div class="beat-row-seq" id="seq-openhat">
+              <span class="beat-row-label">Open Hat</span>
+              <div class="beat-cells" id="cells-openhat"></div>
+            </div>
+            <!-- Clap -->
+            <div class="beat-row-seq" id="seq-clap">
+              <span class="beat-row-label">Clap</span>
+              <div class="beat-cells" id="cells-clap"></div>
+            </div>
+            <!-- Perc -->
+            <div class="beat-row-seq" id="seq-perc">
+              <span class="beat-row-label">Perc</span>
+              <div class="beat-cells" id="cells-perc"></div>
+            </div>
           </div>
-        </div>
-        <div class="action-row">
-          <button id="produceBtn" class="btn-primary" onclick="runProduce()">
-            <span class="btn-icon" aria-hidden="true">🎛️</span> Produce
-          </button>
-          <button class="btn-ghost" onclick="clearMusicStudio()">Clear</button>
-          <span id="musicStatusMsg" class="status-msg" aria-live="polite" role="status"></span>
+          <div class="beat-playhead-bar">
+            <div class="beat-playhead" id="beatPlayhead"></div>
+          </div>
+          <!-- Pattern presets -->
+          <div class="beat-presets">
+            <span class="beat-presets-label">Presets:</span>
+            <button class="btn-ghost-sm" onclick="loadBeatPreset('trap')">Trap</button>
+            <button class="btn-ghost-sm" onclick="loadBeatPreset('boom-bap')">Boom Bap</button>
+            <button class="btn-ghost-sm" onclick="loadBeatPreset('reggaeton')">Reggaeton</button>
+            <button class="btn-ghost-sm" onclick="loadBeatPreset('house')">House</button>
+            <button class="btn-ghost-sm" onclick="loadBeatPreset('dnb')">D&amp;B</button>
+          </div>
         </div>
       </div>
 
-      <!-- Results -->
-      <section class="results-panel hidden" id="musicResultsPanel">
-        <nav class="tab-bar" role="tablist" aria-label="Music production results">
-          <button class="tab active" data-mtab="production" onclick="switchMusicTab('production')" role="tab" aria-selected="true">🎛️ Production</button>
-          <button class="tab" data-mtab="beat" onclick="switchMusicTab('beat')" role="tab" aria-selected="false">🥁 Beat</button>
-          <button class="tab" data-mtab="instruments" onclick="switchMusicTab('instruments')" role="tab" aria-selected="false">🎸 Instruments</button>
-          <button class="tab" data-mtab="melody" onclick="switchMusicTab('melody')" role="tab" aria-selected="false">🎵 Melody</button>
-          <button class="tab" data-mtab="distribute" onclick="switchMusicTab('distribute')" role="tab" aria-selected="false">🌍 Distribute</button>
-          <button class="tab" data-mtab="stream" onclick="switchMusicTab('stream')" role="tab" aria-selected="false">📡 Stream</button>
-          <button class="tab" data-mtab="samples" onclick="switchMusicTab('samples')" role="tab" aria-selected="false">🎚️ Samples</button>
-        </nav>
-
-        <div class="tab-content">
-          <!-- Production Plan -->
-          <div class="tab-pane active" id="mtab-production" role="tabpanel">
-            <div class="callout">All production notes are starting-point suggestions — your sonic vision is sovereign.</div>
-            <div class="grid-2">
-              <div class="card">
-                <h3>BPM &amp; Key</h3>
-                <dl id="prodBpm"></dl>
+      <!-- ── Mixer ── -->
+      <div class="music-tool-pane hidden" id="mtool-mixer" role="tabpanel">
+        <div class="input-card music-tool-card">
+          <h2 class="section-heading">🎚️ Mixing Board</h2>
+          <p class="beat-maker-hint">Drag faders to set channel levels. Pan knobs adjust stereo position.</p>
+          <div class="mixer-board">
+            <!-- Channel template repeated 6× -->
+            <div class="mixer-channel" id="ch-lead">
+              <div class="mixer-ch-label">Lead Vox</div>
+              <div class="mixer-eq-mini">
+                <label>Hi <span id="ch-lead-hi-val">0</span>dB</label>
+                <input type="range" class="mixer-eq-knob" min="-12" max="12" value="0" oninput="updateMixEq('lead','hi',this.value)" />
+                <label>Mid <span id="ch-lead-mid-val">0</span>dB</label>
+                <input type="range" class="mixer-eq-knob" min="-12" max="12" value="0" oninput="updateMixEq('lead','mid',this.value)" />
+                <label>Lo <span id="ch-lead-lo-val">0</span>dB</label>
+                <input type="range" class="mixer-eq-knob" min="-12" max="12" value="0" oninput="updateMixEq('lead','lo',this.value)" />
               </div>
-              <div class="card">
-                <h3>Genre Palette</h3>
-                <div id="prodGenre"></div>
+              <div class="mixer-pan-row">
+                <label>Pan</label>
+                <input type="range" class="mixer-pan" min="-100" max="100" value="0" oninput="updateMixPan('lead',this.value)" />
+                <span id="ch-lead-pan">C</span>
               </div>
-              <div class="card">
-                <h3>Production Style</h3>
-                <p id="prodStyle" class="card-body-text"></p>
+              <div class="mixer-fader-wrap">
+                <input type="range" class="mixer-fader" min="0" max="100" value="80" oninput="updateMixFader('lead',this.value)" />
+                <span class="mixer-fader-val" id="ch-lead-fader">80</span>
               </div>
-              <div class="card">
-                <h3>Mixing Notes</h3>
-                <ul id="prodMixing" class="bullet-list"></ul>
-              </div>
-              <div class="card full-span">
-                <h3>Production Notes</h3>
-                <ul id="prodNotes" class="bullet-list"></ul>
+              <div class="mixer-btn-row">
+                <button class="mix-btn-mute" id="mute-lead" onclick="toggleMixMute('lead')">M</button>
+                <button class="mix-btn-solo" id="solo-lead" onclick="toggleMixSolo('lead')">S</button>
               </div>
             </div>
-          </div>
 
-          <!-- Beat Pattern -->
-          <div class="tab-pane hidden" id="mtab-beat" role="tabpanel">
-            <div class="callout">A 16-step drum-machine grid — X = hit, . = rest, x = hi-hat hit</div>
-            <div class="grid-2">
-              <div class="card full-span">
-                <h3 id="beatPatternName"></h3>
-                <div class="beat-grid-wrap">
-                  <div class="beat-grid" id="beatGrid"></div>
+            <div class="mixer-channel" id="ch-bass">
+              <div class="mixer-ch-label">Bass</div>
+              <div class="mixer-eq-mini">
+                <label>Hi <span id="ch-bass-hi-val">0</span>dB</label>
+                <input type="range" class="mixer-eq-knob" min="-12" max="12" value="0" oninput="updateMixEq('bass','hi',this.value)" />
+                <label>Mid <span id="ch-bass-mid-val">0</span>dB</label>
+                <input type="range" class="mixer-eq-knob" min="-12" max="12" value="0" oninput="updateMixEq('bass','mid',this.value)" />
+                <label>Lo <span id="ch-bass-lo-val">0</span>dB</label>
+                <input type="range" class="mixer-eq-knob" min="-12" max="12" value="6" oninput="updateMixEq('bass','lo',this.value)" />
+              </div>
+              <div class="mixer-pan-row">
+                <label>Pan</label>
+                <input type="range" class="mixer-pan" min="-100" max="100" value="0" oninput="updateMixPan('bass',this.value)" />
+                <span id="ch-bass-pan">C</span>
+              </div>
+              <div class="mixer-fader-wrap">
+                <input type="range" class="mixer-fader" min="0" max="100" value="75" oninput="updateMixFader('bass',this.value)" />
+                <span class="mixer-fader-val" id="ch-bass-fader">75</span>
+              </div>
+              <div class="mixer-btn-row">
+                <button class="mix-btn-mute" id="mute-bass" onclick="toggleMixMute('bass')">M</button>
+                <button class="mix-btn-solo" id="solo-bass" onclick="toggleMixSolo('bass')">S</button>
+              </div>
+            </div>
+
+            <div class="mixer-channel" id="ch-drums">
+              <div class="mixer-ch-label">Drums</div>
+              <div class="mixer-eq-mini">
+                <label>Hi <span id="ch-drums-hi-val">0</span>dB</label>
+                <input type="range" class="mixer-eq-knob" min="-12" max="12" value="0" oninput="updateMixEq('drums','hi',this.value)" />
+                <label>Mid <span id="ch-drums-mid-val">0</span>dB</label>
+                <input type="range" class="mixer-eq-knob" min="-12" max="12" value="-2" oninput="updateMixEq('drums','mid',this.value)" />
+                <label>Lo <span id="ch-drums-lo-val">0</span>dB</label>
+                <input type="range" class="mixer-eq-knob" min="-12" max="12" value="4" oninput="updateMixEq('drums','lo',this.value)" />
+              </div>
+              <div class="mixer-pan-row">
+                <label>Pan</label>
+                <input type="range" class="mixer-pan" min="-100" max="100" value="0" oninput="updateMixPan('drums',this.value)" />
+                <span id="ch-drums-pan">C</span>
+              </div>
+              <div class="mixer-fader-wrap">
+                <input type="range" class="mixer-fader" min="0" max="100" value="85" oninput="updateMixFader('drums',this.value)" />
+                <span class="mixer-fader-val" id="ch-drums-fader">85</span>
+              </div>
+              <div class="mixer-btn-row">
+                <button class="mix-btn-mute" id="mute-drums" onclick="toggleMixMute('drums')">M</button>
+                <button class="mix-btn-solo" id="solo-drums" onclick="toggleMixSolo('drums')">S</button>
+              </div>
+            </div>
+
+            <div class="mixer-channel" id="ch-synth">
+              <div class="mixer-ch-label">Synth</div>
+              <div class="mixer-eq-mini">
+                <label>Hi <span id="ch-synth-hi-val">0</span>dB</label>
+                <input type="range" class="mixer-eq-knob" min="-12" max="12" value="2" oninput="updateMixEq('synth','hi',this.value)" />
+                <label>Mid <span id="ch-synth-mid-val">0</span>dB</label>
+                <input type="range" class="mixer-eq-knob" min="-12" max="12" value="0" oninput="updateMixEq('synth','mid',this.value)" />
+                <label>Lo <span id="ch-synth-lo-val">0</span>dB</label>
+                <input type="range" class="mixer-eq-knob" min="-12" max="12" value="-3" oninput="updateMixEq('synth','lo',this.value)" />
+              </div>
+              <div class="mixer-pan-row">
+                <label>Pan</label>
+                <input type="range" class="mixer-pan" min="-100" max="100" value="25" oninput="updateMixPan('synth',this.value)" />
+                <span id="ch-synth-pan">R25</span>
+              </div>
+              <div class="mixer-fader-wrap">
+                <input type="range" class="mixer-fader" min="0" max="100" value="65" oninput="updateMixFader('synth',this.value)" />
+                <span class="mixer-fader-val" id="ch-synth-fader">65</span>
+              </div>
+              <div class="mixer-btn-row">
+                <button class="mix-btn-mute" id="mute-synth" onclick="toggleMixMute('synth')">M</button>
+                <button class="mix-btn-solo" id="solo-synth" onclick="toggleMixSolo('synth')">S</button>
+              </div>
+            </div>
+
+            <div class="mixer-channel" id="ch-fx">
+              <div class="mixer-ch-label">FX / Pad</div>
+              <div class="mixer-eq-mini">
+                <label>Hi <span id="ch-fx-hi-val">0</span>dB</label>
+                <input type="range" class="mixer-eq-knob" min="-12" max="12" value="0" oninput="updateMixEq('fx','hi',this.value)" />
+                <label>Mid <span id="ch-fx-mid-val">0</span>dB</label>
+                <input type="range" class="mixer-eq-knob" min="-12" max="12" value="0" oninput="updateMixEq('fx','mid',this.value)" />
+                <label>Lo <span id="ch-fx-lo-val">0</span>dB</label>
+                <input type="range" class="mixer-eq-knob" min="-12" max="12" value="0" oninput="updateMixEq('fx','lo',this.value)" />
+              </div>
+              <div class="mixer-pan-row">
+                <label>Pan</label>
+                <input type="range" class="mixer-pan" min="-100" max="100" value="-20" oninput="updateMixPan('fx',this.value)" />
+                <span id="ch-fx-pan">L20</span>
+              </div>
+              <div class="mixer-fader-wrap">
+                <input type="range" class="mixer-fader" min="0" max="100" value="50" oninput="updateMixFader('fx',this.value)" />
+                <span class="mixer-fader-val" id="ch-fx-fader">50</span>
+              </div>
+              <div class="mixer-btn-row">
+                <button class="mix-btn-mute" id="mute-fx" onclick="toggleMixMute('fx')">M</button>
+                <button class="mix-btn-solo" id="solo-fx" onclick="toggleMixSolo('fx')">S</button>
+              </div>
+            </div>
+
+            <!-- Master Bus -->
+            <div class="mixer-channel mixer-master" id="ch-master">
+              <div class="mixer-ch-label">Master</div>
+              <div class="mixer-vu-wrap">
+                <div class="mixer-vu-bar" id="vuMeter">
+                  <div class="vu-fill" id="vuFill"></div>
                 </div>
-                <p id="beatPatternNote" class="card-body-text" style="margin-top:.8rem"></p>
               </div>
-              <div class="card">
-                <h3>Velocity Guide</h3>
-                <p id="beatVelocity" class="card-body-text"></p>
-              </div>
-              <div class="card">
-                <h3>Humanise Tip</h3>
-                <p id="beatHumanise" class="card-body-text"></p>
+              <div class="mixer-fader-wrap">
+                <input type="range" class="mixer-fader" min="0" max="100" value="90" oninput="updateMixFader('master',this.value)" />
+                <span class="mixer-fader-val" id="ch-master-fader">90</span>
               </div>
             </div>
           </div>
+          <div class="mix-actions">
+            <button class="btn-ghost" onclick="resetMixer()">↺ Reset Mixer</button>
+            <button class="btn-ghost" onclick="exportMixerSettings()">⬇ Export Settings</button>
+          </div>
+        </div>
+      </div>
 
-          <!-- Instruments -->
-          <div class="tab-pane hidden" id="mtab-instruments" role="tabpanel">
-            <div class="grid-2">
-              <div class="card">
-                <h3>Primary Instruments</h3>
-                <ul id="instrPrimary" class="bullet-list"></ul>
-              </div>
-              <div class="card">
-                <h3>Texture &amp; Atmosphere</h3>
-                <ul id="instrTexture" class="bullet-list"></ul>
-              </div>
-              <div class="card full-span">
-                <h3>Layering Approach</h3>
-                <p id="instrLayering" class="card-body-text"></p>
-              </div>
-              <div class="card full-span">
-                <h3>What to Avoid</h3>
-                <p id="instrAvoid" class="card-body-text muted"></p>
-              </div>
-            </div>
-          </div>
+      <!-- ── Mastering ── -->
+      <div class="music-tool-pane hidden" id="mtool-mastering" role="tabpanel">
+        <div class="input-card music-tool-card">
+          <h2 class="section-heading">🔊 Mastering Chain</h2>
+          <p class="beat-maker-hint">Set your EQ, compression, and limiting for a radio-ready master.</p>
 
-          <!-- Melody Contour -->
-          <div class="tab-pane hidden" id="mtab-melody" role="tabpanel">
-            <div class="callout">Melodic shape derived from the text's syllable stress and emotional arc.</div>
-            <div class="grid-2">
-              <div class="card">
-                <h3>Scale</h3>
-                <dl id="melodyScale"></dl>
-              </div>
-              <div class="card">
-                <h3>Melodic Contour</h3>
-                <p id="melodyContour" class="card-body-text"></p>
-              </div>
-              <div class="card full-span">
-                <h3>Per-Phrase Suggestions</h3>
-                <div id="melodyPhrases"></div>
-              </div>
-              <div class="card full-span">
-                <h3>Ornamentation Tips</h3>
-                <ul id="melodyOrnamentation" class="bullet-list"></ul>
-              </div>
-            </div>
-          </div>
+          <div class="mastering-chain">
 
-          <!-- Distribution -->
-          <div class="tab-pane hidden" id="mtab-distribute" role="tabpanel">
-            <div class="callout">Distribute your music independently. You own your master recordings.</div>
-            <div class="grid-2">
-              <div class="card full-span">
-                <h3>Recommended Platforms</h3>
-                <div id="distPlatforms"></div>
+            <!-- EQ Section -->
+            <div class="master-block">
+              <div class="master-block-header">
+                <h3>📊 Equaliser</h3>
+                <label class="master-toggle"><input type="checkbox" id="eqEnabled" checked onchange="updateMasteringViz()" /> On</label>
               </div>
-              <div class="card full-span">
-                <h3>Distribution Services</h3>
-                <div id="distServices"></div>
+              <div class="mastering-eq-grid">
+                <div class="eq-band">
+                  <label>Sub Bass<br/><small>60Hz</small></label>
+                  <input type="range" class="mastering-range eq-fader" id="eqSubBass" min="-12" max="6" value="0" step="0.5" oninput="updateEqBand('sub-bass',this.value)" />
+                  <span class="eq-val" id="eqSubBassVal">0 dB</span>
+                </div>
+                <div class="eq-band">
+                  <label>Bass<br/><small>120Hz</small></label>
+                  <input type="range" class="mastering-range eq-fader" id="eqBass" min="-12" max="6" value="0" step="0.5" oninput="updateEqBand('bass',this.value)" />
+                  <span class="eq-val" id="eqBassVal">0 dB</span>
+                </div>
+                <div class="eq-band">
+                  <label>Low Mid<br/><small>300Hz</small></label>
+                  <input type="range" class="mastering-range eq-fader" id="eqLowMid" min="-12" max="6" value="0" step="0.5" oninput="updateEqBand('low-mid',this.value)" />
+                  <span class="eq-val" id="eqLowMidVal">0 dB</span>
+                </div>
+                <div class="eq-band">
+                  <label>Mid<br/><small>1kHz</small></label>
+                  <input type="range" class="mastering-range eq-fader" id="eqMid" min="-12" max="6" value="0" step="0.5" oninput="updateEqBand('mid',this.value)" />
+                  <span class="eq-val" id="eqMidVal">0 dB</span>
+                </div>
+                <div class="eq-band">
+                  <label>Hi Mid<br/><small>3kHz</small></label>
+                  <input type="range" class="mastering-range eq-fader" id="eqHiMid" min="-12" max="6" value="0" step="0.5" oninput="updateEqBand('hi-mid',this.value)" />
+                  <span class="eq-val" id="eqHiMidVal">0 dB</span>
+                </div>
+                <div class="eq-band">
+                  <label>Presence<br/><small>6kHz</small></label>
+                  <input type="range" class="mastering-range eq-fader" id="eqPresence" min="-12" max="6" value="0" step="0.5" oninput="updateEqBand('presence',this.value)" />
+                  <span class="eq-val" id="eqPresenceVal">0 dB</span>
+                </div>
+                <div class="eq-band">
+                  <label>Air<br/><small>12kHz</small></label>
+                  <input type="range" class="mastering-range eq-fader" id="eqAir" min="-12" max="6" value="0" step="0.5" oninput="updateEqBand('air',this.value)" />
+                  <span class="eq-val" id="eqAirVal">0 dB</span>
+                </div>
               </div>
-              <div class="card full-span">
-                <h3>Release Strategy</h3>
-                <ul id="distStrategy" class="bullet-list"></ul>
-              </div>
-              <div class="card full-span">
-                <h3>Artist Rights Reminder</h3>
-                <p id="distRights" class="card-body-text" style="color:var(--accent)"></p>
+              <div class="eq-presets">
+                <span class="beat-presets-label">Presets:</span>
+                <button class="btn-ghost-sm" onclick="loadEqPreset('flat')">Flat</button>
+                <button class="btn-ghost-sm" onclick="loadEqPreset('hip-hop')">Hip-Hop</button>
+                <button class="btn-ghost-sm" onclick="loadEqPreset('pop')">Pop</button>
+                <button class="btn-ghost-sm" onclick="loadEqPreset('rock')">Rock</button>
+                <button class="btn-ghost-sm" onclick="loadEqPreset('classical')">Classical</button>
+                <button class="btn-ghost-sm" onclick="loadEqPreset('electronic')">Electronic</button>
               </div>
             </div>
-          </div>
 
-          <!-- Streaming Metadata -->
-          <div class="tab-pane hidden" id="mtab-stream" role="tabpanel">
-            <div class="callout">Streaming metadata serves findability — not algorithmic ranking.</div>
-            <div class="grid-2">
-              <div class="card">
-                <h3>Title Words</h3>
-                <div id="streamTitleWords"></div>
+            <!-- Compressor Section -->
+            <div class="master-block">
+              <div class="master-block-header">
+                <h3>🗜️ Compressor</h3>
+                <label class="master-toggle"><input type="checkbox" id="compEnabled" checked onchange="updateMasteringViz()" /> On</label>
               </div>
-              <div class="card">
-                <h3>Genre &amp; Mood Tags</h3>
-                <dl id="streamTags"></dl>
+              <div class="mastering-controls-grid">
+                <div class="master-ctrl">
+                  <label>Threshold <span class="master-ctrl-val" id="compThreshVal">-12 dBFS</span></label>
+                  <input type="range" class="mastering-range" id="compThresh" min="-40" max="0" value="-12" step="1" oninput="updateCompressor('thresh',this.value)" />
+                </div>
+                <div class="master-ctrl">
+                  <label>Ratio <span class="master-ctrl-val" id="compRatioVal">4:1</span></label>
+                  <input type="range" class="mastering-range" id="compRatio" min="1" max="20" value="4" step="0.5" oninput="updateCompressor('ratio',this.value)" />
+                </div>
+                <div class="master-ctrl">
+                  <label>Attack <span class="master-ctrl-val" id="compAttackVal">20 ms</span></label>
+                  <input type="range" class="mastering-range" id="compAttack" min="1" max="200" value="20" step="1" oninput="updateCompressor('attack',this.value)" />
+                </div>
+                <div class="master-ctrl">
+                  <label>Release <span class="master-ctrl-val" id="compReleaseVal">150 ms</span></label>
+                  <input type="range" class="mastering-range" id="compRelease" min="10" max="1000" value="150" step="10" oninput="updateCompressor('release',this.value)" />
+                </div>
+                <div class="master-ctrl">
+                  <label>Make-Up Gain <span class="master-ctrl-val" id="compGainVal">+3 dB</span></label>
+                  <input type="range" class="mastering-range" id="compGain" min="0" max="20" value="3" step="0.5" oninput="updateCompressor('gain',this.value)" />
+                </div>
+                <div class="master-ctrl">
+                  <label>Knee <span class="master-ctrl-val" id="compKneeVal">Soft</span></label>
+                  <input type="range" class="mastering-range" id="compKnee" min="0" max="10" value="5" step="1" oninput="updateCompressor('knee',this.value)" />
+                </div>
               </div>
-              <div class="card">
-                <h3>Loudness Targets</h3>
-                <div id="streamLoudness"></div>
-              </div>
-              <div class="card">
-                <h3>Audio Format</h3>
-                <p id="streamFormat" class="card-body-text"></p>
-              </div>
-              <div class="card full-span">
-                <h3>ISRC &amp; Rights</h3>
-                <p id="streamIsrc" class="card-body-text"></p>
-              </div>
-              <div class="card full-span">
-                <h3>Pre-Release Checklist</h3>
-                <ul id="streamChecklist" class="bullet-list checklist"></ul>
+              <div class="comp-meter">
+                <span class="comp-meter-label">GR</span>
+                <div class="comp-gr-bar">
+                  <div class="comp-gr-fill" id="compGrFill"></div>
+                </div>
+                <span class="comp-gr-val" id="compGrVal">0 dB</span>
               </div>
             </div>
-          </div>
 
-          <!-- Samples -->
-          <div class="tab-pane hidden" id="mtab-samples" role="tabpanel">
-            <div class="grid-2">
-              <div class="card">
-                <h3>Sample Categories</h3>
-                <ul id="sampleCategories" class="bullet-list"></ul>
+            <!-- Stereo Widener -->
+            <div class="master-block">
+              <div class="master-block-header">
+                <h3>↔️ Stereo Width</h3>
+                <label class="master-toggle"><input type="checkbox" id="stereoEnabled" checked /> On</label>
               </div>
-              <div class="card">
-                <h3>Texture Ideas</h3>
-                <ul id="sampleTextures" class="bullet-list"></ul>
+              <div class="master-ctrl">
+                <label>Width <span class="master-ctrl-val" id="stereoWidthVal">100%</span></label>
+                <input type="range" class="mastering-range" id="stereoWidth" min="0" max="200" value="100" step="5" oninput="updateStereoWidth(this.value)" />
               </div>
-              <div class="card full-span">
-                <h3>Crate Digging Tips</h3>
-                <ul id="sampleCrateDigging" class="bullet-list"></ul>
+            </div>
+
+            <!-- Limiter -->
+            <div class="master-block">
+              <div class="master-block-header">
+                <h3>🔒 Limiter</h3>
+                <label class="master-toggle"><input type="checkbox" id="limEnabled" checked /> On</label>
               </div>
-              <div class="card full-span">
-                <h3>Sample Clearance Reminder</h3>
-                <p id="sampleClearance" class="card-body-text" style="color:var(--accent)"></p>
+              <div class="mastering-controls-grid">
+                <div class="master-ctrl">
+                  <label>Ceiling <span class="master-ctrl-val" id="limCeilingVal">-0.3 dBFS</span></label>
+                  <input type="range" class="mastering-range" id="limCeiling" min="-6" max="0" value="-0.3" step="0.1" oninput="updateLimiter('ceiling',this.value)" />
+                </div>
+                <div class="master-ctrl">
+                  <label>Release <span class="master-ctrl-val" id="limReleaseVal">50 ms</span></label>
+                  <input type="range" class="mastering-range" id="limRelease" min="5" max="500" value="50" step="5" oninput="updateLimiter('release',this.value)" />
+                </div>
+                <div class="master-ctrl">
+                  <label>Target LUFS <span class="master-ctrl-val" id="limLufsVal">-14 LUFS</span></label>
+                  <input type="range" class="mastering-range" id="limLufs" min="-23" max="-8" value="-14" step="0.5" oninput="updateLimiter('lufs',this.value)" />
+                </div>
+              </div>
+              <div class="lufs-targets-info">
+                <span class="lufs-target-chip" id="lufsSpotify">Spotify: –14</span>
+                <span class="lufs-target-chip" id="lufsApple">Apple: –16</span>
+                <span class="lufs-target-chip" id="lufsYT">YouTube: –14</span>
+                <span class="lufs-target-chip" id="lufsSpotifyFit" style="display:none">✓ Spotify Ready</span>
+              </div>
+            </div>
+
+          </div><!-- /mastering-chain -->
+          <div class="mix-actions">
+            <button class="btn-ghost" onclick="resetMastering()">↺ Reset Chain</button>
+            <button class="btn-ghost" onclick="exportMasteringSettings()">⬇ Export Settings</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Chords & Scales ── -->
+      <div class="music-tool-pane hidden" id="mtool-chords" role="tabpanel">
+        <div class="input-card music-tool-card">
+          <h2 class="section-heading">🎹 Chord &amp; Scale Reference</h2>
+          <div class="chord-controls">
+            <div class="chord-ctrl-row">
+              <div class="field-group">
+                <label for="chordRoot">Root Note</label>
+                <select id="chordRoot" class="chord-select" onchange="renderChordRef()">
+                  <option>C</option><option>C#/Db</option><option>D</option><option>D#/Eb</option>
+                  <option>E</option><option>F</option><option>F#/Gb</option><option>G</option>
+                  <option>G#/Ab</option><option>A</option><option>A#/Bb</option><option>B</option>
+                </select>
+              </div>
+              <div class="field-group">
+                <label for="chordScale">Scale</label>
+                <select id="chordScale" class="chord-select" onchange="renderChordRef()">
+                  <option value="major">Major (Ionian)</option>
+                  <option value="minor">Natural Minor (Aeolian)</option>
+                  <option value="pentatonic-major">Pentatonic Major</option>
+                  <option value="pentatonic-minor">Pentatonic Minor</option>
+                  <option value="dorian">Dorian</option>
+                  <option value="phrygian">Phrygian</option>
+                  <option value="lydian">Lydian</option>
+                  <option value="mixolydian">Mixolydian</option>
+                  <option value="locrian">Locrian</option>
+                  <option value="blues">Blues Scale</option>
+                  <option value="chromatic">Chromatic</option>
+                </select>
+              </div>
+              <div class="field-group">
+                <label for="chordType">Chord Type</label>
+                <select id="chordType" class="chord-select" onchange="renderChordRef()">
+                  <option value="triads">Triads</option>
+                  <option value="seventh">Seventh Chords</option>
+                  <option value="extended">Extended (9th/11th/13th)</option>
+                </select>
               </div>
             </div>
           </div>
-        </div><!-- /tab-content -->
-      </section>
+          <!-- Piano keyboard visual -->
+          <div class="piano-wrap">
+            <div class="piano-keyboard" id="pianoKeyboard"></div>
+            <div class="piano-scale-label" id="pianoScaleLabel"></div>
+          </div>
+          <!-- Chord grid -->
+          <div class="chord-grid" id="chordGrid"></div>
+          <!-- Related chords info -->
+          <div class="chord-info-panel" id="chordInfoPanel">
+            <p class="text-muted">Select a root note and scale to see chords.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── AI Produce ── -->
+      <div class="music-tool-pane hidden" id="mtool-produce" role="tabpanel">
+        <!-- Input card -->
+        <div class="input-card">
+          <div class="input-row">
+            <div class="field-group grow">
+              <label for="musicText">Lyrics, poem, or production notes</label>
+              <textarea id="musicText" placeholder="Paste your lyrics or describe the track you're making…" rows="8" spellcheck="false"></textarea>
+            </div>
+          </div>
+          <div class="input-meta-row">
+            <div class="field-group">
+              <label for="musicArtistName">Artist name <span class="optional">(optional)</span></label>
+              <input type="text" id="musicArtistName" placeholder="For streaming metadata" />
+            </div>
+          </div>
+          <div class="action-row">
+            <button id="produceBtn" class="btn-primary" onclick="runProduce()">
+              <span class="btn-icon" aria-hidden="true">🎛️</span> Produce
+            </button>
+            <button class="btn-ghost" onclick="clearMusicStudio()">Clear</button>
+            <span id="musicStatusMsg" class="status-msg" aria-live="polite" role="status"></span>
+          </div>
+        </div>
+
+        <!-- Results -->
+        <section class="results-panel hidden" id="musicResultsPanel">
+          <nav class="tab-bar" role="tablist" aria-label="Music production results">
+            <button class="tab active" data-mtab="production" onclick="switchMusicTab('production')" role="tab" aria-selected="true">🎛️ Production</button>
+            <button class="tab" data-mtab="beat" onclick="switchMusicTab('beat')" role="tab" aria-selected="false">🥁 Beat</button>
+            <button class="tab" data-mtab="instruments" onclick="switchMusicTab('instruments')" role="tab" aria-selected="false">🎸 Instruments</button>
+            <button class="tab" data-mtab="melody" onclick="switchMusicTab('melody')" role="tab" aria-selected="false">🎵 Melody</button>
+            <button class="tab" data-mtab="distribute" onclick="switchMusicTab('distribute')" role="tab" aria-selected="false">🌍 Distribute</button>
+            <button class="tab" data-mtab="stream" onclick="switchMusicTab('stream')" role="tab" aria-selected="false">📡 Stream</button>
+            <button class="tab" data-mtab="samples" onclick="switchMusicTab('samples')" role="tab" aria-selected="false">🎚️ Samples</button>
+          </nav>
+
+          <div class="tab-content">
+            <!-- Production Plan -->
+            <div class="tab-pane active" id="mtab-production" role="tabpanel">
+              <div class="callout">All production notes are starting-point suggestions — your sonic vision is sovereign.</div>
+              <div class="grid-2">
+                <div class="card">
+                  <h3>BPM &amp; Key</h3>
+                  <dl id="prodBpm"></dl>
+                </div>
+                <div class="card">
+                  <h3>Genre Palette</h3>
+                  <div id="prodGenre"></div>
+                </div>
+                <div class="card">
+                  <h3>Production Style</h3>
+                  <p id="prodStyle" class="card-body-text"></p>
+                </div>
+                <div class="card">
+                  <h3>Mixing Notes</h3>
+                  <ul id="prodMixing" class="bullet-list"></ul>
+                </div>
+                <div class="card full-span">
+                  <h3>Production Notes</h3>
+                  <ul id="prodNotes" class="bullet-list"></ul>
+                </div>
+              </div>
+            </div>
+
+            <!-- Beat Pattern -->
+            <div class="tab-pane hidden" id="mtab-beat" role="tabpanel">
+              <div class="callout">A 16-step drum-machine grid — X = hit, . = rest, x = hi-hat hit</div>
+              <div class="grid-2">
+                <div class="card full-span">
+                  <h3 id="beatPatternName"></h3>
+                  <div class="beat-grid-wrap">
+                    <div class="beat-grid" id="beatGrid"></div>
+                  </div>
+                  <p id="beatPatternNote" class="card-body-text" style="margin-top:.8rem"></p>
+                </div>
+                <div class="card">
+                  <h3>Velocity Guide</h3>
+                  <p id="beatVelocity" class="card-body-text"></p>
+                </div>
+                <div class="card">
+                  <h3>Humanise Tip</h3>
+                  <p id="beatHumanise" class="card-body-text"></p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Instruments -->
+            <div class="tab-pane hidden" id="mtab-instruments" role="tabpanel">
+              <div class="grid-2">
+                <div class="card">
+                  <h3>Primary Instruments</h3>
+                  <ul id="instrPrimary" class="bullet-list"></ul>
+                </div>
+                <div class="card">
+                  <h3>Texture &amp; Atmosphere</h3>
+                  <ul id="instrTexture" class="bullet-list"></ul>
+                </div>
+                <div class="card full-span">
+                  <h3>Layering Approach</h3>
+                  <p id="instrLayering" class="card-body-text"></p>
+                </div>
+                <div class="card full-span">
+                  <h3>What to Avoid</h3>
+                  <p id="instrAvoid" class="card-body-text muted"></p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Melody Contour -->
+            <div class="tab-pane hidden" id="mtab-melody" role="tabpanel">
+              <div class="callout">Melodic shape derived from the text's syllable stress and emotional arc.</div>
+              <div class="grid-2">
+                <div class="card">
+                  <h3>Scale</h3>
+                  <dl id="melodyScale"></dl>
+                </div>
+                <div class="card">
+                  <h3>Melodic Contour</h3>
+                  <p id="melodyContour" class="card-body-text"></p>
+                </div>
+                <div class="card full-span">
+                  <h3>Per-Phrase Suggestions</h3>
+                  <div id="melodyPhrases"></div>
+                </div>
+                <div class="card full-span">
+                  <h3>Ornamentation Tips</h3>
+                  <ul id="melodyOrnamentation" class="bullet-list"></ul>
+                </div>
+              </div>
+            </div>
+
+            <!-- Distribution -->
+            <div class="tab-pane hidden" id="mtab-distribute" role="tabpanel">
+              <div class="callout">Distribute your music independently. You own your master recordings.</div>
+              <div class="grid-2">
+                <div class="card full-span">
+                  <h3>Recommended Platforms</h3>
+                  <div id="distPlatforms"></div>
+                </div>
+                <div class="card full-span">
+                  <h3>Distribution Services</h3>
+                  <div id="distServices"></div>
+                </div>
+                <div class="card full-span">
+                  <h3>Release Strategy</h3>
+                  <ul id="distStrategy" class="bullet-list"></ul>
+                </div>
+                <div class="card full-span">
+                  <h3>Artist Rights Reminder</h3>
+                  <p id="distRights" class="card-body-text" style="color:var(--accent)"></p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Streaming Metadata -->
+            <div class="tab-pane hidden" id="mtab-stream" role="tabpanel">
+              <div class="callout">Streaming metadata serves findability — not algorithmic ranking.</div>
+              <div class="grid-2">
+                <div class="card">
+                  <h3>Title Words</h3>
+                  <div id="streamTitleWords"></div>
+                </div>
+                <div class="card">
+                  <h3>Genre &amp; Mood Tags</h3>
+                  <dl id="streamTags"></dl>
+                </div>
+                <div class="card">
+                  <h3>Loudness Targets</h3>
+                  <div id="streamLoudness"></div>
+                </div>
+                <div class="card">
+                  <h3>Audio Format</h3>
+                  <p id="streamFormat" class="card-body-text"></p>
+                </div>
+                <div class="card full-span">
+                  <h3>ISRC &amp; Rights</h3>
+                  <p id="streamIsrc" class="card-body-text"></p>
+                </div>
+                <div class="card full-span">
+                  <h3>Pre-Release Checklist</h3>
+                  <ul id="streamChecklist" class="bullet-list checklist"></ul>
+                </div>
+              </div>
+            </div>
+
+            <!-- Samples -->
+            <div class="tab-pane hidden" id="mtab-samples" role="tabpanel">
+              <div class="grid-2">
+                <div class="card">
+                  <h3>Sample Categories</h3>
+                  <ul id="sampleCategories" class="bullet-list"></ul>
+                </div>
+                <div class="card">
+                  <h3>Texture Ideas</h3>
+                  <ul id="sampleTextures" class="bullet-list"></ul>
+                </div>
+                <div class="card full-span">
+                  <h3>Crate Digging Tips</h3>
+                  <ul id="sampleCrateDigging" class="bullet-list"></ul>
+                </div>
+                <div class="card full-span">
+                  <h3>Sample Clearance Reminder</h3>
+                  <p id="sampleClearance" class="card-body-text" style="color:var(--accent)"></p>
+                </div>
+              </div>
+            </div>
+          </div><!-- /tab-content -->
+        </section>
+
+      </div><!-- /mtool-produce -->
 
     </div><!-- /musicStudio -->
     <div id="visualStudio" class="input-panel">
@@ -799,6 +1248,44 @@
 
       </div><!-- /input-card -->
     </div><!-- /visualStudio -->
+
+    <!-- ═══════════════════════════════════════════
+         KALA CHAT  💬
+         ═══════════════════════════════════════════ -->
+    <div id="chatStudio" class="input-panel hidden">
+      <div class="chat-container">
+        <div class="chat-header">
+          <div class="chat-header-info">
+            <span class="chat-avatar-lg" aria-hidden="true">K</span>
+            <div>
+              <h2 class="chat-title">Kala</h2>
+              <p class="chat-subtitle">Your AI creative companion</p>
+            </div>
+          </div>
+          <button class="btn-ghost chat-history-btn" onclick="loadChatHistory()" title="Load chat history">
+            🕘 History
+          </button>
+        </div>
+        <div class="chat-messages" id="chatMessages" role="log" aria-live="polite" aria-label="Chat messages">
+          <div class="chat-welcome">
+            <div class="chat-welcome-icon" aria-hidden="true">✦</div>
+            <p class="chat-welcome-title">Start a conversation with Kala</p>
+            <p class="chat-welcome-hint">Ask about your art, creative process, or anything on your mind.</p>
+          </div>
+        </div>
+        <div class="chat-input-area">
+          <div class="chat-input-row">
+            <textarea id="chatInput" class="chat-input" placeholder="Message Kala…" rows="1"
+              onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChatMessage();}"
+              oninput="autoResizeChatInput(this)" aria-label="Chat message input"></textarea>
+            <button class="chat-send-btn" id="chatSendBtn" onclick="sendChatMessage()" aria-label="Send message">
+              <span aria-hidden="true">➤</span>
+            </button>
+          </div>
+          <p class="chat-footer-note">Kala remembers your conversation history.</p>
+        </div>
+      </div>
+    </div><!-- /chatStudio -->
 
   </main>
 

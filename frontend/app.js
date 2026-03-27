@@ -13,7 +13,9 @@
 /* ──────────────────────────────────────────────
    Configuration
 ────────────────────────────────────────────── */
-const API_BASE = (typeof window !== "undefined" && window.KALA_API_BASE) || "http://localhost:8000";
+const API_BASE    = (typeof window !== "undefined" && window.KALA_API_BASE)    || "http://localhost:8000";
+// Set window.KALA_WORKER_BASE before this script to point at your deployed Cloudflare Worker.
+const WORKER_BASE = (typeof window !== "undefined" && window.KALA_WORKER_BASE) || "https://kalaos-worker.your-subdomain.workers.dev";
 
 /* ──────────────────────────────────────────────
    State
@@ -1594,31 +1596,56 @@ function renderVisualAnalysis(d) {
 ════════════════════════════════════════════════════════════════════ */
 
 // ── Studio switcher update ───────────────────────────────────────────────
-// Wrap the original switchStudio to handle the music tab.
+// Wrap the original switchStudio to handle the music and chat tabs.
 (function () {
   const _origSwitchStudio = switchStudio;
   switchStudio = function (mode) {
     const musicStudio = el("musicStudio");
     const musicBtn    = el("musicStudioBtn");
-    if (musicStudio) {
-      if (mode === "music") {
-        // Hide other studios
-        const textStudio   = el("textStudio");
-        const visualStudio = el("visualStudio");
-        const textBtn      = el("textStudioBtn");
-        const visualBtn    = el("visualStudioBtn");
-        if (textStudio)   textStudio.style.display   = "none";
-        if (visualStudio) visualStudio.style.display = "none";
-        if (textBtn)      textBtn.classList.remove("active");
-        if (visualBtn)    visualBtn.classList.remove("active");
-        musicStudio.style.display = "block";
-        musicBtn.classList.add("active");
-        return;
-      } else {
-        musicStudio.style.display = "none";
-        if (musicBtn) musicBtn.classList.remove("active");
+    const chatStudio  = el("chatStudio");
+    const chatBtn     = el("chatStudioBtn");
+
+    // Always hide music & chat first
+    if (musicStudio) musicStudio.classList.add("hidden");
+    if (musicBtn)    musicBtn.classList.remove("active");
+    if (chatStudio)  chatStudio.classList.add("hidden");
+    if (chatBtn)     chatBtn.classList.remove("active");
+
+    if (mode === "music") {
+      const textStudio   = el("textStudio");
+      const visualStudio = el("visualStudio");
+      const textBtn      = el("textStudioBtn");
+      const visualBtn    = el("visualStudioBtn");
+      if (textStudio)   textStudio.style.display   = "none";
+      if (visualStudio) visualStudio.style.display = "none";
+      if (textBtn)      textBtn.classList.remove("active");
+      if (visualBtn)    visualBtn.classList.remove("active");
+      if (musicStudio) {
+        musicStudio.classList.remove("hidden");
+        if (!musicStudio.dataset.init) {
+          musicStudio.dataset.init = "1";
+          initBeatMaker();
+          initChordRef();
+        }
       }
+      if (musicBtn) musicBtn.classList.add("active");
+      return;
     }
+
+    if (mode === "chat") {
+      const textStudio   = el("textStudio");
+      const visualStudio = el("visualStudio");
+      const textBtn      = el("textStudioBtn");
+      const visualBtn    = el("visualStudioBtn");
+      if (textStudio)   textStudio.style.display   = "none";
+      if (visualStudio) visualStudio.style.display = "none";
+      if (textBtn)      textBtn.classList.remove("active");
+      if (visualBtn)    visualBtn.classList.remove("active");
+      if (chatStudio) chatStudio.classList.remove("hidden");
+      if (chatBtn)    chatBtn.classList.add("active");
+      return;
+    }
+
     _origSwitchStudio(mode);
   };
 })();
@@ -1638,7 +1665,20 @@ function clearMusicStudio() {
   setMusicStatus("");
 }
 
-// ── Music Tab switcher ───────────────────────────────────────────────────
+// ── Music Tool switcher (Beat/Mixer/Mastering/Chords/Produce) ────────────
+function switchMusicTool(toolId) {
+  document.querySelectorAll(".music-tool-btn[data-mtool]").forEach(b => {
+    const active = b.dataset.mtool === toolId;
+    b.classList.toggle("active", active);
+    b.setAttribute("aria-selected", String(active));
+  });
+  document.querySelectorAll(".music-tool-pane").forEach(p => {
+    const isActive = p.id === `mtool-${toolId}`;
+    p.classList.toggle("hidden", !isActive);
+  });
+}
+
+// ── Music AI results Tab switcher ───────────────────────────────────────────────
 function switchMusicTab(tabId) {
   document.querySelectorAll(".tab[data-mtab]").forEach(t => {
     const active = t.dataset.mtab === tabId;
@@ -1887,4 +1927,696 @@ function elList(id, arr) {
   const ulEl = el(id);
   if (!ulEl || !Array.isArray(arr)) return;
   ulEl.innerHTML = arr.map(item => `<li>${esc(String(item))}</li>`).join("");
+}
+
+
+/* ════════════════════════════════════════════════════════════════════
+   BEAT MAKER  🥁
+════════════════════════════════════════════════════════════════════ */
+
+const BEAT_ROWS = ["kick", "snare", "hihat", "openhat", "clap", "perc"];
+const BEAT_STEPS = 16;
+let _beatState = {};       // { kick: [false×16], ... }
+let _beatPlaying = false;
+let _beatStep = 0;
+let _beatTimer = null;
+
+function initBeatMaker() {
+  BEAT_ROWS.forEach(row => {
+    _beatState[row] = new Array(BEAT_STEPS).fill(false);
+    const container = el(`cells-${row}`);
+    if (!container) return;
+    container.innerHTML = "";
+    for (let i = 0; i < BEAT_STEPS; i++) {
+      const cell = document.createElement("div");
+      cell.className = "beat-cell";
+      cell.dataset.row  = row;
+      cell.dataset.step = i;
+      cell.addEventListener("click", () => toggleBeatCell(row, i, cell));
+      container.appendChild(cell);
+    }
+  });
+}
+
+function toggleBeatCell(row, step, cellEl) {
+  _beatState[row][step] = !_beatState[row][step];
+  cellEl.classList.toggle("on", _beatState[row][step]);
+}
+
+function toggleBeat() {
+  const btn = el("beatPlayBtn");
+  if (_beatPlaying) {
+    _beatPlaying = false;
+    clearTimeout(_beatTimer);
+    if (btn) btn.textContent = "▶ Play";
+    el("beatPlayhead") && (el("beatPlayhead").style.width = "0%");
+    // Remove active step highlight
+    document.querySelectorAll(".beat-cell.active-step").forEach(c => c.classList.remove("active-step"));
+  } else {
+    _beatPlaying = true;
+    _beatStep = 0;
+    if (btn) btn.textContent = "⏹ Stop";
+    scheduleBeatStep();
+  }
+}
+
+function scheduleBeatStep() {
+  if (!_beatPlaying) return;
+  const bpm  = parseInt(el("beatBpm")?.value || 90, 10);
+  const ms   = (60000 / bpm) / 4;  // 16th note interval
+
+  // Clear previous active
+  document.querySelectorAll(".beat-cell.active-step").forEach(c => c.classList.remove("active-step"));
+
+  // Highlight current step
+  BEAT_ROWS.forEach(row => {
+    const container = el(`cells-${row}`);
+    if (container) {
+      const cell = container.children[_beatStep];
+      if (cell) cell.classList.add("active-step");
+    }
+  });
+
+  // Update playhead
+  const ph = el("beatPlayhead");
+  if (ph) ph.style.width = `${((_beatStep + 1) / BEAT_STEPS) * 100}%`;
+
+  _beatStep = (_beatStep + 1) % BEAT_STEPS;
+  _beatTimer = setTimeout(scheduleBeatStep, ms);
+}
+
+function clearBeatGrid() {
+  BEAT_ROWS.forEach(row => {
+    _beatState[row].fill(false);
+    const container = el(`cells-${row}`);
+    if (container) Array.from(container.children).forEach(c => c.classList.remove("on"));
+  });
+}
+
+function randomiseBeat() {
+  const rowDensity = { kick: 0.25, snare: 0.2, hihat: 0.5, openhat: 0.15, clap: 0.15, perc: 0.15 };
+  BEAT_ROWS.forEach(row => {
+    const density = rowDensity[row] || 0.2;
+    const container = el(`cells-${row}`);
+    if (!container) return;
+    for (let i = 0; i < BEAT_STEPS; i++) {
+      const on = Math.random() < density;
+      _beatState[row][i] = on;
+      container.children[i] && container.children[i].classList.toggle("on", on);
+    }
+  });
+}
+
+const BEAT_PRESETS = {
+  "trap": {
+    kick:    [1,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,1,0],
+    snare:   [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0],
+    hihat:   [1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1],
+    openhat: [0,0,0,0, 0,0,1,0, 0,0,0,0, 0,0,1,0],
+    clap:    [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0],
+    perc:    [0,0,1,0, 0,0,0,0, 0,0,1,0, 0,0,0,1],
+  },
+  "boom-bap": {
+    kick:    [1,0,0,0, 0,0,1,0, 1,0,0,0, 0,0,0,0],
+    snare:   [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0],
+    hihat:   [1,0,1,0, 1,0,1,0, 1,0,1,0, 1,0,1,0],
+    openhat: [0,0,0,0, 0,0,1,0, 0,0,0,0, 0,0,1,0],
+    clap:    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0],
+    perc:    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0],
+  },
+  "reggaeton": {
+    kick:    [1,0,0,1, 0,0,1,0, 1,0,0,1, 0,0,1,0],
+    snare:   [0,0,1,0, 0,0,0,0, 0,0,1,0, 0,0,0,0],
+    hihat:   [1,0,1,0, 1,0,1,0, 1,0,1,0, 1,0,1,1],
+    openhat: [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0],
+    clap:    [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0],
+    perc:    [0,1,0,0, 0,1,0,0, 0,1,0,0, 0,1,0,0],
+  },
+  "house": {
+    kick:    [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0],
+    snare:   [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0],
+    hihat:   [0,0,1,0, 0,0,1,0, 0,0,1,0, 0,0,1,0],
+    openhat: [0,1,0,1, 0,1,0,1, 0,1,0,1, 0,1,0,1],
+    clap:    [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0],
+    perc:    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0],
+  },
+  "dnb": {
+    kick:    [1,0,0,0, 0,0,0,0, 0,0,1,0, 0,0,0,0],
+    snare:   [0,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,1,0],
+    hihat:   [1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1],
+    openhat: [0,0,1,0, 0,0,1,0, 0,0,1,0, 0,0,1,0],
+    clap:    [0,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0],
+    perc:    [0,1,0,0, 1,0,0,0, 0,1,0,0, 1,0,0,0],
+  },
+};
+
+function loadBeatPreset(name) {
+  const preset = BEAT_PRESETS[name];
+  if (!preset) return;
+  BEAT_ROWS.forEach(row => {
+    const pattern = preset[row] || new Array(BEAT_STEPS).fill(0);
+    _beatState[row] = pattern.map(v => !!v);
+    const container = el(`cells-${row}`);
+    if (!container) return;
+    for (let i = 0; i < BEAT_STEPS; i++) {
+      container.children[i] && container.children[i].classList.toggle("on", _beatState[row][i]);
+    }
+  });
+}
+
+
+/* ════════════════════════════════════════════════════════════════════
+   MIXER  🎚️
+════════════════════════════════════════════════════════════════════ */
+
+function updateMixFader(ch, val) {
+  const lbl = el(`ch-${ch}-fader`);
+  if (lbl) lbl.textContent = val;
+  animateVuMeter();
+}
+
+function updateMixPan(ch, val) {
+  const lbl = el(`ch-${ch}-pan`);
+  if (lbl) {
+    const v = parseInt(val, 10);
+    lbl.textContent = v === 0 ? "C" : (v > 0 ? `R${v}` : `L${Math.abs(v)}`);
+  }
+}
+
+function updateMixEq(ch, band, val) {
+  const lbl = el(`ch-${ch}-${band}-val`);
+  if (lbl) lbl.textContent = val;
+}
+
+function toggleMixMute(ch) {
+  const btn = el(`mute-${ch}`);
+  if (btn) btn.classList.toggle("active");
+}
+
+function toggleMixSolo(ch) {
+  const btn = el(`solo-${ch}`);
+  if (btn) btn.classList.toggle("active");
+}
+
+function animateVuMeter() {
+  const fill = el("vuFill");
+  if (!fill) return;
+  const master = el("ch-master-fader");
+  const val = master ? parseInt(master.textContent || 90, 10) : 90;
+  fill.style.width = `${Math.min(val + Math.random() * 5, 100)}%`;
+}
+
+function resetMixer() {
+  const defaults = { lead: 80, bass: 75, drums: 85, synth: 65, fx: 50, master: 90 };
+  Object.entries(defaults).forEach(([ch, val]) => {
+    const fader = document.querySelector(`#ch-${ch} .mixer-fader`);
+    if (fader) { fader.value = val; updateMixFader(ch, val); }
+    const pan   = document.querySelector(`#ch-${ch} .mixer-pan`);
+    if (pan)   { pan.value = 0; updateMixPan(ch, 0); }
+    const eqs   = document.querySelectorAll(`#ch-${ch} .mixer-eq-knob`);
+    eqs.forEach(k => { k.value = 0; });
+    const muteBtn = el(`mute-${ch}`);
+    if (muteBtn) muteBtn.classList.remove("active");
+    const soloBtn = el(`solo-${ch}`);
+    if (soloBtn) soloBtn.classList.remove("active");
+  });
+}
+
+function exportMixerSettings() {
+  const settings = {};
+  ["lead","bass","drums","synth","fx","master"].forEach(ch => {
+    const fader = el(`ch-${ch}-fader`);
+    const pan   = el(`ch-${ch}-pan`);
+    settings[ch] = {
+      fader: fader ? fader.textContent : "—",
+      pan:   pan   ? pan.textContent   : "—",
+    };
+  });
+  const json = JSON.stringify(settings, null, 2);
+  const blob = new Blob([json], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "kala-mixer.json";
+  a.click();
+}
+
+
+/* ════════════════════════════════════════════════════════════════════
+   MASTERING CHAIN  🔊
+════════════════════════════════════════════════════════════════════ */
+
+function updateEqBand(band, val) {
+  const map = {
+    "sub-bass": "eqSubBass", "bass": "eqBass", "low-mid": "eqLowMid",
+    "mid": "eqMid", "hi-mid": "eqHiMid", "presence": "eqPresence", "air": "eqAir",
+  };
+  const id = map[band];
+  if (id) {
+    const lbl = el(`${id}Val`);
+    if (lbl) lbl.textContent = `${parseFloat(val) >= 0 ? "+" : ""}${parseFloat(val)} dB`;
+  }
+}
+
+const EQ_PRESETS = {
+  "flat":        [0, 0, 0, 0, 0, 0, 0],
+  "hip-hop":     [4, 3, -1, -2, 1, 0, -1],
+  "pop":         [1, 2, 0, 0, 2, 3, 2],
+  "rock":        [3, 2, -1, -1, 2, 3, 1],
+  "classical":   [0, 0, 0, 0, 0, 2, 3],
+  "electronic":  [5, 3, -2, 0, 2, 4, 3],
+};
+const EQ_BAND_IDS = ["eqSubBass","eqBass","eqLowMid","eqMid","eqHiMid","eqPresence","eqAir"];
+const EQ_BAND_NAMES = ["sub-bass","bass","low-mid","mid","hi-mid","presence","air"];
+
+function loadEqPreset(name) {
+  const vals = EQ_PRESETS[name] || EQ_PRESETS["flat"];
+  EQ_BAND_IDS.forEach((id, i) => {
+    const slider = el(id);
+    if (slider) {
+      slider.value = vals[i];
+      updateEqBand(EQ_BAND_NAMES[i], vals[i]);
+    }
+  });
+}
+
+function updateCompressor(param, val) {
+  const map = {
+    thresh: ["compThreshVal", `${val} dBFS`],
+    ratio:  ["compRatioVal",  `${val}:1`],
+    attack: ["compAttackVal", `${val} ms`],
+    release:["compReleaseVal",`${val} ms`],
+    gain:   ["compGainVal",   `+${parseFloat(val)} dB`],
+    knee:   ["compKneeVal",   parseInt(val) < 4 ? "Hard" : parseInt(val) < 8 ? "Soft" : "Very Soft"],
+  };
+  const [lblId, text] = map[param] || [];
+  if (lblId) { const l = el(lblId); if (l) l.textContent = text; }
+  // animate GR meter
+  const thresh = parseFloat(el("compThresh")?.value || -12);
+  const ratio  = parseFloat(el("compRatio")?.value || 4);
+  const simGR = Math.max(0, Math.min(20, Math.abs(thresh) / ratio));
+  const grFill = el("compGrFill");
+  if (grFill) grFill.style.width = `${(simGR / 20) * 100}%`;
+  const grVal = el("compGrVal");
+  if (grVal) grVal.textContent = `-${simGR.toFixed(1)} dB`;
+}
+
+function updateLimiter(param, val) {
+  const map = {
+    ceiling: ["limCeilingVal", `${parseFloat(val)} dBFS`],
+    release: ["limReleaseVal", `${val} ms`],
+    lufs:    ["limLufsVal",    `${parseFloat(val)} LUFS`],
+  };
+  const [lblId, text] = map[param] || [];
+  if (lblId) { const l = el(lblId); if (l) l.textContent = text; }
+}
+
+function updateStereoWidth(val) {
+  const lbl = el("stereoWidthVal");
+  if (lbl) lbl.textContent = `${val}%`;
+}
+
+function resetMastering() {
+  loadEqPreset("flat");
+  ["compThresh","compRatio","compAttack","compRelease","compGain","compKnee"].forEach(id => {
+    const s = el(id);
+    if (s) {
+      const def = { compThresh:-12, compRatio:4, compAttack:20, compRelease:150, compGain:3, compKnee:5 };
+      s.value = def[id];
+    }
+  });
+  updateCompressor("thresh", -12);
+  updateCompressor("ratio", 4);
+  updateCompressor("attack", 20);
+  updateCompressor("release", 150);
+  updateCompressor("gain", 3);
+  const sc = el("stereoWidth");
+  if (sc) { sc.value = 100; updateStereoWidth(100); }
+  const lc = el("limCeiling");
+  if (lc) { lc.value = -0.3; updateLimiter("ceiling", -0.3); }
+  const lr = el("limLufs");
+  if (lr) { lr.value = -14; updateLimiter("lufs", -14); }
+}
+
+function updateMasteringViz() {}
+
+function exportMasteringSettings() {
+  const settings = {
+    eq: {},
+    compressor: {
+      threshold: el("compThresh")?.value,
+      ratio: el("compRatio")?.value,
+      attack: el("compAttack")?.value,
+      release: el("compRelease")?.value,
+      gain: el("compGain")?.value,
+    },
+    stereoWidth: el("stereoWidth")?.value,
+    limiter: {
+      ceiling: el("limCeiling")?.value,
+      lufs: el("limLufs")?.value,
+    },
+  };
+  EQ_BAND_IDS.forEach((id, i) => {
+    settings.eq[EQ_BAND_NAMES[i]] = el(id)?.value;
+  });
+  const json = JSON.stringify(settings, null, 2);
+  const blob = new Blob([json], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "kala-mastering.json";
+  a.click();
+}
+
+
+/* ════════════════════════════════════════════════════════════════════
+   CHORD & SCALE REFERENCE  🎹
+════════════════════════════════════════════════════════════════════ */
+
+const NOTE_NAMES = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+const SCALE_INTERVALS = {
+  "major":           [0,2,4,5,7,9,11],
+  "minor":           [0,2,3,5,7,8,10],
+  "pentatonic-major":[0,2,4,7,9],
+  "pentatonic-minor":[0,3,5,7,10],
+  "dorian":          [0,2,3,5,7,9,10],
+  "phrygian":        [0,1,3,5,7,8,10],
+  "lydian":          [0,2,4,6,7,9,11],
+  "mixolydian":      [0,2,4,5,7,9,10],
+  "locrian":         [0,1,3,5,6,8,10],
+  "blues":           [0,3,5,6,7,10],
+  "chromatic":       [0,1,2,3,4,5,6,7,8,9,10,11],
+};
+const TRIAD_INTERVALS = [
+  { q:"maj", ints:[0,4,7] }, { q:"min", ints:[0,3,7] },
+  { q:"dim", ints:[0,3,6] }, { q:"aug", ints:[0,4,8] },
+];
+const ROMAN = ["I","II","III","IV","V","VI","VII","VIII"];
+
+function initChordRef() {
+  renderChordRef();
+}
+
+function renderChordRef() {
+  const rootEl  = el("chordRoot");
+  const scaleEl = el("chordScale");
+  if (!rootEl || !scaleEl) return;
+
+  const rootName  = rootEl.value;
+  const scaleName = scaleEl.value;
+  const rootIdx   = NOTE_NAMES.indexOf(rootName.split("/")[0]);
+  const intervals = SCALE_INTERVALS[scaleName] || SCALE_INTERVALS["major"];
+  const scaleNotes = intervals.map(i => (rootIdx + i) % 12);
+
+  // Render piano
+  renderPiano(rootIdx, scaleNotes);
+
+  // Render chord grid
+  renderChords(rootIdx, scaleNotes, scaleName);
+}
+
+function renderPiano(rootIdx, scaleNotes) {
+  const wrap = el("pianoKeyboard");
+  if (!wrap) return;
+
+  // Build one octave + a bit, C to C
+  const WHITE_KEYS = [0,2,4,5,7,9,11]; // C D E F G A B
+  wrap.innerHTML = "";
+  wrap.style.position = "relative";
+
+  let whiteCount = 0;
+  const totalWhite = 14; // C to C + 1 octave
+
+  for (let i = 0; i < 24; i++) {
+    const note = i % 12;
+    const isWhite = WHITE_KEYS.includes(note);
+    if (!isWhite) continue;
+    if (whiteCount >= totalWhite) break;
+
+    const key = document.createElement("div");
+    key.className = "piano-key";
+    key.style.left = `${whiteCount * 2.55}rem`;
+    key.style.position = "absolute";
+    key.title = NOTE_NAMES[note];
+
+    if (note === rootIdx % 12) key.classList.add("root");
+    else if (scaleNotes.includes(note)) key.classList.add("in-scale");
+
+    wrap.appendChild(key);
+    whiteCount++;
+  }
+  wrap.style.width = `${totalWhite * 2.55}rem`;
+
+  // Black keys
+  let wIdx = 0;
+  for (let i = 0; i < 24; i++) {
+    const note = i % 12;
+    const isWhite = WHITE_KEYS.includes(note);
+    if (isWhite) { wIdx++; continue; }
+    if (wIdx >= totalWhite) break;
+
+    const key = document.createElement("div");
+    key.className = "piano-key black";
+    // Position between previous and next white key
+    key.style.left = `${(wIdx - 0.55) * 2.55}rem`;
+    key.style.position = "absolute";
+    key.title = NOTE_NAMES[note];
+
+    if (note === rootIdx % 12) key.classList.add("root");
+    else if (scaleNotes.includes(note)) key.classList.add("in-scale");
+
+    wrap.appendChild(key);
+  }
+
+  const lbl = el("pianoScaleLabel");
+  if (lbl) lbl.textContent = `${NOTE_NAMES[rootIdx]} scale — highlighted keys are in scale, accent color = root`;
+}
+
+function renderChords(rootIdx, scaleNotes, scaleName) {
+  const grid = el("chordGrid");
+  if (!grid) return;
+
+  const chordTypeEl = el("chordType");
+  const chordType   = chordTypeEl ? chordTypeEl.value : "triads";
+  const isSevenths  = chordType === "seventh" || chordType === "extended";
+
+  grid.innerHTML = "";
+  scaleNotes.forEach((note, degree) => {
+    // Find triad quality
+    let quality = "maj";
+    let chordNotes = [note, (note + 4) % 12, (note + 7) % 12];
+    // Check third interval
+    const third = scaleNotes.find(n => (n - note + 12) % 12 === 3 || (n - note + 12) % 12 === 4);
+    const fifth  = scaleNotes.find(n => (n - note + 12) % 12 === 6 || (n - note + 12) % 12 === 7);
+    const third_int = third !== undefined ? (third - note + 12) % 12 : 4;
+    const fifth_int = fifth !== undefined ? (fifth - note + 12) % 12 : 7;
+
+    if (third_int === 3 && fifth_int === 7) quality = "min";
+    else if (third_int === 3 && fifth_int === 6) quality = "dim";
+    else if (third_int === 4 && fifth_int === 8) quality = "aug";
+    else if (third_int === 4 && fifth_int === 7) quality = "maj";
+
+    chordNotes = [note, (note + third_int) % 12, (note + fifth_int) % 12];
+
+    let label = NOTE_NAMES[note] + (quality === "maj" ? "" : quality === "min" ? "m" : quality === "dim" ? "°" : "+");
+    let notesStr = chordNotes.map(n => NOTE_NAMES[n]).join(" – ");
+
+    if (isSevenths) {
+      const seventh = (note + (quality === "maj" ? 11 : quality === "dim" ? 9 : 10)) % 12;
+      chordNotes.push(seventh);
+      notesStr = chordNotes.map(n => NOTE_NAMES[n]).join(" – ");
+      label += quality === "maj" ? "maj7" : quality === "dim" ? "7" : "7";
+    }
+
+    const roman = ROMAN[degree] || "";
+    const romanDisp = quality === "min" || quality === "dim" ? roman.toLowerCase() : roman;
+
+    const card = document.createElement("div");
+    card.className = "chord-card";
+    card.innerHTML = `
+      <div class="chord-card-name">${esc(label)}</div>
+      <div class="chord-card-roman">${romanDisp}${quality === "dim" ? "°" : ""}</div>
+      <div class="chord-card-notes">${esc(notesStr)}</div>
+      <div class="chord-card-quality">${esc(quality === "maj" ? "Major" : quality === "min" ? "Minor" : quality === "dim" ? "Diminished" : "Augmented")}</div>
+    `;
+    card.addEventListener("click", () => showChordInfo(label, notesStr, quality, degree));
+    grid.appendChild(card);
+  });
+}
+
+function showChordInfo(name, notes, quality, degree) {
+  const panel = el("chordInfoPanel");
+  if (!panel) return;
+  const usage = {
+    "maj": "Great for stability, resolution, and happy/bright moments.",
+    "min": "Creates emotion, introspection, and melancholy.",
+    "dim": "Tension and instability — use to create drama before resolution.",
+    "aug": "Mysterious, dreamlike quality. Use sparingly.",
+  };
+  panel.innerHTML = `
+    <strong style="color:var(--accent)">${esc(name)}</strong>
+    <span style="margin-left:.5rem;color:var(--text-muted)">${esc(notes)}</span>
+    <p style="margin-top:.4rem;font-size:.82rem;color:var(--text-muted)">${usage[quality] || ""}</p>
+  `;
+}
+
+
+/* ════════════════════════════════════════════════════════════════════
+   KALA CHAT  💬
+════════════════════════════════════════════════════════════════════ */
+
+let _chatHistory = [];
+
+function autoResizeChatInput(el) {
+  el.style.height = "auto";
+  el.style.height = Math.min(el.scrollHeight, 144) + "px";
+}
+
+async function sendChatMessage() {
+  const input = el("chatInput");
+  if (!input) return;
+  const msg = input.value.trim();
+  if (!msg) return;
+
+  input.value = "";
+  input.style.height = "auto";
+  el("chatSendBtn") && (el("chatSendBtn").disabled = true);
+
+  // Remove welcome screen on first message
+  const welcome = document.querySelector(".chat-welcome");
+  if (welcome) welcome.remove();
+
+  appendChatMessage("user", msg);
+  showTypingIndicator();
+
+  try {
+    const res = await fetch(`${WORKER_BASE}/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: msg }),
+    });
+
+    hideTypingIndicator();
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      appendChatError(err.error || `Error ${res.status}`);
+      return;
+    }
+
+    const data = await res.json();
+    appendChatMessage("kala", data.reply || "…");
+    _chatHistory.push({ message: msg, reply: data.reply });
+
+  } catch (err) {
+    hideTypingIndicator();
+    appendChatError("Could not reach Kala. Check your Worker URL.");
+  } finally {
+    el("chatSendBtn") && (el("chatSendBtn").disabled = false);
+    input.focus();
+  }
+}
+
+async function loadChatHistory() {
+  try {
+    const res = await fetch(`${WORKER_BASE}/history`);
+    if (!res.ok) {
+      appendChatError(`History error: ${res.status}`);
+      return;
+    }
+    const data = await res.json();
+    const msgs = data.history || [];
+    if (!msgs.length) { appendChatSeparator("No history yet"); return; }
+
+    const welcome = document.querySelector(".chat-welcome");
+    if (welcome) welcome.remove();
+
+    appendChatSeparator("— Loaded history —");
+    // History comes newest-first; reverse for chronological order
+    msgs.slice().reverse().forEach(row => {
+      appendChatMessage("user", row.message, row.created_at);
+      appendChatMessage("kala", row.reply,   row.created_at);
+    });
+    scrollChatToBottom();
+  } catch (err) {
+    appendChatError("Could not load history. Check your Worker URL.");
+  }
+}
+
+function fmtTime(ts) {
+  return new Date(ts || Date.now()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function appendChatMessage(role, text, ts) {
+  const container = el("chatMessages");
+  if (!container) return;
+
+  const wrap = document.createElement("div");
+  wrap.className = `chat-msg ${role}`;
+
+  const avatar = document.createElement("div");
+  avatar.className = "chat-msg-avatar";
+  avatar.setAttribute("aria-hidden", "true");
+  avatar.textContent = role === "kala" ? "K" : "U";
+
+  const bubble = document.createElement("div");
+  bubble.className = "chat-bubble";
+  bubble.textContent = text;
+
+  const timeEl = document.createElement("div");
+  timeEl.className = "chat-timestamp";
+  timeEl.textContent = fmtTime(ts);
+
+  const inner = document.createElement("div");
+  inner.appendChild(bubble);
+  inner.appendChild(timeEl);
+
+  wrap.appendChild(avatar);
+  wrap.appendChild(inner);
+  container.appendChild(wrap);
+  scrollChatToBottom();
+}
+
+function appendChatError(msg) {
+  const container = el("chatMessages");
+  if (!container) return;
+  const div = document.createElement("div");
+  div.className = "chat-error-msg";
+  div.textContent = `⚠ ${msg}`;
+  container.appendChild(div);
+  scrollChatToBottom();
+}
+
+function appendChatSeparator(text) {
+  const container = el("chatMessages");
+  if (!container) return;
+  const div = document.createElement("div");
+  div.className = "chat-separator";
+  div.textContent = text;
+  container.appendChild(div);
+}
+
+function showTypingIndicator() {
+  const container = el("chatMessages");
+  if (!container) return;
+  const div = document.createElement("div");
+  div.id = "chatTyping";
+  div.className = "chat-msg kala";
+  div.innerHTML = `
+    <div class="chat-msg-avatar" aria-hidden="true">K</div>
+    <div class="chat-typing">
+      <span class="chat-typing-dots"><span></span><span></span><span></span></span>
+      Kala is thinking…
+    </div>
+  `;
+  container.appendChild(div);
+  scrollChatToBottom();
+}
+
+function hideTypingIndicator() {
+  const t = el("chatTyping");
+  if (t) t.remove();
+}
+
+function scrollChatToBottom() {
+  const container = el("chatMessages");
+  if (container) container.scrollTop = container.scrollHeight;
 }
