@@ -1,0 +1,9 @@
+{
+  "name": "kalaos-worker",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "deploy": "bash deploy.sh",
+    "dev": "wrangler dev"
+  }
+}
