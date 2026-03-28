@@ -342,6 +342,15 @@ class TestTextStudioFrontend:
     def test_focus_mode_present(self, html):
         assert "focus" in html.lower()
 
+    def test_preview_toggle_present(self, html):
+        assert "previewBtn" in html or "toggleMarkdownPreview" in html
+
+    def test_markdown_preview_pane_present(self, html):
+        assert "markdownPreview" in html
+
+    def test_export_buttons_present(self, html):
+        assert "exportText" in html
+
     def test_js_has_writing_assist_call(self, js):
         assert "text-studio/assist" in js
 
@@ -351,5 +360,21 @@ class TestTextStudioFrontend:
     def test_js_has_tts_function(self, js):
         assert "speechSynthesis" in js or "SpeechSynthesis" in js
 
+    def test_js_has_preview_function(self, js):
+        assert "toggleMarkdownPreview" in js
+
+    def test_js_has_render_markdown(self, js):
+        assert "_renderMarkdown" in js
+
+    def test_js_has_export_function(self, js):
+        assert "exportText" in js
+
+    def test_js_word_count_shows_lines(self, js):
+        # onEditorInput should show lines count in addition to words/chars
+        assert "lines" in js or "line${" in js or "· ${lines}" in js
+
     def test_css_has_writing_toolbar_styles(self, css):
         assert "toolbar" in css or "writing-toolbar" in css
+
+    def test_css_has_preview_pane_styles(self, css):
+        assert "markdown-preview" in css

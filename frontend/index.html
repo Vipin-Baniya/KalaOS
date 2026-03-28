@@ -272,15 +272,23 @@
           <button class="toolbar-btn" onclick="applyFormat('quote')" title="Blockquote">&#8220;&#8221;</button>
           <button class="toolbar-btn" onclick="applyFormat('hr')" title="Divider">—</button>
           <div class="toolbar-sep"></div>
+          <button class="toolbar-btn toolbar-btn--preview" id="previewBtn" onclick="toggleMarkdownPreview()" title="Toggle Markdown Preview">👁 Preview</button>
           <button class="toolbar-btn" onclick="speakText()" id="ttsBtn" title="Narrate with Text-to-Speech">🔊 Narrate</button>
+          <button class="toolbar-btn toolbar-btn--export" onclick="exportText('md')" title="Export as Markdown">⬇ .md</button>
+          <button class="toolbar-btn toolbar-btn--export" onclick="exportText('txt')" title="Export as plain text">⬇ .txt</button>
           <div class="word-count-display" id="wordCount" aria-live="polite">0 words</div>
         </div>
 
-        <div class="input-row">
+        <div class="input-row editor-split-row" id="editorSplitRow">
           <div class="field-group grow">
             <label for="artText">Your lyrics, poem, or text</label>
             <textarea id="artText" placeholder="Paste or type your art here&#8230;" rows="10" spellcheck="false"
               oninput="onEditorInput()"></textarea>
+          </div>
+          <!-- Markdown preview pane (hidden by default) -->
+          <div class="markdown-preview-pane hidden" id="markdownPreview" aria-label="Markdown preview">
+            <div class="markdown-preview-label">Preview</div>
+            <div class="markdown-preview-body" id="markdownPreviewBody"></div>
           </div>
         </div>
         <div class="input-meta-row">

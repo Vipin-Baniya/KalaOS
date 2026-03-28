@@ -2695,7 +2695,9 @@ function onEditorInput() {
   const text  = textarea.value.trim();
   const words = text.length === 0 ? 0 : text.split(/\s+/).length;
   const chars = textarea.value.length;
-  display.textContent = `${words} word${words !== 1 ? "s" : ""} · ${chars} chars`;
+  const lines = textarea.value.split("\n").length;
+  display.textContent = `${words} word${words !== 1 ? "s" : ""} · ${chars} chars · ${lines} line${lines !== 1 ? "s" : ""}`;
+  _syncMarkdownPreview();
 }
 
 // ── Markdown toolbar ──────────────────────────────────────────────────────
@@ -2747,6 +2749,89 @@ function applyFormat(type) {
   ta.selectionEnd   = start + (sel ? insert.length : cursor);
   ta.focus();
   onEditorInput();
+  // Update preview if visible
+  _syncMarkdownPreview();
+}
+
+// ── Markdown Preview ─────────────────────────────────────────────────────
+
+let _previewActive = false;
+
+/**
+ * Convert a subset of Markdown to safe HTML for the preview pane.
+ * Intentionally minimal — no external dependencies.
+ *
+ * Safety: all user-supplied characters (&, <, >) are HTML-escaped FIRST, so
+ * the tag fragments we inject (h1, strong, etc.) cannot be confused with
+ * attacker-controlled content.  Bold/italic patterns are restricted to
+ * single-line spans ([^\n]) to avoid greedy cross-line matches.
+ */
+function _renderMarkdown(md) {
+  if (!md) return "";
+  let html = md
+    // 1. Escape raw HTML entities so user content is never treated as markup
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    // 2. Headings (content is already entity-escaped)
+    .replace(/^### ([^\n]+)$/gm, "<h3>$1</h3>")
+    .replace(/^## ([^\n]+)$/gm,  "<h2>$1</h2>")
+    .replace(/^# ([^\n]+)$/gm,   "<h1>$1</h1>")
+    // 3. Horizontal rule
+    .replace(/^---$/gm, "<hr>")
+    // 4. Blockquote (match escaped ">" which became "&gt;")
+    .replace(/^&gt; ([^\n]+)$/gm, "<blockquote>$1</blockquote>")
+    // 5. Bold then italic — single-line only ([^\n*] avoids runaway matches)
+    .replace(/\*\*([^\n*]+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*([^\n*]+?)\*/g,     "<em>$1</em>")
+    // 6. Blank lines → paragraph separator
+    .replace(/\n\n+/g, "\n\n");
+  return html;
+}
+
+function _syncMarkdownPreview() {
+  if (!_previewActive) return;
+  const body = el("markdownPreviewBody");
+  if (!body) return;
+  const text = (el("artText") || {}).value || "";
+  // Safe: _renderMarkdown escapes all user content before inserting HTML tags
+  body.innerHTML = _renderMarkdown(text); // nosec
+}
+
+function toggleMarkdownPreview() {
+  const pane = el("markdownPreview");
+  const btn  = el("previewBtn");
+  if (!pane) return;
+  _previewActive = !_previewActive;
+  pane.classList.toggle("hidden", !_previewActive);
+  if (btn) btn.classList.toggle("active", _previewActive);
+  if (_previewActive) _syncMarkdownPreview();
+}
+
+// ── Export ────────────────────────────────────────────────────────────────
+
+/**
+ * Download the editor text as a .md or .txt file.
+ * @param {"md"|"txt"} format
+ */
+function exportText(format) {
+  const text = (el("artText") || {}).value || "";
+  if (!text.trim()) {
+    setStatus("Nothing to export — write something first.", true);
+    return;
+  }
+  const mime = format === "md" ? "text/markdown" : "text/plain";
+  const ext  = format === "md" ? "md" : "txt";
+  const blob = new Blob([text], { type: mime + ";charset=utf-8" });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href     = url;
+  a.download = `kala-writing.${ext}`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  setStatus(`Exported as kala-writing.${ext}`, false);
 }
 
 // ── Text-to-Speech ─────────────────────────────────────────────────────────
