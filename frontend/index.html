@@ -248,14 +248,39 @@
       <button class="studio-mode-btn" id="chatStudioBtn" onclick="switchStudio('chat')" role="tab" aria-selected="false">💬 Kala Chat</button>
     </div>
 
-    <!-- Text Studio (existing) -->
+    <!-- Text Studio (enhanced) -->
     <div id="textStudio">
+
+    <!-- ── Writing Mode Bar ── -->
+    <div class="writing-mode-bar" role="tablist" aria-label="Writing mode">
+      <button class="writing-mode-btn active" data-mode="free" onclick="setWritingMode('free')" role="tab" aria-selected="true">✍️ Free Write</button>
+      <button class="writing-mode-btn" data-mode="poetry" onclick="setWritingMode('poetry')" role="tab" aria-selected="false">🌸 Poetry</button>
+      <button class="writing-mode-btn" data-mode="story" onclick="setWritingMode('story')" role="tab" aria-selected="false">📖 Story</button>
+      <button class="writing-mode-btn" data-mode="script" onclick="setWritingMode('script')" role="tab" aria-selected="false">🎬 Script</button>
+      <button class="writing-mode-btn" data-mode="focus" onclick="setWritingMode('focus')" role="tab" aria-selected="false">🎯 Focus</button>
+    </div>
+
     <section class="input-panel" id="inputPanel">
       <div class="input-card">
+
+        <!-- ── Markdown Toolbar ── -->
+        <div class="writing-toolbar" id="writingToolbar" role="toolbar" aria-label="Formatting">
+          <button class="toolbar-btn" onclick="applyFormat('bold')" title="Bold (**text**)"><strong>B</strong></button>
+          <button class="toolbar-btn" onclick="applyFormat('italic')" title="Italic (*text*)"><em>I</em></button>
+          <button class="toolbar-btn" onclick="applyFormat('h1')" title="Heading 1">H1</button>
+          <button class="toolbar-btn" onclick="applyFormat('h2')" title="Heading 2">H2</button>
+          <button class="toolbar-btn" onclick="applyFormat('quote')" title="Blockquote">&#8220;&#8221;</button>
+          <button class="toolbar-btn" onclick="applyFormat('hr')" title="Divider">—</button>
+          <div class="toolbar-sep"></div>
+          <button class="toolbar-btn" onclick="speakText()" id="ttsBtn" title="Narrate with Text-to-Speech">🔊 Narrate</button>
+          <div class="word-count-display" id="wordCount" aria-live="polite">0 words</div>
+        </div>
+
         <div class="input-row">
           <div class="field-group grow">
             <label for="artText">Your lyrics, poem, or text</label>
-            <textarea id="artText" placeholder="Paste or type your art here&#8230;" rows="10" spellcheck="false"></textarea>
+            <textarea id="artText" placeholder="Paste or type your art here&#8230;" rows="10" spellcheck="false"
+              oninput="onEditorInput()"></textarea>
           </div>
         </div>
         <div class="input-meta-row">
@@ -283,9 +308,62 @@
           <button id="analyseBtn" class="btn-primary" onclick="runDeepAnalysis()">
             <span class="btn-icon" aria-hidden="true">&#9678;</span> Full Analysis
           </button>
+          <button class="btn-ghost" onclick="runPatternIntelligence()">🔍 Patterns</button>
           <button class="btn-ghost" onclick="clearAll()">Clear</button>
           <span id="statusMsg" class="status-msg" aria-live="polite" role="status"></span>
         </div>
+      </div>
+    </section>
+
+    <!-- ── AI Writing Assistant Panel ── -->
+    <section class="ai-assist-panel" id="aiAssistPanel">
+      <div class="ai-assist-header">
+        <span class="ai-assist-title">✨ AI Writing Assistant</span>
+        <span class="ai-assist-hint">Select an action to let Kala help with your writing</span>
+      </div>
+      <div class="ai-assist-actions">
+        <button class="assist-btn" onclick="runWritingAssist('continue')">
+          <span class="assist-icon">➕</span>
+          <span class="assist-label">Continue</span>
+          <span class="assist-desc">Keep writing from here</span>
+        </button>
+        <button class="assist-btn" onclick="runWritingAssist('rewrite')">
+          <span class="assist-icon">♻️</span>
+          <span class="assist-label">Rewrite</span>
+          <span class="assist-desc">Fresh phrasing, same soul</span>
+        </button>
+        <button class="assist-btn" onclick="runWritingAssist('improve')">
+          <span class="assist-icon">💡</span>
+          <span class="assist-label">Deepen</span>
+          <span class="assist-desc">Amplify emotional impact</span>
+        </button>
+        <button class="assist-btn" onclick="runWritingAssist('convert')">
+          <span class="assist-icon">🔄</span>
+          <span class="assist-label">Convert</span>
+          <span class="assist-desc">Transform the format</span>
+        </button>
+      </div>
+      <div id="assistResult" class="assist-result hidden">
+        <div class="assist-result-header">
+          <span id="assistResultLabel" class="assist-result-label"></span>
+          <div class="assist-result-actions">
+            <button class="btn-ghost small" onclick="copyAssistResult()">Copy</button>
+            <button class="btn-ghost small" onclick="useAssistResult()">Use this</button>
+            <button class="btn-ghost small" onclick="hideAssistResult()">Dismiss</button>
+          </div>
+        </div>
+        <p id="assistResultText" class="assist-result-text"></p>
+      </div>
+    </section>
+
+    <!-- ── Pattern Intelligence Panel ── -->
+    <section class="pattern-panel hidden" id="patternPanel">
+      <div class="pattern-panel-header">
+        <span class="pattern-panel-title">🔍 Pattern Intelligence</span>
+        <button class="btn-ghost small" onclick="hidePatternPanel()">×</button>
+      </div>
+      <div class="pattern-grid" id="patternGrid">
+        <!-- Populated by runPatternIntelligence() -->
       </div>
     </section>
 

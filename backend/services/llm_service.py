@@ -447,6 +447,98 @@ def generate_deep_narrative(
     return _call_ollama(prompt, model, _DEEP_NARRATIVE_TIMEOUT)
 
 
+# ---------------------------------------------------------------------------
+# Text Studio – Writing Assistant
+# ---------------------------------------------------------------------------
+
+_WRITING_ASSIST_TIMEOUT = 60
+
+_WRITING_ASSIST_ACTIONS = {
+    "continue": (
+        "You are a creative writing partner who understands rhythm, imagery, and form. "
+        "Continue the following {domain_label} naturally, matching its voice, tone, and "
+        "style exactly. Write only the continuation — do not repeat the original text. "
+        "Keep the continuation to approximately the same length as the original.\n\n"
+        "Original {domain_label}:\n---\n{text}\n---\n\n"
+        "Continue from where it left off:"
+    ),
+    "rewrite": (
+        "You are a skilled creative writing editor. Rewrite the following {domain_label} "
+        "to refresh its phrasing and imagery while preserving the core meaning, emotion, "
+        "and the artist's voice. Do not add new themes — only breathe new life into the "
+        "existing ones.\n\n"
+        "Original {domain_label}:\n---\n{text}\n---\n\n"
+        "Rewritten version:"
+    ),
+    "improve": (
+        "You are an empathetic literary mentor. Deepen the emotional resonance of the "
+        "following {domain_label} by suggesting one revised version that intensifies its "
+        "impact. Focus on sensory language, rhythm, and emotional specificity. Honour the "
+        "artist's original intent — do not change the subject matter.\n\n"
+        "Original {domain_label}:\n---\n{text}\n---\n\n"
+        "Emotionally deepened version:"
+    ),
+    "convert": (
+        "You are a versatile creative writer. Convert the following {domain_label} into "
+        "{target_form}. Preserve the themes, imagery, and emotional arc of the original. "
+        "The result should feel like a natural transformation, not a paraphrase.\n\n"
+        "Original {domain_label}:\n---\n{text}\n---\n\n"
+        "Converted {target_form}:"
+    ),
+}
+
+_CONVERT_TARGETS = {
+    "lyrics": "a short story",
+    "poetry": "a short story",
+    "story": "a poem",
+    "book": "a poem",
+    "music": "song lyrics",
+    "general": "a poem",
+}
+
+
+def generate_writing_assist(
+    text: str,
+    action: str,
+    domain: str = "general",
+    model: str = DEFAULT_MODEL,
+) -> str:
+    """
+    AI Writing Assistant — performs one of four creative actions on the
+    provided text using the local Ollama instance.
+
+    Parameters
+    ----------
+    text : str
+        The artist's text to act on.
+    action : str
+        One of: ``continue``, ``rewrite``, ``improve``, ``convert``.
+    domain : str
+        Art domain (used to label the text in the prompt).
+    model : str
+        Ollama model name.
+
+    Returns
+    -------
+    str
+        The LLM-generated result, or a graceful fallback string.
+    """
+    if action not in _WRITING_ASSIST_ACTIONS:
+        return f"[Unknown action '{action}'. Use: continue, rewrite, improve, or convert.]"
+    if domain not in ART_DOMAINS:
+        domain = "general"
+
+    domain_label = ART_DOMAINS[domain]
+    target_form = _CONVERT_TARGETS.get(domain, "a poem")
+    template = _WRITING_ASSIST_ACTIONS[action]
+    prompt = template.format(
+        text=text.strip(),
+        domain_label=domain_label,
+        target_form=target_form,
+    )
+    return _call_ollama(prompt, model, _WRITING_ASSIST_TIMEOUT)
+
+
 def list_available_models() -> list:
     """
     Query the local Ollama instance for available models.
