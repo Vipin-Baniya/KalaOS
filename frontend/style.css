@@ -1264,9 +1264,89 @@ body.focus-mode #artText {
   white-space: nowrap;
 }
 /* Toolbar visible — attach to textarea */
+.writing-toolbar + .editor-split-row textarea,
 .writing-toolbar + .input-row textarea {
   border-top-left-radius: 0;
   border-top-right-radius: 0;
+}
+.toolbar-btn--preview.active {
+  background: var(--accent-glow);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.toolbar-btn--export {
+  font-size: .78rem;
+  opacity: .85;
+}
+.toolbar-btn--export:hover { opacity: 1; }
+
+/* ── Editor split layout (edit + preview side-by-side) ── */
+.editor-split-row {
+  display: flex;
+  gap: 1rem;
+}
+.editor-split-row .field-group { flex: 1; min-width: 0; }
+.markdown-preview-pane {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.markdown-preview-label {
+  padding: .35rem .75rem;
+  font-size: .75rem;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+.markdown-preview-body {
+  padding: .9rem 1rem;
+  overflow-y: auto;
+  flex: 1;
+  font-size: .9rem;
+  line-height: 1.7;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.markdown-preview-body h1 {
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  margin: .5rem 0 .3rem;
+  color: var(--text);
+}
+.markdown-preview-body h2 {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  margin: .5rem 0 .2rem;
+  color: var(--text);
+}
+.markdown-preview-body strong { font-weight: 700; }
+.markdown-preview-body em { font-style: italic; color: var(--text-muted); }
+.markdown-preview-body blockquote {
+  border-left: 3px solid var(--accent);
+  margin: .5rem 0;
+  padding: .3rem .75rem;
+  color: var(--text-muted);
+  font-style: italic;
+  background: var(--surface);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+.markdown-preview-body hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: .75rem 0;
+}
+@media (max-width: 700px) {
+  .editor-split-row { flex-direction: column; }
+  .markdown-preview-pane { min-height: 200px; }
 }
 
 /* ── AI Writing Assistant Panel ── */
