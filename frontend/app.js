@@ -2755,7 +2755,7 @@ let _ttsUtterance = null;
 
 function speakText() {
   if (!("speechSynthesis" in window)) {
-    alert("Your browser does not support Text-to-Speech narration.");
+    setStatus("Your browser does not support Text-to-Speech narration.", true);
     return;
   }
 
@@ -2769,7 +2769,7 @@ function speakText() {
 
   const text = (el("artText") || {}).value || "";
   if (!text.trim()) {
-    alert("Write something first before narrating.");
+    setStatus("Write something first before narrating.", true);
     return;
   }
 
@@ -2849,7 +2849,9 @@ function hideAssistResult() {
 function copyAssistResult() {
   const text = (el("assistResultText") || {}).textContent || "";
   if (!text) return;
-  navigator.clipboard.writeText(text).catch(() => {});
+  navigator.clipboard.writeText(text)
+    .then(() => setStatus("Copied to clipboard."))
+    .catch(() => setStatus("Failed to copy to clipboard.", true));
 }
 
 function useAssistResult() {

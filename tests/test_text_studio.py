@@ -269,7 +269,7 @@ class TestTextStudioPatternsEndpoint:
         total = pals.get("full_palindrome_count", 0) + len(
             pals.get("partial_palindromes", [])
         )
-        assert total > 0, "Expected at least one palindrome in: " + PALINDROME_TEXT
+        assert total > 0, f"Expected at least one palindrome in: {repr(PALINDROME_TEXT)}"
 
     def test_empty_text_returns_422(self):
         resp = client.post("/text-studio/patterns", json={"text": ""})

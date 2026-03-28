@@ -1211,7 +1211,6 @@ body.focus-mode footer {
 body.focus-mode #artText {
   font-size: 1.2rem;
   line-height: 1.9;
-  rows: 20;
   min-height: 60vh;
   font-family: var(--font-display);
 }
