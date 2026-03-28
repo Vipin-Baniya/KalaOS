@@ -302,14 +302,22 @@
           <button class="toolbar-btn" onclick="applyFormat('hr')" title="Divider">—</button>
           <div class="toolbar-sep"></div>
           <button class="toolbar-btn" onclick="speakText()" id="ttsBtn" title="Narrate with Text-to-Speech">🔊 Narrate</button>
+          <div class="toolbar-sep"></div>
+          <button class="toolbar-btn toolbar-btn--preview" id="previewToggleBtn" onclick="toggleMdPreview()" title="Toggle Markdown Preview">👁 Preview</button>
+          <button class="toolbar-btn" onclick="exportText('md')" title="Download as Markdown">⬇ .md</button>
+          <button class="toolbar-btn" onclick="exportText('txt')" title="Download as plain text">⬇ .txt</button>
           <div class="word-count-display" id="wordCount" aria-live="polite">0 words</div>
         </div>
 
-        <div class="input-row">
+        <div class="input-row editor-preview-row">
           <div class="field-group grow">
             <label for="artText">Your lyrics, poem, or text</label>
             <textarea id="artText" placeholder="Paste or type your art here&#8230;" rows="10" spellcheck="false"
               oninput="onEditorInput()"></textarea>
+          </div>
+          <div id="mdPreviewPane" class="md-preview-pane hidden" aria-label="Markdown preview" aria-live="polite">
+            <div class="md-preview-header">Preview</div>
+            <div id="mdPreviewContent" class="md-preview-content"></div>
           </div>
         </div>
         <div class="input-meta-row">
@@ -1097,7 +1105,7 @@
       </div><!-- /mtool-produce -->
 
     </div><!-- /musicStudio -->
-    <div id="visualStudio" class="input-panel">
+    <div id="visualStudio" class="input-panel hidden">
       <div class="input-card" style="padding:.8rem 1.2rem .3rem">
         <div class="visual-tab-bar" role="tablist" aria-label="Visual tools">
           <button class="visual-tab active" data-vtab="paint" onclick="switchVisualTab('paint')" role="tab">🖌️ Paint &amp; Sketch</button>

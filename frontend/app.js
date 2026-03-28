@@ -1199,15 +1199,15 @@ function switchStudio(mode) {
   const textBtn = el("textStudioBtn");
   const visualBtn = el("visualStudioBtn");
   if (mode === "visual") {
-    textStudio.style.display = "none";
-    visualStudio.style.display = "block";
+    textStudio.classList.add("hidden");
+    visualStudio.classList.remove("hidden");
     textBtn.classList.remove("active");
     visualBtn.classList.add("active");
     if (!_paintInitDone) initPaintCanvas();
     if (!_logoInitDone) initLogoCanvas();
   } else {
-    textStudio.style.display = "";
-    visualStudio.style.display = "none";
+    textStudio.classList.remove("hidden");
+    visualStudio.classList.add("hidden");
     textBtn.classList.add("active");
     visualBtn.classList.remove("active");
   }
@@ -2768,7 +2768,14 @@ function onEditorInput() {
   const text  = textarea.value.trim();
   const words = text.length === 0 ? 0 : text.split(/\s+/).length;
   const chars = textarea.value.length;
-  display.textContent = `${words} word${words !== 1 ? "s" : ""} · ${chars} chars`;
+  const lines = text.length === 0 ? 0 : textarea.value.split("\n").length;
+  display.textContent = `${words} word${words !== 1 ? "s" : ""} · ${chars} chars · ${lines} line${lines !== 1 ? "s" : ""}`;
+
+  // If preview pane is open, refresh it
+  const pane = el("mdPreviewPane");
+  if (pane && !pane.classList.contains("hidden")) {
+    _renderMdPreview(textarea.value);
+  }
 }
 
 // ── Markdown toolbar ──────────────────────────────────────────────────────
@@ -2822,7 +2829,73 @@ function applyFormat(type) {
   onEditorInput();
 }
 
-// ── Text-to-Speech ─────────────────────────────────────────────────────────
+// ── Markdown Preview ───────────────────────────────────────────────────────
+
+function _renderMdPreview(rawText) {
+  const content = el("mdPreviewContent");
+  if (!content) return;
+  // Lightweight inline markdown renderer (no external deps)
+  let html = rawText
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .split("\n")
+    .map(line => {
+      if (/^### (.+)/.test(line)) return `<h3>${line.replace(/^### /, "")}</h3>`;
+      if (/^## (.+)/.test(line))  return `<h2>${line.replace(/^## /, "")}</h2>`;
+      if (/^# (.+)/.test(line))   return `<h1>${line.replace(/^# /, "")}</h1>`;
+      if (/^> (.*)/.test(line))   return `<blockquote>${line.replace(/^> /, "")}</blockquote>`;
+      if (/^---+$/.test(line))    return "<hr>";
+      // Inline bold / italic
+      line = line.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+      line = line.replace(/\*(.+?)\*/g,     "<em>$1</em>");
+      if (line === "") return "<br>";
+      return `<p>${line}</p>`;
+    })
+    .join("\n");
+  content.innerHTML = html;
+}
+
+let _mdPreviewOpen = false;
+
+function toggleMdPreview() {
+  const pane = el("mdPreviewPane");
+  const btn  = el("previewToggleBtn");
+  if (!pane) return;
+  _mdPreviewOpen = !_mdPreviewOpen;
+  if (_mdPreviewOpen) {
+    pane.classList.remove("hidden");
+    if (btn) btn.classList.add("active");
+    const ta = el("artText");
+    if (ta) _renderMdPreview(ta.value);
+  } else {
+    pane.classList.add("hidden");
+    if (btn) btn.classList.remove("active");
+  }
+}
+
+// ── Export text ────────────────────────────────────────────────────────────
+
+function exportText(format) {
+  const text = (el("artText") || {}).value || "";
+  if (!text.trim()) {
+    setStatus("Nothing to export — write something first.", true);
+    return;
+  }
+  const mime = format === "md" ? "text/markdown" : "text/plain";
+  const ext  = format === "md" ? "md" : "txt";
+  const blob = new Blob([text], { type: mime });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href     = url;
+  a.download = `kalaos-text.${ext}`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+
 
 let _ttsUtterance = null;
 

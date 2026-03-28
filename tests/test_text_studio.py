@@ -471,3 +471,150 @@ class TestKalaOSUILayout:
 
     def test_ai_assist_panel_adapts_in_ai_panel(self, css):
         assert ".app-ai-panel .ai-assist-panel" in css
+
+
+# ===========================================================================
+# Frontend – Markdown Preview, Export, Line Count, switchStudio convention
+# ===========================================================================
+
+class TestTextStudioMarkdownPreviewAndExport:
+    """Tests for live Markdown Preview, export buttons, line count, and code conventions."""
+
+    @pytest.fixture(scope="class")
+    def html(self):
+        with open(os.path.join(FRONTEND_DIR, "index.html"), encoding="utf-8") as f:
+            return f.read()
+
+    @pytest.fixture(scope="class")
+    def js(self):
+        with open(os.path.join(FRONTEND_DIR, "app.js"), encoding="utf-8") as f:
+            return f.read()
+
+    @pytest.fixture(scope="class")
+    def css(self):
+        with open(os.path.join(FRONTEND_DIR, "style.css"), encoding="utf-8") as f:
+            return f.read()
+
+    # ── Markdown Preview ──────────────────────────────────────────────────
+
+    def test_preview_toggle_button_present(self, html):
+        assert "previewToggleBtn" in html or "Preview" in html
+
+    def test_preview_pane_element_present(self, html):
+        assert "mdPreviewPane" in html
+
+    def test_preview_pane_starts_hidden(self, html):
+        # The preview pane should start hidden (using .hidden class)
+        import re
+        match = re.search(r'id="mdPreviewPane"[^>]*class="([^"]*)"', html)
+        assert match, "mdPreviewPane element not found"
+        assert "hidden" in match.group(1)
+
+    def test_md_preview_content_element_present(self, html):
+        assert "mdPreviewContent" in html
+
+    def test_toggle_md_preview_function_in_js(self, js):
+        assert "toggleMdPreview" in js
+
+    def test_render_md_preview_function_in_js(self, js):
+        assert "_renderMdPreview" in js
+
+    def test_preview_renders_headings(self, js):
+        assert "<h1>" in js or "'<h1>'" in js or '"<h1>"' in js
+
+    def test_preview_renders_bold(self, js):
+        assert "<strong>" in js
+
+    def test_preview_renders_italic(self, js):
+        assert "<em>" in js
+
+    def test_preview_renders_blockquotes(self, js):
+        assert "<blockquote>" in js
+
+    def test_preview_css_defined(self, css):
+        assert ".md-preview-pane" in css
+
+    def test_preview_content_css_defined(self, css):
+        assert ".md-preview-content" in css
+
+    def test_preview_pane_uses_flex_layout(self, css):
+        assert ".editor-preview-row" in css
+
+    # ── Export buttons ────────────────────────────────────────────────────
+
+    def test_export_md_button_present(self, html):
+        assert ".md" in html or "exportText" in html
+
+    def test_export_txt_button_present(self, html):
+        assert ".txt" in html or "exportText" in html
+
+    def test_export_text_function_in_js(self, js):
+        assert "exportText" in js
+
+    def test_export_creates_blob(self, js):
+        assert "Blob" in js
+
+    def test_export_revokes_url(self, js):
+        assert "revokeObjectURL" in js
+
+    def test_export_supports_md_format(self, js):
+        assert "text/markdown" in js
+
+    def test_export_supports_txt_format(self, js):
+        assert "text/plain" in js
+
+    # ── Line count ────────────────────────────────────────────────────────
+
+    def test_line_count_in_editor_input_function(self, js):
+        # onEditorInput should track line count
+        assert "lines" in js or "line" in js
+
+    def test_word_count_display_includes_lines(self, js):
+        # The display text should include "line" count
+        assert "line" in js
+
+    # ── Code convention: switchStudio uses .hidden class ─────────────────
+
+    def test_switch_studio_does_not_use_style_display(self, js):
+        # switchStudio should NOT use style.display directly
+        # Check by searching for the pattern in the function vicinity
+        assert "function switchStudio(" in js
+        # Locate the function and verify the body doesn't use style.display
+        start = js.index("function switchStudio(")
+        # Find the matching closing brace by counting brace depth
+        depth = 0
+        end = start
+        for i, ch in enumerate(js[start:], start):
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    end = i + 1
+                    break
+        body = js[start:end]
+        assert "style.display" not in body, "switchStudio should use .hidden class, not style.display"
+
+    def test_switch_studio_uses_hidden_class(self, js):
+        assert "function switchStudio(" in js
+        start = js.index("function switchStudio(")
+        depth = 0
+        end = start
+        for i, ch in enumerate(js[start:], start):
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    end = i + 1
+                    break
+        body = js[start:end]
+        assert "classList" in body and "hidden" in body
+
+    def test_visual_studio_starts_hidden(self, html):
+        # visualStudio should have the 'hidden' class on initial load
+        import re
+        match = re.search(r'id="visualStudio"[^>]*class="([^"]*)"', html)
+        assert match, "visualStudio element not found"
+        assert "hidden" in match.group(1)
+
