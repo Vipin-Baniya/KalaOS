@@ -342,15 +342,6 @@ class TestTextStudioFrontend:
     def test_focus_mode_present(self, html):
         assert "focus" in html.lower()
 
-    def test_preview_toggle_present(self, html):
-        assert "previewBtn" in html or "toggleMarkdownPreview" in html
-
-    def test_markdown_preview_pane_present(self, html):
-        assert "markdownPreview" in html
-
-    def test_export_buttons_present(self, html):
-        assert "exportText" in html
-
     def test_js_has_writing_assist_call(self, js):
         assert "text-studio/assist" in js
 
@@ -360,21 +351,270 @@ class TestTextStudioFrontend:
     def test_js_has_tts_function(self, js):
         assert "speechSynthesis" in js or "SpeechSynthesis" in js
 
-    def test_js_has_preview_function(self, js):
-        assert "toggleMarkdownPreview" in js
-
-    def test_js_has_render_markdown(self, js):
-        assert "_renderMarkdown" in js
-
-    def test_js_has_export_function(self, js):
-        assert "exportText" in js
-
-    def test_js_word_count_shows_lines(self, js):
-        # onEditorInput should show lines count in addition to words/chars
-        assert "lines" in js or "line${" in js or "· ${lines}" in js
-
     def test_css_has_writing_toolbar_styles(self, css):
         assert "toolbar" in css or "writing-toolbar" in css
 
-    def test_css_has_preview_pane_styles(self, css):
-        assert "markdown-preview" in css
+
+# ===========================================================================
+# Frontend – UI/UX Layout: Sidebar, AI Panel, Creator Mode Theme
+# ===========================================================================
+
+class TestKalaOSUILayout:
+    """Tests for the 3-column layout (sidebar · workspace · AI panel) and Creator Mode theme."""
+
+    @pytest.fixture(scope="class")
+    def html(self):
+        with open(os.path.join(FRONTEND_DIR, "index.html"), encoding="utf-8") as f:
+            return f.read()
+
+    @pytest.fixture(scope="class")
+    def js(self):
+        with open(os.path.join(FRONTEND_DIR, "app.js"), encoding="utf-8") as f:
+            return f.read()
+
+    @pytest.fixture(scope="class")
+    def css(self):
+        with open(os.path.join(FRONTEND_DIR, "style.css"), encoding="utf-8") as f:
+            return f.read()
+
+    # ── Sidebar navigation ────────────────────────────────────────────────
+
+    def test_sidebar_element_present(self, html):
+        assert "app-sidebar" in html
+
+    def test_sidebar_has_all_studio_buttons(self, html):
+        assert "textStudioBtn" in html
+        assert "musicStudioBtn" in html
+        assert "visualStudioBtn" in html
+        assert "chatStudioBtn" in html
+
+    def test_sidebar_collapse_button_present(self, html):
+        assert "sidebarToggle" in html or "sidebar-collapse" in html
+
+    def test_sidebar_css_defined(self, css):
+        assert ".app-sidebar" in css
+
+    def test_sidebar_collapsed_state_css(self, css):
+        assert "collapsed" in css
+
+    def test_sidebar_toggle_js_function(self, js):
+        assert "toggleSidebar" in js
+
+    def test_sidebar_state_restored_on_load(self, js):
+        assert "_restoreSidebar" in js
+
+    # ── Right AI Panel ────────────────────────────────────────────────────
+
+    def test_ai_panel_element_present(self, html):
+        assert "appAiPanel" in html or "app-ai-panel" in html
+
+    def test_ai_panel_css_defined(self, css):
+        assert ".app-ai-panel" in css
+
+    def test_ai_panel_toggle_js_function(self, js):
+        assert "toggleAiPanel" in js
+
+    def test_ai_panel_show_hide_functions(self, js):
+        assert "_showAiPanel" in js
+        assert "_hideAiPanel" in js
+
+    def test_ai_panel_hides_for_music_studio(self, js):
+        # When switching to music studio, AI panel should be hidden
+        assert "_hideAiPanel" in js
+
+    def test_ai_panel_toggle_button_present(self, html):
+        assert "aiPanelToggleBtn" in html or "ai-panel-toggle" in html
+
+    # ── 3-Column Layout ───────────────────────────────────────────────────
+
+    def test_app_body_wrapper_present(self, html):
+        assert "app-body" in html
+
+    def test_app_workspace_present(self, html):
+        assert "app-workspace" in html
+
+    def test_layout_uses_flexbox(self, css):
+        assert ".app-body" in css
+        assert "flex" in css
+
+    def test_mobile_bottom_sheet_css(self, css):
+        # Mobile: AI panel becomes bottom sheet
+        assert "bottom-sheet" in css or "panel-open" in css
+
+    def test_responsive_sidebar_mobile(self, css):
+        # On mobile, sidebar goes to bottom as horizontal strip
+        assert "flex-direction: column-reverse" in css or "column-reverse" in css
+
+    # ── Creator Mode Theme ────────────────────────────────────────────────
+
+    def test_creator_mode_theme_css_defined(self, css):
+        assert 'data-theme="creator"' in css
+
+    def test_creator_mode_swatch_in_html(self, html):
+        assert "creator" in html.lower()
+
+    def test_creator_mode_in_js_theme_colors(self, js):
+        assert '"creator"' in js
+
+    def test_creator_mode_has_colorful_accent(self, css):
+        # Creator mode should have a vibrant accent color (fuchsia/magenta)
+        assert "#c026d3" in css or "c026d3" in css
+
+    def test_creator_mode_swatch_preview_gradient(self, html):
+        # The swatch preview should show a colorful gradient
+        assert "Creator Mode" in html or "creator" in html.lower()
+
+    # ── AI Panel Grid Adaptation ──────────────────────────────────────────
+
+    def test_pattern_grid_adapts_in_ai_panel(self, css):
+        assert ".app-ai-panel .pattern-grid" in css
+
+    def test_ai_assist_panel_adapts_in_ai_panel(self, css):
+        assert ".app-ai-panel .ai-assist-panel" in css
+
+
+# ===========================================================================
+# Frontend – Markdown Preview, Export, Line Count, switchStudio convention
+# ===========================================================================
+
+class TestTextStudioMarkdownPreviewAndExport:
+    """Tests for live Markdown Preview, export buttons, line count, and code conventions."""
+
+    @pytest.fixture(scope="class")
+    def html(self):
+        with open(os.path.join(FRONTEND_DIR, "index.html"), encoding="utf-8") as f:
+            return f.read()
+
+    @pytest.fixture(scope="class")
+    def js(self):
+        with open(os.path.join(FRONTEND_DIR, "app.js"), encoding="utf-8") as f:
+            return f.read()
+
+    @pytest.fixture(scope="class")
+    def css(self):
+        with open(os.path.join(FRONTEND_DIR, "style.css"), encoding="utf-8") as f:
+            return f.read()
+
+    # ── Markdown Preview ──────────────────────────────────────────────────
+
+    def test_preview_toggle_button_present(self, html):
+        assert "previewBtn" in html or "Preview" in html
+
+    def test_preview_pane_element_present(self, html):
+        assert "markdownPreview" in html
+
+    def test_preview_pane_starts_hidden(self, html):
+        # The preview pane should start hidden (using .hidden class)
+        import re
+        match = re.search(r'id="markdownPreview"[^>]*class="([^"]*)"', html)
+        assert match, "markdownPreview element not found"
+        assert "hidden" in match.group(1)
+
+    def test_md_preview_content_element_present(self, html):
+        assert "markdownPreviewBody" in html
+
+    def test_toggle_md_preview_function_in_js(self, js):
+        assert "toggleMarkdownPreview" in js
+
+    def test_render_md_preview_function_in_js(self, js):
+        assert "_renderMarkdown" in js
+
+    def test_preview_renders_headings(self, js):
+        assert "<h1>" in js or "'<h1>'" in js or '"<h1>"' in js
+
+    def test_preview_renders_bold(self, js):
+        assert "<strong>" in js
+
+    def test_preview_renders_italic(self, js):
+        assert "<em>" in js
+
+    def test_preview_renders_blockquotes(self, js):
+        assert "<blockquote>" in js
+
+    def test_preview_css_defined(self, css):
+        assert ".markdown-preview-pane" in css
+
+    def test_preview_content_css_defined(self, css):
+        assert ".markdown-preview-body" in css
+
+    def test_preview_pane_uses_flex_layout(self, css):
+        assert ".editor-split-row" in css
+
+    # ── Export buttons ────────────────────────────────────────────────────
+
+    def test_export_md_button_present(self, html):
+        assert ".md" in html or "exportText" in html
+
+    def test_export_txt_button_present(self, html):
+        assert ".txt" in html or "exportText" in html
+
+    def test_export_text_function_in_js(self, js):
+        assert "exportText" in js
+
+    def test_export_creates_blob(self, js):
+        assert "Blob" in js
+
+    def test_export_revokes_url(self, js):
+        assert "revokeObjectURL" in js
+
+    def test_export_supports_md_format(self, js):
+        assert "text/markdown" in js
+
+    def test_export_supports_txt_format(self, js):
+        assert "text/plain" in js
+
+    # ── Line count ────────────────────────────────────────────────────────
+
+    def test_line_count_in_editor_input_function(self, js):
+        # onEditorInput should track line count
+        assert "lines" in js or "line" in js
+
+    def test_word_count_display_includes_lines(self, js):
+        # The display text should include "line" count
+        assert "line" in js
+
+    # ── Code convention: switchStudio uses .hidden class ─────────────────
+
+    def test_switch_studio_does_not_use_style_display(self, js):
+        # switchStudio should NOT use style.display directly
+        # Check by searching for the pattern in the function vicinity
+        assert "function switchStudio(" in js
+        # Locate the function and verify the body doesn't use style.display
+        start = js.index("function switchStudio(")
+        # Find the matching closing brace by counting brace depth
+        depth = 0
+        end = start
+        for i, ch in enumerate(js[start:], start):
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    end = i + 1
+                    break
+        body = js[start:end]
+        assert "style.display" not in body, "switchStudio should use .hidden class, not style.display"
+
+    def test_switch_studio_uses_hidden_class(self, js):
+        assert "function switchStudio(" in js
+        start = js.index("function switchStudio(")
+        depth = 0
+        end = start
+        for i, ch in enumerate(js[start:], start):
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    end = i + 1
+                    break
+        body = js[start:end]
+        assert "classList" in body and "hidden" in body
+
+    def test_visual_studio_starts_hidden(self, html):
+        # visualStudio should have the 'hidden' class on initial load
+        import re
+        match = re.search(r'id="visualStudio"[^>]*class="([^"]*)"', html)
+        assert match, "visualStudio element not found"
+        assert "hidden" in match.group(1)
+

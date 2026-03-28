@@ -36,6 +36,7 @@ const THEME_ACCENT_COLORS = {
   "forest":      "#4ade80",
   "crimson":     "#e23270",
   "light":       "#6d28d9",
+  "creator":     "#c026d3",
   "custom":      null,
 };
 
@@ -148,6 +149,71 @@ function toggleThemePanel() {
   panel.classList.toggle("open", !isOpen);
   panel.setAttribute("aria-hidden", String(isOpen));
   overlay.classList.toggle("hidden", isOpen);
+}
+
+/* ══════════════════════════════════════════════
+   SIDEBAR & AI PANEL TOGGLE
+══════════════════════════════════════════════ */
+
+function toggleSidebar() {
+  const sidebar = document.getElementById("appSidebar");
+  const icon    = document.getElementById("sidebarToggleIcon");
+  if (!sidebar) return;
+  const collapsed = sidebar.classList.toggle("collapsed");
+  if (icon) icon.textContent = collapsed ? "▶" : "◀";
+  localStorage.setItem("kala-sidebar-collapsed", collapsed ? "1" : "0");
+}
+
+function _restoreSidebar() {
+  const collapsed = localStorage.getItem("kala-sidebar-collapsed") === "1";
+  const sidebar   = document.getElementById("appSidebar");
+  const icon      = document.getElementById("sidebarToggleIcon");
+  if (sidebar && collapsed) {
+    sidebar.classList.add("collapsed");
+    if (icon) icon.textContent = "▶";
+  }
+}
+
+let _aiPanelOpen = true;
+
+function toggleAiPanel() {
+  const panel      = document.getElementById("appAiPanel");
+  const toggleBtn  = document.getElementById("aiPanelToggleBtn");
+  if (!panel) return;
+
+  // On mobile (≤640px), use the bottom-sheet open/close pattern
+  const isMobile = window.matchMedia("(max-width: 640px)").matches;
+  if (isMobile) {
+    _aiPanelOpen = !_aiPanelOpen;
+    panel.classList.toggle("panel-open", _aiPanelOpen);
+    panel.classList.toggle("panel-hidden", !_aiPanelOpen);
+  } else {
+    _aiPanelOpen = !_aiPanelOpen;
+    panel.classList.toggle("panel-hidden", !_aiPanelOpen);
+  }
+
+  if (toggleBtn) toggleBtn.classList.toggle("active", _aiPanelOpen);
+}
+
+function _showAiPanel() {
+  const panel     = document.getElementById("appAiPanel");
+  const toggleBtn = document.getElementById("aiPanelToggleBtn");
+  if (!panel) return;
+  _aiPanelOpen = true;
+  const isMobile = window.matchMedia("(max-width: 640px)").matches;
+  panel.classList.remove("panel-hidden");
+  if (isMobile) panel.classList.add("panel-open");
+  if (toggleBtn) toggleBtn.classList.add("active");
+}
+
+function _hideAiPanel() {
+  const panel     = document.getElementById("appAiPanel");
+  const toggleBtn = document.getElementById("aiPanelToggleBtn");
+  if (!panel) return;
+  _aiPanelOpen = false;
+  panel.classList.add("panel-hidden");
+  panel.classList.remove("panel-open");
+  if (toggleBtn) toggleBtn.classList.remove("active");
 }
 
 /* ══════════════════════════════════════════════
@@ -1112,6 +1178,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initPWA();
   _loadSession();
   _updateUserUI();
+  _restoreSidebar();
 
   // If a valid session exists, skip auth screen
   if (_authToken && _currentUser) {
@@ -1132,15 +1199,15 @@ function switchStudio(mode) {
   const textBtn = el("textStudioBtn");
   const visualBtn = el("visualStudioBtn");
   if (mode === "visual") {
-    textStudio.style.display = "none";
-    visualStudio.style.display = "block";
+    textStudio.classList.add("hidden");
+    visualStudio.classList.remove("hidden");
     textBtn.classList.remove("active");
     visualBtn.classList.add("active");
     if (!_paintInitDone) initPaintCanvas();
     if (!_logoInitDone) initLogoCanvas();
   } else {
-    textStudio.style.display = "";
-    visualStudio.style.display = "none";
+    textStudio.classList.remove("hidden");
+    visualStudio.classList.add("hidden");
     textBtn.classList.add("active");
     visualBtn.classList.remove("active");
   }
@@ -1616,8 +1683,8 @@ function renderVisualAnalysis(d) {
       const visualStudio = el("visualStudio");
       const textBtn      = el("textStudioBtn");
       const visualBtn    = el("visualStudioBtn");
-      if (textStudio)   textStudio.style.display   = "none";
-      if (visualStudio) visualStudio.style.display = "none";
+      if (textStudio)   textStudio.classList.add("hidden");
+      if (visualStudio) visualStudio.classList.add("hidden");
       if (textBtn)      textBtn.classList.remove("active");
       if (visualBtn)    visualBtn.classList.remove("active");
       if (musicStudio) {
@@ -1629,6 +1696,7 @@ function renderVisualAnalysis(d) {
         }
       }
       if (musicBtn) musicBtn.classList.add("active");
+      _hideAiPanel();
       return;
     }
 
@@ -1637,14 +1705,19 @@ function renderVisualAnalysis(d) {
       const visualStudio = el("visualStudio");
       const textBtn      = el("textStudioBtn");
       const visualBtn    = el("visualStudioBtn");
-      if (textStudio)   textStudio.style.display   = "none";
-      if (visualStudio) visualStudio.style.display = "none";
+      if (textStudio)   textStudio.classList.add("hidden");
+      if (visualStudio) visualStudio.classList.add("hidden");
       if (textBtn)      textBtn.classList.remove("active");
       if (visualBtn)    visualBtn.classList.remove("active");
       if (chatStudio) chatStudio.classList.remove("hidden");
       if (chatBtn)    chatBtn.classList.add("active");
+      _hideAiPanel();
       return;
     }
+
+    // For text and visual studios, show the AI panel
+    if (mode === "text") _showAiPanel();
+    else _hideAiPanel();
 
     _origSwitchStudio(mode);
   };
@@ -2695,9 +2768,14 @@ function onEditorInput() {
   const text  = textarea.value.trim();
   const words = text.length === 0 ? 0 : text.split(/\s+/).length;
   const chars = textarea.value.length;
-  const lines = textarea.value.split("\n").length;
+  const lines = text.length === 0 ? 0 : textarea.value.split("\n").length;
   display.textContent = `${words} word${words !== 1 ? "s" : ""} · ${chars} chars · ${lines} line${lines !== 1 ? "s" : ""}`;
-  _syncMarkdownPreview();
+
+  // If preview pane is open, refresh it
+  const pane = el("markdownPreview");
+  if (pane && !pane.classList.contains("hidden")) {
+    _renderMarkdown(textarea.value);
+  }
 }
 
 // ── Markdown toolbar ──────────────────────────────────────────────────────
@@ -2749,71 +2827,55 @@ function applyFormat(type) {
   ta.selectionEnd   = start + (sel ? insert.length : cursor);
   ta.focus();
   onEditorInput();
-  // Update preview if visible
-  _syncMarkdownPreview();
 }
 
-// ── Markdown Preview ─────────────────────────────────────────────────────
+// ── Markdown Preview ───────────────────────────────────────────────────────
 
-let _previewActive = false;
-
-/**
- * Convert a subset of Markdown to safe HTML for the preview pane.
- * Intentionally minimal — no external dependencies.
- *
- * Safety: all user-supplied characters (&, <, >) are HTML-escaped FIRST, so
- * the tag fragments we inject (h1, strong, etc.) cannot be confused with
- * attacker-controlled content.  Bold/italic patterns are restricted to
- * single-line spans ([^\n]) to avoid greedy cross-line matches.
- */
-function _renderMarkdown(md) {
-  if (!md) return "";
-  let html = md
-    // 1. Escape raw HTML entities so user content is never treated as markup
+function _renderMarkdown(rawText) {
+  const content = el("markdownPreviewBody");
+  if (!content) return;
+  // Lightweight inline markdown renderer (no external deps)
+  let html = rawText
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
-    // 2. Headings (content is already entity-escaped)
-    .replace(/^### ([^\n]+)$/gm, "<h3>$1</h3>")
-    .replace(/^## ([^\n]+)$/gm,  "<h2>$1</h2>")
-    .replace(/^# ([^\n]+)$/gm,   "<h1>$1</h1>")
-    // 3. Horizontal rule
-    .replace(/^---$/gm, "<hr>")
-    // 4. Blockquote (match escaped ">" which became "&gt;")
-    .replace(/^&gt; ([^\n]+)$/gm, "<blockquote>$1</blockquote>")
-    // 5. Bold then italic — single-line only ([^\n*] avoids runaway matches)
-    .replace(/\*\*([^\n*]+?)\*\*/g, "<strong>$1</strong>")
-    .replace(/\*([^\n*]+?)\*/g,     "<em>$1</em>")
-    // 6. Blank lines → paragraph separator
-    .replace(/\n\n+/g, "\n\n");
-  return html;
+    .split("\n")
+    .map(line => {
+      if (/^### (.+)/.test(line)) return `<h3>${line.replace(/^### /, "")}</h3>`;
+      if (/^## (.+)/.test(line))  return `<h2>${line.replace(/^## /, "")}</h2>`;
+      if (/^# (.+)/.test(line))   return `<h1>${line.replace(/^# /, "")}</h1>`;
+      if (/^> (.*)/.test(line))   return `<blockquote>${line.replace(/^> /, "")}</blockquote>`;
+      if (/^---+$/.test(line))    return "<hr>";
+      // Inline bold / italic
+      line = line.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+      line = line.replace(/\*(.+?)\*/g,     "<em>$1</em>");
+      if (line === "") return "<br>";
+      return `<p>${line}</p>`;
+    })
+    .join("\n");
+  content.innerHTML = html;
 }
 
-function _syncMarkdownPreview() {
-  if (!_previewActive) return;
-  const body = el("markdownPreviewBody");
-  if (!body) return;
-  const text = (el("artText") || {}).value || "";
-  // Safe: _renderMarkdown escapes all user content before inserting HTML tags
-  body.innerHTML = _renderMarkdown(text); // nosec
-}
+let _previewActive = false;
 
 function toggleMarkdownPreview() {
   const pane = el("markdownPreview");
   const btn  = el("previewBtn");
   if (!pane) return;
   _previewActive = !_previewActive;
-  pane.classList.toggle("hidden", !_previewActive);
-  if (btn) btn.classList.toggle("active", _previewActive);
-  if (_previewActive) _syncMarkdownPreview();
+  if (_previewActive) {
+    pane.classList.remove("hidden");
+    if (btn) btn.classList.add("active");
+    const ta = el("artText");
+    if (ta) _renderMarkdown(ta.value);
+  } else {
+    pane.classList.add("hidden");
+    if (btn) btn.classList.remove("active");
+  }
 }
 
-// ── Export ────────────────────────────────────────────────────────────────
+// ── Export text ────────────────────────────────────────────────────────────
 
-/**
- * Download the editor text as a .md or .txt file.
- * @param {"md"|"txt"} format
- */
 function exportText(format) {
   const text = (el("artText") || {}).value || "";
   if (!text.trim()) {
@@ -2822,19 +2884,18 @@ function exportText(format) {
   }
   const mime = format === "md" ? "text/markdown" : "text/plain";
   const ext  = format === "md" ? "md" : "txt";
-  const blob = new Blob([text], { type: mime + ";charset=utf-8" });
+  const blob = new Blob([text], { type: mime });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement("a");
   a.href     = url;
-  a.download = `kala-writing.${ext}`;
+  a.download = `kalaos-text.${ext}`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
-  setStatus(`Exported as kala-writing.${ext}`, false);
 }
 
-// ── Text-to-Speech ─────────────────────────────────────────────────────────
+
 
 let _ttsUtterance = null;
 
