@@ -183,6 +183,10 @@
         <span class="swatch-preview" style="background:linear-gradient(135deg,#f0ece0 50%,#6d28d9)"></span>
         <span>&#9728;&#65039; Light Studio</span>
       </button>
+      <button class="theme-swatch" data-theme="creator" onclick="applyTheme('creator')" role="radio" aria-checked="false">
+        <span class="swatch-preview" style="background:linear-gradient(135deg,#0b0514 40%,#c026d3 70%,#2dd4bf)"></span>
+        <span>&#127775; Creator Mode</span>
+      </button>
     </div>
     <div class="theme-custom-section">
       <h3 class="theme-custom-title">Custom colours</h3>
@@ -237,18 +241,43 @@
     </div>
   </header>
 
-  <!-- Main Content -->
-  <main class="app-main" id="appMain" role="main">
+  <!-- App Body: 3-column layout (Sidebar · Workspace · AI Panel) -->
+  <div class="app-body" id="appBody">
 
-    <!-- Studio mode switcher -->
-    <div class="studio-switcher" role="tablist" aria-label="Studio mode">
-      <button class="studio-mode-btn active" id="textStudioBtn" onclick="switchStudio('text')" role="tab" aria-selected="true">✍️ Text Studio</button>
-      <button class="studio-mode-btn" id="musicStudioBtn" onclick="switchStudio('music')" role="tab" aria-selected="false">🎵 Music Studio</button>
-      <button class="studio-mode-btn" id="visualStudioBtn" onclick="switchStudio('visual')" role="tab" aria-selected="false">🎨 Visual Studio</button>
-      <button class="studio-mode-btn" id="chatStudioBtn" onclick="switchStudio('chat')" role="tab" aria-selected="false">💬 Kala Chat</button>
-    </div>
+    <!-- ── Left Sidebar: Studio Navigation ── -->
+    <aside class="app-sidebar" id="appSidebar" aria-label="Studio navigation">
+      <nav class="sidebar-nav" role="tablist" aria-label="Studio mode">
+        <button class="sidebar-btn active" id="textStudioBtn" onclick="switchStudio('text')" role="tab" aria-selected="true">
+          <span class="sidebar-icon" aria-hidden="true">✍️</span>
+          <span class="sidebar-label">Text Studio</span>
+        </button>
+        <button class="sidebar-btn" id="musicStudioBtn" onclick="switchStudio('music')" role="tab" aria-selected="false">
+          <span class="sidebar-icon" aria-hidden="true">🎵</span>
+          <span class="sidebar-label">Music Studio</span>
+        </button>
+        <button class="sidebar-btn" id="visualStudioBtn" onclick="switchStudio('visual')" role="tab" aria-selected="false">
+          <span class="sidebar-icon" aria-hidden="true">🎨</span>
+          <span class="sidebar-label">Visual Studio</span>
+        </button>
+        <button class="sidebar-btn" id="chatStudioBtn" onclick="switchStudio('chat')" role="tab" aria-selected="false">
+          <span class="sidebar-icon" aria-hidden="true">💬</span>
+          <span class="sidebar-label">Kala Chat</span>
+        </button>
+      </nav>
+      <div class="sidebar-footer">
+        <button class="sidebar-collapse-btn" id="sidebarToggle" onclick="toggleSidebar()" title="Collapse sidebar" aria-label="Toggle sidebar">
+          <span id="sidebarToggleIcon">◀</span>
+          <span class="sidebar-collapse-btn-label"> Collapse</span>
+        </button>
+      </div>
+    </aside>
 
-    <!-- Text Studio (enhanced) -->
+    <!-- ── Center Workspace ── -->
+    <main class="app-workspace" id="appMain" role="main">
+
+
+
+    <!-- ── Text Studio ── -->
     <div id="textStudio">
 
     <!-- ── Writing Mode Bar ── -->
@@ -310,60 +339,9 @@
           </button>
           <button class="btn-ghost" onclick="runPatternIntelligence()">🔍 Patterns</button>
           <button class="btn-ghost" onclick="clearAll()">Clear</button>
+          <button class="ai-panel-toggle-btn" id="aiPanelToggleBtn" onclick="toggleAiPanel()" title="Toggle AI Writing Assistant">✨ Kala AI</button>
           <span id="statusMsg" class="status-msg" aria-live="polite" role="status"></span>
         </div>
-      </div>
-    </section>
-
-    <!-- ── AI Writing Assistant Panel ── -->
-    <section class="ai-assist-panel" id="aiAssistPanel">
-      <div class="ai-assist-header">
-        <span class="ai-assist-title">✨ AI Writing Assistant</span>
-        <span class="ai-assist-hint">Select an action to let Kala help with your writing</span>
-      </div>
-      <div class="ai-assist-actions">
-        <button class="assist-btn" onclick="runWritingAssist('continue')">
-          <span class="assist-icon">➕</span>
-          <span class="assist-label">Continue</span>
-          <span class="assist-desc">Keep writing from here</span>
-        </button>
-        <button class="assist-btn" onclick="runWritingAssist('rewrite')">
-          <span class="assist-icon">♻️</span>
-          <span class="assist-label">Rewrite</span>
-          <span class="assist-desc">Fresh phrasing, same soul</span>
-        </button>
-        <button class="assist-btn" onclick="runWritingAssist('improve')">
-          <span class="assist-icon">💡</span>
-          <span class="assist-label">Deepen</span>
-          <span class="assist-desc">Amplify emotional impact</span>
-        </button>
-        <button class="assist-btn" onclick="runWritingAssist('convert')">
-          <span class="assist-icon">🔄</span>
-          <span class="assist-label">Convert</span>
-          <span class="assist-desc">Transform the format</span>
-        </button>
-      </div>
-      <div id="assistResult" class="assist-result hidden">
-        <div class="assist-result-header">
-          <span id="assistResultLabel" class="assist-result-label"></span>
-          <div class="assist-result-actions">
-            <button class="btn-ghost small" onclick="copyAssistResult()">Copy</button>
-            <button class="btn-ghost small" onclick="useAssistResult()">Use this</button>
-            <button class="btn-ghost small" onclick="hideAssistResult()">Dismiss</button>
-          </div>
-        </div>
-        <p id="assistResultText" class="assist-result-text"></p>
-      </div>
-    </section>
-
-    <!-- ── Pattern Intelligence Panel ── -->
-    <section class="pattern-panel hidden" id="patternPanel">
-      <div class="pattern-panel-header">
-        <span class="pattern-panel-title">🔍 Pattern Intelligence</span>
-        <button class="btn-ghost small" onclick="hidePatternPanel()">×</button>
-      </div>
-      <div class="pattern-grid" id="patternGrid">
-        <!-- Populated by runPatternIntelligence() -->
       </div>
     </section>
 
@@ -1365,7 +1343,68 @@
       </div>
     </div><!-- /chatStudio -->
 
-  </main>
+    </main><!-- /app-workspace -->
+
+    <!-- ── Right Panel: AI Writing Assistant + Pattern Intelligence ── -->
+    <aside class="app-ai-panel" id="appAiPanel" aria-label="AI Writing Assistant">
+      <div class="ai-panel-head">
+        <span class="ai-panel-title">✨ Kala AI</span>
+        <button class="btn-icon-round" onclick="toggleAiPanel()" aria-label="Close AI panel" title="Hide AI panel">&#10005;</button>
+      </div>
+
+      <!-- AI Writing Assistant -->
+      <section class="ai-assist-panel" id="aiAssistPanel" style="padding:1rem 1rem 0">
+        <div class="ai-assist-header">
+          <span class="ai-assist-title">Writing Assistant</span>
+          <span class="ai-assist-hint">Let Kala help with your writing</span>
+        </div>
+        <div class="ai-assist-actions">
+          <button class="assist-btn" onclick="runWritingAssist('continue')">
+            <span class="assist-icon">➕</span>
+            <span class="assist-label">Continue</span>
+            <span class="assist-desc">Keep writing from here</span>
+          </button>
+          <button class="assist-btn" onclick="runWritingAssist('rewrite')">
+            <span class="assist-icon">♻️</span>
+            <span class="assist-label">Rewrite</span>
+            <span class="assist-desc">Fresh phrasing, same soul</span>
+          </button>
+          <button class="assist-btn" onclick="runWritingAssist('improve')">
+            <span class="assist-icon">💡</span>
+            <span class="assist-label">Deepen</span>
+            <span class="assist-desc">Amplify emotional impact</span>
+          </button>
+          <button class="assist-btn" onclick="runWritingAssist('convert')">
+            <span class="assist-icon">🔄</span>
+            <span class="assist-label">Convert</span>
+            <span class="assist-desc">Transform the format</span>
+          </button>
+        </div>
+        <div id="assistResult" class="assist-result hidden">
+          <div class="assist-result-header">
+            <span id="assistResultLabel" class="assist-result-label"></span>
+            <div class="assist-result-actions">
+              <button class="btn-ghost small" onclick="copyAssistResult()">Copy</button>
+              <button class="btn-ghost small" onclick="useAssistResult()">Use this</button>
+              <button class="btn-ghost small" onclick="hideAssistResult()">Dismiss</button>
+            </div>
+          </div>
+          <p id="assistResultText" class="assist-result-text"></p>
+        </div>
+      </section>
+
+      <!-- Pattern Intelligence -->
+      <section class="pattern-panel" id="patternPanel" style="padding:0 1rem 1rem">
+        <div class="pattern-panel-header">
+          <span class="pattern-panel-title">🔍 Pattern Intelligence</span>
+        </div>
+        <div class="pattern-grid" id="patternGrid">
+          <!-- Populated by runPatternIntelligence() -->
+        </div>
+      </section>
+    </aside><!-- /appAiPanel -->
+
+  </div><!-- /app-body -->
 
   <footer class="app-footer" role="contentinfo">
     <p>KalaOS &#8212; AI-native art platform. Art understanding without judgment. Artist dignity by design.</p>

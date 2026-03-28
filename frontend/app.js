@@ -36,6 +36,7 @@ const THEME_ACCENT_COLORS = {
   "forest":      "#4ade80",
   "crimson":     "#e23270",
   "light":       "#6d28d9",
+  "creator":     "#c026d3",
   "custom":      null,
 };
 
@@ -148,6 +149,71 @@ function toggleThemePanel() {
   panel.classList.toggle("open", !isOpen);
   panel.setAttribute("aria-hidden", String(isOpen));
   overlay.classList.toggle("hidden", isOpen);
+}
+
+/* ══════════════════════════════════════════════
+   SIDEBAR & AI PANEL TOGGLE
+══════════════════════════════════════════════ */
+
+function toggleSidebar() {
+  const sidebar = document.getElementById("appSidebar");
+  const icon    = document.getElementById("sidebarToggleIcon");
+  if (!sidebar) return;
+  const collapsed = sidebar.classList.toggle("collapsed");
+  if (icon) icon.textContent = collapsed ? "▶" : "◀";
+  localStorage.setItem("kala-sidebar-collapsed", collapsed ? "1" : "0");
+}
+
+function _restoreSidebar() {
+  const collapsed = localStorage.getItem("kala-sidebar-collapsed") === "1";
+  const sidebar   = document.getElementById("appSidebar");
+  const icon      = document.getElementById("sidebarToggleIcon");
+  if (sidebar && collapsed) {
+    sidebar.classList.add("collapsed");
+    if (icon) icon.textContent = "▶";
+  }
+}
+
+let _aiPanelOpen = true;
+
+function toggleAiPanel() {
+  const panel      = document.getElementById("appAiPanel");
+  const toggleBtn  = document.getElementById("aiPanelToggleBtn");
+  if (!panel) return;
+
+  // On mobile (≤640px), use the bottom-sheet open/close pattern
+  const isMobile = window.matchMedia("(max-width: 640px)").matches;
+  if (isMobile) {
+    _aiPanelOpen = !_aiPanelOpen;
+    panel.classList.toggle("panel-open", _aiPanelOpen);
+    panel.classList.toggle("panel-hidden", !_aiPanelOpen);
+  } else {
+    _aiPanelOpen = !_aiPanelOpen;
+    panel.classList.toggle("panel-hidden", !_aiPanelOpen);
+  }
+
+  if (toggleBtn) toggleBtn.classList.toggle("active", _aiPanelOpen);
+}
+
+function _showAiPanel() {
+  const panel     = document.getElementById("appAiPanel");
+  const toggleBtn = document.getElementById("aiPanelToggleBtn");
+  if (!panel) return;
+  _aiPanelOpen = true;
+  const isMobile = window.matchMedia("(max-width: 640px)").matches;
+  panel.classList.remove("panel-hidden");
+  if (isMobile) panel.classList.add("panel-open");
+  if (toggleBtn) toggleBtn.classList.add("active");
+}
+
+function _hideAiPanel() {
+  const panel     = document.getElementById("appAiPanel");
+  const toggleBtn = document.getElementById("aiPanelToggleBtn");
+  if (!panel) return;
+  _aiPanelOpen = false;
+  panel.classList.add("panel-hidden");
+  panel.classList.remove("panel-open");
+  if (toggleBtn) toggleBtn.classList.remove("active");
 }
 
 /* ══════════════════════════════════════════════
@@ -1112,6 +1178,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initPWA();
   _loadSession();
   _updateUserUI();
+  _restoreSidebar();
 
   // If a valid session exists, skip auth screen
   if (_authToken && _currentUser) {
@@ -1629,6 +1696,7 @@ function renderVisualAnalysis(d) {
         }
       }
       if (musicBtn) musicBtn.classList.add("active");
+      _hideAiPanel();
       return;
     }
 
@@ -1643,8 +1711,13 @@ function renderVisualAnalysis(d) {
       if (visualBtn)    visualBtn.classList.remove("active");
       if (chatStudio) chatStudio.classList.remove("hidden");
       if (chatBtn)    chatBtn.classList.add("active");
+      _hideAiPanel();
       return;
     }
+
+    // For text and visual studios, show the AI panel
+    if (mode === "text") _showAiPanel();
+    else _hideAiPanel();
 
     _origSwitchStudio(mode);
   };

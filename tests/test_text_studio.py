@@ -353,3 +353,121 @@ class TestTextStudioFrontend:
 
     def test_css_has_writing_toolbar_styles(self, css):
         assert "toolbar" in css or "writing-toolbar" in css
+
+
+# ===========================================================================
+# Frontend – UI/UX Layout: Sidebar, AI Panel, Creator Mode Theme
+# ===========================================================================
+
+class TestKalaOSUILayout:
+    """Tests for the 3-column layout (sidebar · workspace · AI panel) and Creator Mode theme."""
+
+    @pytest.fixture(scope="class")
+    def html(self):
+        with open(os.path.join(FRONTEND_DIR, "index.html"), encoding="utf-8") as f:
+            return f.read()
+
+    @pytest.fixture(scope="class")
+    def js(self):
+        with open(os.path.join(FRONTEND_DIR, "app.js"), encoding="utf-8") as f:
+            return f.read()
+
+    @pytest.fixture(scope="class")
+    def css(self):
+        with open(os.path.join(FRONTEND_DIR, "style.css"), encoding="utf-8") as f:
+            return f.read()
+
+    # ── Sidebar navigation ────────────────────────────────────────────────
+
+    def test_sidebar_element_present(self, html):
+        assert "app-sidebar" in html
+
+    def test_sidebar_has_all_studio_buttons(self, html):
+        assert "textStudioBtn" in html
+        assert "musicStudioBtn" in html
+        assert "visualStudioBtn" in html
+        assert "chatStudioBtn" in html
+
+    def test_sidebar_collapse_button_present(self, html):
+        assert "sidebarToggle" in html or "sidebar-collapse" in html
+
+    def test_sidebar_css_defined(self, css):
+        assert ".app-sidebar" in css
+
+    def test_sidebar_collapsed_state_css(self, css):
+        assert "collapsed" in css
+
+    def test_sidebar_toggle_js_function(self, js):
+        assert "toggleSidebar" in js
+
+    def test_sidebar_state_restored_on_load(self, js):
+        assert "_restoreSidebar" in js
+
+    # ── Right AI Panel ────────────────────────────────────────────────────
+
+    def test_ai_panel_element_present(self, html):
+        assert "appAiPanel" in html or "app-ai-panel" in html
+
+    def test_ai_panel_css_defined(self, css):
+        assert ".app-ai-panel" in css
+
+    def test_ai_panel_toggle_js_function(self, js):
+        assert "toggleAiPanel" in js
+
+    def test_ai_panel_show_hide_functions(self, js):
+        assert "_showAiPanel" in js
+        assert "_hideAiPanel" in js
+
+    def test_ai_panel_hides_for_music_studio(self, js):
+        # When switching to music studio, AI panel should be hidden
+        assert "_hideAiPanel" in js
+
+    def test_ai_panel_toggle_button_present(self, html):
+        assert "aiPanelToggleBtn" in html or "ai-panel-toggle" in html
+
+    # ── 3-Column Layout ───────────────────────────────────────────────────
+
+    def test_app_body_wrapper_present(self, html):
+        assert "app-body" in html
+
+    def test_app_workspace_present(self, html):
+        assert "app-workspace" in html
+
+    def test_layout_uses_flexbox(self, css):
+        assert ".app-body" in css
+        assert "flex" in css
+
+    def test_mobile_bottom_sheet_css(self, css):
+        # Mobile: AI panel becomes bottom sheet
+        assert "bottom-sheet" in css or "panel-open" in css
+
+    def test_responsive_sidebar_mobile(self, css):
+        # On mobile, sidebar goes to bottom as horizontal strip
+        assert "flex-direction: column-reverse" in css or "column-reverse" in css
+
+    # ── Creator Mode Theme ────────────────────────────────────────────────
+
+    def test_creator_mode_theme_css_defined(self, css):
+        assert 'data-theme="creator"' in css
+
+    def test_creator_mode_swatch_in_html(self, html):
+        assert "creator" in html.lower()
+
+    def test_creator_mode_in_js_theme_colors(self, js):
+        assert '"creator"' in js
+
+    def test_creator_mode_has_colorful_accent(self, css):
+        # Creator mode should have a vibrant accent color (fuchsia/magenta)
+        assert "#c026d3" in css or "c026d3" in css
+
+    def test_creator_mode_swatch_preview_gradient(self, html):
+        # The swatch preview should show a colorful gradient
+        assert "Creator Mode" in html or "creator" in html.lower()
+
+    # ── AI Panel Grid Adaptation ──────────────────────────────────────────
+
+    def test_pattern_grid_adapts_in_ai_panel(self, css):
+        assert ".app-ai-panel .pattern-grid" in css
+
+    def test_ai_assist_panel_adapts_in_ai_panel(self, css):
+        assert ".app-ai-panel .ai-assist-panel" in css
