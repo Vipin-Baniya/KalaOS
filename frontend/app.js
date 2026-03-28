@@ -2772,9 +2772,9 @@ function onEditorInput() {
   display.textContent = `${words} word${words !== 1 ? "s" : ""} · ${chars} chars · ${lines} line${lines !== 1 ? "s" : ""}`;
 
   // If preview pane is open, refresh it
-  const pane = el("mdPreviewPane");
+  const pane = el("markdownPreview");
   if (pane && !pane.classList.contains("hidden")) {
-    _renderMdPreview(textarea.value);
+    _renderMarkdown(textarea.value);
   }
 }
 
@@ -2831,8 +2831,8 @@ function applyFormat(type) {
 
 // ── Markdown Preview ───────────────────────────────────────────────────────
 
-function _renderMdPreview(rawText) {
-  const content = el("mdPreviewContent");
+function _renderMarkdown(rawText) {
+  const content = el("markdownPreviewBody");
   if (!content) return;
   // Lightweight inline markdown renderer (no external deps)
   let html = rawText
@@ -2856,18 +2856,18 @@ function _renderMdPreview(rawText) {
   content.innerHTML = html;
 }
 
-let _mdPreviewOpen = false;
+let _previewActive = false;
 
-function toggleMdPreview() {
-  const pane = el("mdPreviewPane");
-  const btn  = el("previewToggleBtn");
+function toggleMarkdownPreview() {
+  const pane = el("markdownPreview");
+  const btn  = el("previewBtn");
   if (!pane) return;
-  _mdPreviewOpen = !_mdPreviewOpen;
-  if (_mdPreviewOpen) {
+  _previewActive = !_previewActive;
+  if (_previewActive) {
     pane.classList.remove("hidden");
     if (btn) btn.classList.add("active");
     const ta = el("artText");
-    if (ta) _renderMdPreview(ta.value);
+    if (ta) _renderMarkdown(ta.value);
   } else {
     pane.classList.add("hidden");
     if (btn) btn.classList.remove("active");

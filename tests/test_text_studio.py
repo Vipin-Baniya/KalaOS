@@ -498,26 +498,26 @@ class TestTextStudioMarkdownPreviewAndExport:
     # ── Markdown Preview ──────────────────────────────────────────────────
 
     def test_preview_toggle_button_present(self, html):
-        assert "previewToggleBtn" in html or "Preview" in html
+        assert "previewBtn" in html or "Preview" in html
 
     def test_preview_pane_element_present(self, html):
-        assert "mdPreviewPane" in html
+        assert "markdownPreview" in html
 
     def test_preview_pane_starts_hidden(self, html):
         # The preview pane should start hidden (using .hidden class)
         import re
-        match = re.search(r'id="mdPreviewPane"[^>]*class="([^"]*)"', html)
-        assert match, "mdPreviewPane element not found"
+        match = re.search(r'id="markdownPreview"[^>]*class="([^"]*)"', html)
+        assert match, "markdownPreview element not found"
         assert "hidden" in match.group(1)
 
     def test_md_preview_content_element_present(self, html):
-        assert "mdPreviewContent" in html
+        assert "markdownPreviewBody" in html
 
     def test_toggle_md_preview_function_in_js(self, js):
-        assert "toggleMdPreview" in js
+        assert "toggleMarkdownPreview" in js
 
     def test_render_md_preview_function_in_js(self, js):
-        assert "_renderMdPreview" in js
+        assert "_renderMarkdown" in js
 
     def test_preview_renders_headings(self, js):
         assert "<h1>" in js or "'<h1>'" in js or '"<h1>"' in js
@@ -532,13 +532,13 @@ class TestTextStudioMarkdownPreviewAndExport:
         assert "<blockquote>" in js
 
     def test_preview_css_defined(self, css):
-        assert ".md-preview-pane" in css
+        assert ".markdown-preview-pane" in css
 
     def test_preview_content_css_defined(self, css):
-        assert ".md-preview-content" in css
+        assert ".markdown-preview-body" in css
 
     def test_preview_pane_uses_flex_layout(self, css):
-        assert ".editor-preview-row" in css
+        assert ".editor-split-row" in css
 
     # ── Export buttons ────────────────────────────────────────────────────
 
