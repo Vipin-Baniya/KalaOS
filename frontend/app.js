@@ -2620,3 +2620,371 @@ function scrollChatToBottom() {
   const container = el("chatMessages");
   if (container) container.scrollTop = container.scrollHeight;
 }
+
+/* ══════════════════════════════════════════════
+   TEXT STUDIO — Writing Modes, Toolbar, Pattern Intelligence, AI Assist
+══════════════════════════════════════════════ */
+
+// ── Writing mode state ────────────────────────────────────────────────────
+
+const _WRITING_MODE_CONFIG = {
+  free:    { domain: null,      placeholder: "Paste or type your art here\u2026",              rows: 10 },
+  poetry:  { domain: "poetry",  placeholder: "Let your lines breathe\u2026 write your poem.",  rows: 12 },
+  story:   { domain: "story",   placeholder: "Begin your story\u2026 set the scene.",          rows: 14 },
+  script:  { domain: "general", placeholder: "INT. LOCATION — DAY\n\nYour character speaks\u2026", rows: 14 },
+  focus:   { domain: null,      placeholder: "Write without distraction\u2026",                rows: 20 },
+};
+
+let _currentWritingMode = "free";
+
+function setWritingMode(mode) {
+  if (!_WRITING_MODE_CONFIG[mode]) return;
+  _currentWritingMode = mode;
+
+  // Update mode buttons
+  document.querySelectorAll(".writing-mode-btn").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.mode === mode);
+    btn.setAttribute("aria-selected", String(btn.dataset.mode === mode));
+  });
+
+  const cfg   = _WRITING_MODE_CONFIG[mode];
+  const textarea = el("artText");
+  const domain   = el("artDomain");
+
+  if (textarea) {
+    textarea.placeholder = cfg.placeholder;
+    textarea.rows = cfg.rows;
+  }
+
+  if (domain && cfg.domain) {
+    domain.value = cfg.domain;
+  }
+
+  if (mode === "focus") {
+    document.body.classList.add("focus-mode");
+    // Show a subtle exit hint
+    let hint = el("focusExitHint");
+    if (!hint) {
+      hint = document.createElement("p");
+      hint.id = "focusExitHint";
+      hint.className = "focus-exit-hint";
+      hint.textContent = "Press Esc or click Free Write to exit Focus mode";
+      el("inputPanel").appendChild(hint);
+    }
+    if (textarea) textarea.focus();
+  } else {
+    document.body.classList.remove("focus-mode");
+    const hint = el("focusExitHint");
+    if (hint) hint.remove();
+  }
+}
+
+// Exit focus mode on Escape
+document.addEventListener("keydown", function (e) {
+  if (e.key === "Escape" && document.body.classList.contains("focus-mode")) {
+    setWritingMode("free");
+  }
+});
+
+// ── Word / character count ─────────────────────────────────────────────────
+
+function onEditorInput() {
+  const textarea = el("artText");
+  const display  = el("wordCount");
+  if (!textarea || !display) return;
+  const text  = textarea.value.trim();
+  const words = text.length === 0 ? 0 : text.split(/\s+/).length;
+  const chars = textarea.value.length;
+  display.textContent = `${words} word${words !== 1 ? "s" : ""} · ${chars} chars`;
+}
+
+// ── Markdown toolbar ──────────────────────────────────────────────────────
+
+function applyFormat(type) {
+  const ta = el("artText");
+  if (!ta) return;
+  const start = ta.selectionStart;
+  const end   = ta.selectionEnd;
+  const sel   = ta.value.slice(start, end);
+  let before = ta.value.slice(0, start);
+  let after  = ta.value.slice(end);
+  let insert = sel;
+  let cursor = 0;
+
+  switch (type) {
+    case "bold":
+      insert = sel ? `**${sel}**` : "**bold text**";
+      cursor = sel ? insert.length : 2;
+      break;
+    case "italic":
+      insert = sel ? `*${sel}*` : "*italic text*";
+      cursor = sel ? insert.length : 1;
+      break;
+    case "h1":
+      insert = sel ? `# ${sel}` : "# Heading 1";
+      cursor = insert.length;
+      break;
+    case "h2":
+      insert = sel ? `## ${sel}` : "## Heading 2";
+      cursor = insert.length;
+      break;
+    case "quote":
+      insert = sel
+        ? sel.split("\n").map(l => `> ${l}`).join("\n")
+        : "> Your quote here";
+      cursor = insert.length;
+      break;
+    case "hr":
+      insert = "\n\n---\n\n";
+      cursor = insert.length;
+      break;
+    default:
+      return;
+  }
+
+  ta.value = before + insert + after;
+  ta.selectionStart = start + (sel ? 0 : cursor);
+  ta.selectionEnd   = start + (sel ? insert.length : cursor);
+  ta.focus();
+  onEditorInput();
+}
+
+// ── Text-to-Speech ─────────────────────────────────────────────────────────
+
+let _ttsUtterance = null;
+
+function speakText() {
+  if (!("speechSynthesis" in window)) {
+    alert("Your browser does not support Text-to-Speech narration.");
+    return;
+  }
+
+  // Toggle: if already speaking, cancel
+  if (window.speechSynthesis.speaking) {
+    window.speechSynthesis.cancel();
+    const btn = el("ttsBtn");
+    if (btn) btn.textContent = "🔊 Narrate";
+    return;
+  }
+
+  const text = (el("artText") || {}).value || "";
+  if (!text.trim()) {
+    alert("Write something first before narrating.");
+    return;
+  }
+
+  _ttsUtterance = new SpeechSynthesisUtterance(text);
+  _ttsUtterance.rate  = 0.92;
+  _ttsUtterance.pitch = 1.0;
+
+  const btn = el("ttsBtn");
+  if (btn) btn.textContent = "⏹ Stop";
+
+  _ttsUtterance.onend = () => {
+    if (btn) btn.textContent = "🔊 Narrate";
+  };
+  _ttsUtterance.onerror = () => {
+    if (btn) btn.textContent = "🔊 Narrate";
+  };
+
+  window.speechSynthesis.speak(_ttsUtterance);
+}
+
+// ── AI Writing Assistant ──────────────────────────────────────────────────
+
+const _ASSIST_LABELS = {
+  continue: "✍️ Continuation",
+  rewrite:  "♻️ Rewritten Version",
+  improve:  "💡 Emotionally Deepened",
+  convert:  "🔄 Converted Format",
+};
+
+async function runWritingAssist(action) {
+  const text = (el("artText") || {}).value || "";
+  if (!text.trim()) {
+    setStatus("Write something first before using the AI assistant.", true);
+    return;
+  }
+  const domain = (el("artDomain") || {}).value || "general";
+  const model  = (el("ollamaModel") || {}).value || "llama3";
+
+  setStatus(`${_ASSIST_LABELS[action] || action} — asking Kala…`);
+  hideAssistResult();
+
+  try {
+    const resp = await fetch(`${API_BASE}/text-studio/assist`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, action, domain, model }),
+    });
+
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.detail || `HTTP ${resp.status}`);
+    }
+
+    const data = await resp.json();
+    showAssistResult(action, data.result);
+    setStatus("");
+  } catch (err) {
+    setStatus(`AI assistant error: ${err.message}`, true);
+  }
+}
+
+function showAssistResult(action, text) {
+  const panel = el("assistResult");
+  const label = el("assistResultLabel");
+  const body  = el("assistResultText");
+  if (!panel || !label || !body) return;
+  label.textContent = _ASSIST_LABELS[action] || action;
+  body.textContent  = text;
+  panel.classList.remove("hidden");
+}
+
+function hideAssistResult() {
+  const panel = el("assistResult");
+  if (panel) panel.classList.add("hidden");
+}
+
+function copyAssistResult() {
+  const text = (el("assistResultText") || {}).textContent || "";
+  if (!text) return;
+  navigator.clipboard.writeText(text).catch(() => {});
+}
+
+function useAssistResult() {
+  const text = (el("assistResultText") || {}).textContent || "";
+  const ta   = el("artText");
+  if (!ta || !text) return;
+  ta.value = text;
+  onEditorInput();
+  hideAssistResult();
+  ta.focus();
+}
+
+// ── Pattern Intelligence ──────────────────────────────────────────────────
+
+async function runPatternIntelligence() {
+  const text = (el("artText") || {}).value || "";
+  if (!text.trim()) {
+    setStatus("Write something first before running pattern intelligence.", true);
+    return;
+  }
+
+  setStatus("🔍 Analysing patterns…");
+
+  try {
+    const resp = await fetch(`${API_BASE}/text-studio/patterns`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    });
+
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.detail || `HTTP ${resp.status}`);
+    }
+
+    const data = await resp.json();
+    renderPatternPanel(data);
+    setStatus("");
+  } catch (err) {
+    setStatus(`Pattern analysis error: ${err.message}`, true);
+  }
+}
+
+function renderPatternPanel(data) {
+  const panel = el("patternPanel");
+  const grid  = el("patternGrid");
+  if (!panel || !grid) return;
+
+  const pal       = data.palindromes || {};
+  const struct    = data.structure   || {};
+  const arc       = data.emotional_arc || {};
+  const mirror    = data.mirror_rhyme  || {};
+  const formType  = data.form_type    || {};
+
+  const fullPal  = pal.full_palindrome_count || 0;
+  const partPals = (pal.lines || []).reduce((n, l) => n + (l.partial_palindromes || []).length, 0);
+  const refrains = struct.refrains || [];
+  const symScore = (data.symmetry_score || 0).toFixed(2);
+  const rhymeDen = ((data.rhyme_density || 0) * 100).toFixed(0);
+  const cogLoad  = (data.cognitive_load || 0).toFixed(2);
+  const form     = formType.form || formType.detected_form || "free verse";
+
+  // Emotional arc mini-bar
+  const valences = (arc.arc || arc.valences || []).slice(0, 16);
+  const arcHtml  = valences.length ? buildArcBarHtml(valences) : "";
+
+  // Mirror structure
+  const mirrorType = mirror.mirror_type || mirror.type || "none";
+  const mirrorConf = mirror.confidence  != null
+    ? `${(mirror.confidence * 100).toFixed(0)}% confidence`
+    : "";
+
+  // Partial palindromes list
+  const allPartials = (pal.lines || [])
+    .flatMap(l => l.partial_palindromes || [])
+    .filter((v, i, a) => a.indexOf(v) === i)
+    .slice(0, 8);
+
+  grid.innerHTML = `
+    <div class="pattern-cell">
+      <div class="pattern-cell-title">Form</div>
+      <div class="pattern-cell-value">${escHtml(form)}</div>
+    </div>
+    <div class="pattern-cell">
+      <div class="pattern-cell-title">Palindromes</div>
+      <div class="pattern-cell-value">${fullPal} full · ${partPals} partial</div>
+      ${allPartials.length ? `<div class="pattern-cell-detail">${allPartials.map(p => `<span class="pattern-tag">${escHtml(p)}</span>`).join("")}</div>` : ""}
+    </div>
+    <div class="pattern-cell">
+      <div class="pattern-cell-title">Symmetry</div>
+      <div class="pattern-cell-value">${symScore}</div>
+      <div class="pattern-cell-detail">Mirror: ${escHtml(mirrorType)}${mirrorConf ? " · " + mirrorConf : ""}</div>
+    </div>
+    <div class="pattern-cell">
+      <div class="pattern-cell-title">Rhyme Density</div>
+      <div class="pattern-cell-value">${rhymeDen}%</div>
+    </div>
+    <div class="pattern-cell">
+      <div class="pattern-cell-title">Cognitive Load</div>
+      <div class="pattern-cell-value">${cogLoad}</div>
+    </div>
+    <div class="pattern-cell">
+      <div class="pattern-cell-title">Refrains</div>
+      <div class="pattern-cell-value">${refrains.length}</div>
+      ${refrains.length ? `<div class="pattern-cell-detail">${refrains.slice(0,3).map(r => `<span class="pattern-tag">${escHtml(r)}</span>`).join("")}</div>` : ""}
+    </div>
+    ${arcHtml ? `
+    <div class="pattern-cell" style="grid-column: 1 / -1">
+      <div class="pattern-cell-title">Emotional Arc</div>
+      ${arcHtml}
+    </div>` : ""}
+  `;
+
+  panel.classList.remove("hidden");
+}
+
+function buildArcBarHtml(valences) {
+  const max = Math.max(...valences.map(Math.abs), 1);
+  const bars = valences.map(v => {
+    const pct  = Math.max(4, Math.round((Math.abs(v) / max) * 100));
+    const col  = v > 0.1 ? "var(--positive)" : v < -0.1 ? "var(--negative)" : "var(--neutral)";
+    return `<div class="pattern-arc-segment" style="height:${pct}%;background:${col}" title="${v.toFixed(2)}"></div>`;
+  }).join("");
+  return `<div class="pattern-arc-bar">${bars}</div>`;
+}
+
+function hidePatternPanel() {
+  const panel = el("patternPanel");
+  if (panel) panel.classList.add("hidden");
+}
+
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}

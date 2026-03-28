@@ -15,6 +15,8 @@ POST /compose     – Phase 3 KalaComposer musical structure + chord/tempo hints
 POST /flow        – Phase 5 KalaFlow distribution readiness + release metadata
 POST /custody     – Phase 6 KalaCustody artistic fingerprint + legacy record
 POST /temporal    – Phase 9 temporal meaning, ephemeral art, creative ancestry
+POST /text-studio/assist – AI Writing Assistant (continue/rewrite/improve/convert)
+POST /text-studio/patterns – Pattern Intelligence quick analysis
 """
 
 import logging
@@ -46,6 +48,7 @@ from services.llm_service import (
     generate_explanation,
     generate_suggestions,
     generate_deep_narrative,
+    generate_writing_assist,
     list_available_models,
     ART_DOMAINS,
 )
@@ -778,8 +781,106 @@ def models():
 
 
 # ---------------------------------------------------------------------------
-# Phase 12 – KalaProducer: Music Production, Generation, Distribution & Streaming
+# Text Studio – Writing Assistant & Pattern Intelligence
 # ---------------------------------------------------------------------------
+
+_VALID_ASSIST_ACTIONS = {"continue", "rewrite", "improve", "convert"}
+
+
+class WritingAssistRequest(BaseModel):
+    text: str
+    action: str
+    domain: ArtDomain = "general"  # type: ignore[assignment]
+    model: Optional[str] = None
+
+    @field_validator("text")
+    @classmethod
+    def text_must_not_be_empty(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("text must not be empty")
+        return v
+
+    @field_validator("action")
+    @classmethod
+    def action_must_be_valid(cls, v: str) -> str:
+        if v not in _VALID_ASSIST_ACTIONS:
+            raise ValueError(
+                f"action must be one of: {', '.join(sorted(_VALID_ASSIST_ACTIONS))}"
+            )
+        return v
+
+
+@app.post(
+    "/text-studio/assist",
+    summary="AI Writing Assistant: continue, rewrite, improve, or convert text",
+)
+def text_studio_assist(request: WritingAssistRequest):
+    """
+    AI Writing Assistant for the Text Studio.
+
+    Supported *action* values
+    -------------------------
+    ``continue`` – continue writing from where the artist left off.
+    ``rewrite``  – rewrite the text with fresh phrasing, preserving meaning.
+    ``improve``  – deepen emotional impact and sensory language.
+    ``convert``  – convert between formats (poem → story, lyrics → poem, …).
+
+    The endpoint runs an ethics check first, then calls the local Ollama
+    instance.  If Ollama is unavailable, a graceful fallback message is
+    returned instead of an error.
+    """
+    violations = check_request(request.text)
+    if violations:
+        raise HTTPException(status_code=422, detail={"ethics_violations": violations})
+
+    model = request.model or "llama3"
+    result = generate_writing_assist(
+        text=request.text,
+        action=request.action,
+        domain=request.domain,
+        model=model,
+    )
+    return {
+        "action": request.action,
+        "domain": request.domain,
+        "result": result,
+    }
+
+
+@app.post(
+    "/text-studio/patterns",
+    summary="Pattern Intelligence: quick palindrome, rhythm & emotional arc analysis",
+)
+def text_studio_patterns(request: AnalyseRequest):
+    """
+    Returns a focused subset of the KalaCore pattern analysis optimised for
+    the Text Studio Pattern Intelligence panel:
+
+    - palindromes (full-line and partial)
+    - mirror rhyme / symmetry structures
+    - repetition and refrains
+    - emotional arc (per-line valence)
+    - cognitive load estimate
+    - detected form type
+    """
+    violations = check_request(request.text)
+    if violations:
+        raise HTTPException(status_code=422, detail={"ethics_violations": violations})
+
+    analysis = analyze(request.text)
+    genome = build_art_genome(analysis)
+
+    return {
+        "palindromes":      analysis.get("palindrome", {}),
+        "mirror_rhyme":     analysis.get("mirror_rhyme", {}),
+        "structure":        analysis.get("structure", {}),
+        "emotional_arc":    analysis.get("emotional_arc", {}),
+        "cognitive_load":   analysis.get("cognitive_load", 0.0),
+        "form_type":        analysis.get("form_type", {}),
+        "symmetry_score":  genome.symmetry_score,
+        "rhyme_density":   genome.rhyme_density,
+        "complexity_score": genome.complexity_score,
+    }
 
 
 class ProduceRequest(BaseModel):
