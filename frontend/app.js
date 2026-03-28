@@ -1683,8 +1683,8 @@ function renderVisualAnalysis(d) {
       const visualStudio = el("visualStudio");
       const textBtn      = el("textStudioBtn");
       const visualBtn    = el("visualStudioBtn");
-      if (textStudio)   textStudio.style.display   = "none";
-      if (visualStudio) visualStudio.style.display = "none";
+      if (textStudio)   textStudio.classList.add("hidden");
+      if (visualStudio) visualStudio.classList.add("hidden");
       if (textBtn)      textBtn.classList.remove("active");
       if (visualBtn)    visualBtn.classList.remove("active");
       if (musicStudio) {
@@ -1705,8 +1705,8 @@ function renderVisualAnalysis(d) {
       const visualStudio = el("visualStudio");
       const textBtn      = el("textStudioBtn");
       const visualBtn    = el("visualStudioBtn");
-      if (textStudio)   textStudio.style.display   = "none";
-      if (visualStudio) visualStudio.style.display = "none";
+      if (textStudio)   textStudio.classList.add("hidden");
+      if (visualStudio) visualStudio.classList.add("hidden");
       if (textBtn)      textBtn.classList.remove("active");
       if (visualBtn)    visualBtn.classList.remove("active");
       if (chatStudio) chatStudio.classList.remove("hidden");
