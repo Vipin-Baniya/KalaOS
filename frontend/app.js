@@ -1218,6 +1218,248 @@ function switchVisualTab(tab) {
   document.querySelectorAll(".visual-pane").forEach(p => p.classList.add("hidden"));
   document.querySelector(`[data-vtab="${tab}"]`).classList.add("active");
   el(`vpane-${tab}`).classList.remove("hidden");
+  if (tab === "canvas") initDesignCanvas();
+}
+
+// ── Design Canvas (Canva + AI MVP) ────────────────────────────────────────
+
+let _dcCanvas = null;   // Fabric.Canvas instance
+let _dcReady  = false;  // initialised flag
+
+function initDesignCanvas() {
+  if (_dcReady) { dcRefreshLayers(); return; }
+  if (typeof fabric === "undefined") return; // Fabric.js not loaded yet
+
+  const wrap = el("dcCanvasWrap");
+  const w = wrap ? Math.min(wrap.clientWidth || 800, 900) : 800;
+  const h = Math.round(w * (9 / 16));
+
+  _dcCanvas = new fabric.Canvas("designCanvas", {
+    width: w,
+    height: h,
+    backgroundColor: "#1a1a2e",
+    selection: true,
+  });
+
+  _dcCanvas.on("selection:created",  dcRefreshLayers);
+  _dcCanvas.on("selection:updated",  dcRefreshLayers);
+  _dcCanvas.on("selection:cleared",  dcRefreshLayers);
+  _dcCanvas.on("object:added",       dcRefreshLayers);
+  _dcCanvas.on("object:removed",     dcRefreshLayers);
+  _dcCanvas.on("object:modified",    dcRefreshLayers);
+
+  _dcReady = true;
+  dcRefreshLayers();
+}
+
+function _dcFillColor() {
+  const el_ = el("dcFillColor");
+  return el_ ? el_.value : "#7c5af1";
+}
+
+function dcAddText() {
+  if (!_dcReady) return;
+  const text = new fabric.IText("Double-click to edit", {
+    left: 80,
+    top: 80,
+    fontSize: 28,
+    fill: _dcFillColor(),
+    fontFamily: "Inter, sans-serif",
+    selectable: true,
+  });
+  _dcCanvas.add(text);
+  _dcCanvas.setActiveObject(text);
+  _dcCanvas.renderAll();
+}
+
+function dcAddRect() {
+  if (!_dcReady) return;
+  const rect = new fabric.Rect({
+    left: 100,
+    top: 100,
+    width: 160,
+    height: 100,
+    fill: _dcFillColor(),
+    rx: 6,
+    ry: 6,
+    selectable: true,
+  });
+  _dcCanvas.add(rect);
+  _dcCanvas.setActiveObject(rect);
+  _dcCanvas.renderAll();
+}
+
+function dcAddCircle() {
+  if (!_dcReady) return;
+  const circle = new fabric.Circle({
+    left: 160,
+    top: 120,
+    radius: 60,
+    fill: _dcFillColor(),
+    selectable: true,
+  });
+  _dcCanvas.add(circle);
+  _dcCanvas.setActiveObject(circle);
+  _dcCanvas.renderAll();
+}
+
+function dcUploadImage(input) {
+  if (!_dcReady || !input.files || !input.files[0]) return;
+  const file = input.files[0];
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    fabric.Image.fromURL(e.target.result, function(img) {
+      const maxW = _dcCanvas.getWidth() * 0.6;
+      if (img.width > maxW) {
+        const scale = maxW / img.width;
+        img.scale(scale);
+      }
+      img.set({ left: 60, top: 60, selectable: true });
+      _dcCanvas.add(img);
+      _dcCanvas.setActiveObject(img);
+      _dcCanvas.renderAll();
+    });
+  };
+  reader.readAsDataURL(file);
+  input.value = "";
+}
+
+function dcUpdateActiveColor() {
+  if (!_dcReady) return;
+  const active = _dcCanvas.getActiveObject();
+  if (!active) return;
+  const color = _dcFillColor();
+  if (active.type === "i-text" || active.type === "text") {
+    active.set("fill", color);
+  } else {
+    active.set("fill", color);
+  }
+  _dcCanvas.renderAll();
+}
+
+function dcDeleteSelected() {
+  if (!_dcReady) return;
+  const active = _dcCanvas.getActiveObjects();
+  if (!active || active.length === 0) return;
+  active.forEach(obj => _dcCanvas.remove(obj));
+  _dcCanvas.discardActiveObject();
+  _dcCanvas.renderAll();
+}
+
+function dcClear() {
+  if (!_dcReady) return;
+  _dcCanvas.clear();
+  _dcCanvas.setBackgroundColor("#1a1a2e", _dcCanvas.renderAll.bind(_dcCanvas));
+  dcRefreshLayers();
+}
+
+function dcSave() {
+  if (!_dcReady) return;
+  const dataURL = _dcCanvas.toDataURL({ format: "png", multiplier: 2 });
+  const a = document.createElement("a");
+  a.href = dataURL;
+  a.download = "kala-design.png";
+  a.click();
+}
+
+function dcRefreshLayers() {
+  if (!_dcReady) return;
+  const list = el("dcLayersList");
+  if (!list) return;
+  const objects = _dcCanvas.getObjects();
+  const activeObjs = _dcCanvas.getActiveObjects ? _dcCanvas.getActiveObjects() : [];
+  list.innerHTML = "";
+
+  if (objects.length === 0) {
+    list.innerHTML = '<div style="padding:.6rem .7rem;font-size:.75rem;color:var(--text-muted);text-align:center;opacity:.6">No layers yet</div>';
+    return;
+  }
+
+  // Show layers top-to-bottom (reverse stack order)
+  [...objects].reverse().forEach((obj, idx) => {
+    const realIdx = objects.length - 1 - idx;
+    const icon = obj.type === "i-text" || obj.type === "text" ? "🔤"
+               : obj.type === "rect"   ? "⬛"
+               : obj.type === "circle" ? "⭕"
+               : obj.type === "image"  ? "🖼"
+               : "🔷";
+    const name = obj.type === "i-text" || obj.type === "text"
+      ? (obj.text || "Text").substring(0, 18)
+      : `${obj.type.charAt(0).toUpperCase() + obj.type.slice(1)} ${realIdx + 1}`;
+
+    const isActive = activeObjs.includes(obj);
+    const item = document.createElement("div");
+    item.className = "dc-layer-item" + (isActive ? " active" : "");
+    item.innerHTML = `<span class="dc-layer-icon">${icon}</span><span class="dc-layer-name" title="${name}">${name}</span>`;
+    item.addEventListener("click", () => {
+      _dcCanvas.setActiveObject(obj);
+      _dcCanvas.renderAll();
+      dcRefreshLayers();
+    });
+    list.appendChild(item);
+  });
+}
+
+async function dcGenerateAI() {
+  if (!_dcReady) return;
+  const promptInput = el("dcAiPrompt");
+  const styleSelect = el("dcAiStyle");
+  const resultDiv   = el("dcAiResult");
+  const genBtn      = el("dcAiGenBtn");
+  const prompt = promptInput ? promptInput.value.trim() : "";
+  if (!prompt) { alert("Please enter an image description first."); return; }
+
+  const style  = styleSelect ? styleSelect.value : "digital art";
+
+  genBtn.disabled = true;
+  genBtn.textContent = "⏳ Generating…";
+  hide(resultDiv);
+
+  try {
+    const resp = await fetch(`${API_BASE}/visual-studio/generate-image`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt, style }),
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.detail || `HTTP ${resp.status}`);
+    }
+    const data = await resp.json();
+
+    // Add generated image to canvas
+    fabric.Image.fromURL(data.image_data, function(img) {
+      const maxW = _dcCanvas.getWidth() * 0.55;
+      if (img.width > maxW) img.scale(maxW / img.width);
+      img.set({ left: 40, top: 40, selectable: true });
+      _dcCanvas.add(img);
+      _dcCanvas.setActiveObject(img);
+      _dcCanvas.renderAll();
+    });
+
+    // Show result info
+    const swatches = data.palette.map(c =>
+      `<span class="dc-ai-swatch" style="background:${c}" title="${c}"></span>`
+    ).join("");
+
+    resultDiv.innerHTML = `
+      <div class="dc-ai-preview">
+        <img src="${data.image_data}" alt="AI concept" />
+        <div class="dc-ai-desc">
+          <strong>${data.theme}</strong> · ${data.style}<br/>
+          <span style="opacity:.8">${data.description}</span>
+          <div class="dc-ai-palette">${swatches}<span style="font-size:.72rem;opacity:.7;margin-left:.3rem">Palette</span></div>
+        </div>
+      </div>`;
+    show(resultDiv);
+
+  } catch (err) {
+    resultDiv.innerHTML = `<span style="color:var(--error,#f87171)">⚠ ${err.message}</span>`;
+    show(resultDiv);
+  } finally {
+    genBtn.disabled = false;
+    genBtn.textContent = "✦ Generate & Add to Canvas";
+  }
 }
 
 // ── Paint / Sketch Canvas ──────────────────────────────────────────────────

@@ -599,3 +599,201 @@ class TestVisualEndpoint:
         data = resp.json()
         subjects = data["narrative"]["detected_subjects"]
         assert any("portrait" in s or "landscape" in s for s in subjects)
+
+
+# ===========================================================================
+# Phase 14 – Design Canvas AI Image Concept Generator
+# ===========================================================================
+
+from kalacore.kalavisual import generate_image_concept, _IMAGE_THEMES, _VISUAL_STYLES
+
+
+class TestGenerateImageConceptUnit:
+    """Unit tests for generate_image_concept()."""
+
+    def test_happy_path_returns_required_keys(self):
+        result = generate_image_concept("futuristic cyberpunk city at night")
+        for key in ("prompt", "style", "description", "palette", "image_data", "width", "height", "theme"):
+            assert key in result, f"Missing key: {key}"
+
+    def test_image_data_is_svg_data_uri(self):
+        result = generate_image_concept("a misty mountain landscape")
+        assert result["image_data"].startswith("data:image/svg+xml;base64,")
+
+    def test_palette_has_three_colours(self):
+        result = generate_image_concept("ocean waves at sunrise")
+        assert len(result["palette"]) == 3
+        for colour in result["palette"]:
+            assert colour.startswith("#"), f"Not a hex colour: {colour}"
+
+    def test_cyberpunk_theme_detected(self):
+        result = generate_image_concept("a glowing neon cyberpunk street")
+        assert result["theme"] == "cyberpunk"
+
+    def test_ocean_theme_detected(self):
+        result = generate_image_concept("deep ocean waves crashing on shore")
+        assert result["theme"] == "ocean"
+
+    def test_space_theme_detected(self):
+        result = generate_image_concept("galaxy nebula in deep space")
+        assert result["theme"] == "space"
+
+    def test_nature_theme_detected(self):
+        result = generate_image_concept("a green forest with tall trees")
+        assert result["theme"] == "nature"
+
+    def test_fire_theme_detected(self):
+        result = generate_image_concept("roaring fire and lava volcano")
+        assert result["theme"] == "fire"
+
+    def test_fantasy_theme_detected(self):
+        result = generate_image_concept("a wizard casting magic spells in enchanted castle")
+        assert result["theme"] == "fantasy"
+
+    def test_portrait_theme_detected(self):
+        result = generate_image_concept("portrait of a warrior woman in armor")
+        assert result["theme"] == "portrait"
+
+    def test_default_style_is_digital_art(self):
+        result = generate_image_concept("a red rose in bloom")
+        assert result["style"] == "digital art"
+
+    def test_custom_style_accepted(self):
+        result = generate_image_concept("a waterfall", style="watercolor")
+        assert result["style"] == "watercolor"
+
+    def test_unknown_style_falls_back_to_digital_art(self):
+        result = generate_image_concept("a robot", style="hologram")
+        assert result["style"] == "digital art"
+
+    def test_empty_prompt_returns_error(self):
+        result = generate_image_concept("")
+        assert "error" in result
+
+    def test_whitespace_only_prompt_returns_error(self):
+        result = generate_image_concept("   ")
+        assert "error" in result
+
+    def test_description_contains_prompt(self):
+        result = generate_image_concept("a red dragon flying over mountains")
+        assert "a red dragon" in result["description"].lower() or "red dragon" in result["description"].lower()
+
+    def test_width_and_height_are_512(self):
+        result = generate_image_concept("any concept")
+        assert result["width"] == 512
+        assert result["height"] == 512
+
+    def test_svg_contains_linearGradient(self):
+        import base64
+        result = generate_image_concept("misty forest")
+        raw = base64.b64decode(result["image_data"].split(",")[1]).decode("utf-8")
+        assert "linearGradient" in raw
+
+    def test_prompt_echoed_in_result(self):
+        prompt = "cosmic aurora borealis"
+        result = generate_image_concept(prompt)
+        assert result["prompt"] == prompt
+
+    def test_long_prompt_handled(self):
+        long_prompt = "a very detailed scene of " + "mountains and rivers " * 30
+        result = generate_image_concept(long_prompt)
+        assert "image_data" in result
+        assert result["image_data"].startswith("data:image/svg+xml;base64,")
+
+
+class TestDesignCanvasGenerateImageEndpoint:
+    """Integration tests for POST /visual-studio/generate-image."""
+
+    def test_happy_path(self):
+        resp = client.post(
+            "/visual-studio/generate-image",
+            json={"prompt": "futuristic cyberpunk city at night"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        for key in ("prompt", "style", "description", "palette", "image_data", "width", "height", "theme"):
+            assert key in data
+
+    def test_svg_data_uri_returned(self):
+        resp = client.post(
+            "/visual-studio/generate-image",
+            json={"prompt": "a serene mountain lake"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["image_data"].startswith("data:image/svg+xml;base64,")
+
+    def test_custom_style_accepted(self):
+        resp = client.post(
+            "/visual-studio/generate-image",
+            json={"prompt": "ocean waves", "style": "watercolor"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["style"] == "watercolor"
+
+    def test_invalid_style_returns_422(self):
+        resp = client.post(
+            "/visual-studio/generate-image",
+            json={"prompt": "a forest", "style": "hologram"},
+        )
+        assert resp.status_code == 422
+
+    def test_empty_prompt_returns_422(self):
+        resp = client.post(
+            "/visual-studio/generate-image",
+            json={"prompt": ""},
+        )
+        assert resp.status_code == 422
+
+    def test_missing_prompt_returns_422(self):
+        resp = client.post(
+            "/visual-studio/generate-image",
+            json={},
+        )
+        assert resp.status_code == 422
+
+    def test_palette_has_three_hex_colours(self):
+        resp = client.post(
+            "/visual-studio/generate-image",
+            json={"prompt": "galaxy nebula"},
+        )
+        assert resp.status_code == 200
+        palette = resp.json()["palette"]
+        assert len(palette) == 3
+        for c in palette:
+            assert c.startswith("#")
+
+    def test_all_styles_accepted(self):
+        styles = ["digital art", "painting", "photo", "sketch",
+                  "watercolor", "illustration", "concept art"]
+        for style in styles:
+            resp = client.post(
+                "/visual-studio/generate-image",
+                json={"prompt": "a beautiful scene", "style": style},
+            )
+            assert resp.status_code == 200, f"Style '{style}' failed: {resp.text}"
+
+    def test_width_height_are_512(self):
+        resp = client.post(
+            "/visual-studio/generate-image",
+            json={"prompt": "any scene"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["width"] == 512
+        assert data["height"] == 512
+
+    def test_prompt_echoed_in_response(self):
+        prompt = "a red dragon over a mountain"
+        resp = client.post(
+            "/visual-studio/generate-image",
+            json={"prompt": prompt},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["prompt"] == prompt
+
+    def test_whitespace_prompt_returns_422(self):
+        resp = client.post(
+            "/visual-studio/generate-image",
+            json={"prompt": "   "},
+        )
+        assert resp.status_code == 422

@@ -18,6 +18,7 @@ POST /temporal    – Phase 9 temporal meaning, ephemeral art, creative ancestry
 POST /text-studio/assist – AI Writing Assistant (continue/rewrite/improve/convert)
 POST /text-studio/patterns – Pattern Intelligence quick analysis
 POST /animation/generate  – Phase 13 Animation Generator (text/image/story → plan)
+POST /visual-studio/generate-image – Phase 14 Design Canvas AI image concept generator
 """
 
 import logging
@@ -43,7 +44,7 @@ from kalacore.kalacomposer import compose
 from kalacore.kalaflow import flow
 from kalacore.kalacustody import custody, assess_artistic_lineage
 from kalacore.temporal import analyze_temporal
-from kalacore.kalavisual import analyze_visual
+from kalacore.kalavisual import analyze_visual, generate_image_concept
 from kalacore.kalaproducer import produce
 from kalacore.kalaanimation import generate_animation_plan, parse_storyboard
 from services.llm_service import (
@@ -1044,6 +1045,80 @@ def visual_analysis(request: VisualAnalysisRequest):
         raise HTTPException(status_code=422, detail=result["error"])
 
     return VisualAnalysisResponse(**result)
+
+
+# ---------------------------------------------------------------------------
+# Phase 14 – Design Canvas AI Image Concept Generator
+# ---------------------------------------------------------------------------
+
+_DESIGN_CANVAS_STYLES: set[str] = {
+    "digital art",
+    "painting",
+    "photo",
+    "sketch",
+    "watercolor",
+    "illustration",
+    "concept art",
+}
+
+
+class DesignCanvasGenerateRequest(BaseModel):
+    prompt: str
+    style: str = "digital art"
+
+    @field_validator("prompt")
+    @classmethod
+    def prompt_must_not_be_empty(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("prompt must not be empty")
+        return v
+
+    @field_validator("style")
+    @classmethod
+    def style_must_be_valid(cls, v: str) -> str:
+        if v.lower() not in _DESIGN_CANVAS_STYLES:
+            raise ValueError(
+                f"style must be one of {sorted(_DESIGN_CANVAS_STYLES)}"
+            )
+        return v.lower()
+
+
+class DesignCanvasGenerateResponse(BaseModel):
+    prompt: str
+    style: str
+    description: str
+    palette: List[str]
+    image_data: str
+    width: int
+    height: int
+    theme: str
+
+
+@app.post(
+    "/visual-studio/generate-image",
+    response_model=DesignCanvasGenerateResponse,
+    summary="Phase 14 Design Canvas: generate an AI image concept from a text prompt",
+)
+def design_canvas_generate_image(request: DesignCanvasGenerateRequest):
+    """
+    AI image concept generator for the Design Canvas.
+
+    Takes a text prompt and an optional style, analyses the prompt to detect
+    visual themes, selects a fitting colour palette, and returns a structured
+    SVG placeholder image alongside a concept description.
+
+    This provides immediate visual feedback on the canvas while acting as a
+    drop-in integration point for a real text-to-image model backend.
+    """
+    try:
+        result = generate_image_concept(prompt=request.prompt, style=request.style)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Image concept generation failed: {exc}")
+
+    if "error" in result:
+        raise HTTPException(status_code=422, detail=result["error"])
+
+    return DesignCanvasGenerateResponse(**result)
 
 
 # ---------------------------------------------------------------------------

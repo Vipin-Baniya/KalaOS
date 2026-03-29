@@ -20,6 +20,7 @@ Public API
 analyze_visual(description, medium, color_palette, dimensions, style_tags) → dict
 """
 
+import base64
 import colorsys
 import math
 import re
@@ -778,4 +779,196 @@ def analyze_visual(
         "technical": technical,
         "narrative": narrative,
         "preservation": preservation,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Phase 14 – Design Canvas AI Image Concept Generator
+# ---------------------------------------------------------------------------
+
+_IMAGE_THEMES: Dict[str, Dict[str, Any]] = {
+    "cyberpunk": {
+        "keywords": ["cyberpunk", "neon", "city", "urban", "futuristic", "dystopia",
+                     "hacker", "tech", "robot", "matrix", "blade runner", "night city"],
+        "bg1": "#0d0221", "bg2": "#1a0533",
+        "c1": "#ff2d78", "c2": "#00e5ff", "c3": "#7c5af1",
+        "mood": "high-contrast neon on dark — electric and cinematic",
+    },
+    "nature": {
+        "keywords": ["forest", "nature", "tree", "leaf", "green", "meadow",
+                     "flower", "garden", "plant", "rain", "jungle"],
+        "bg1": "#0a2c1a", "bg2": "#1a4a2e",
+        "c1": "#4caf50", "c2": "#8bc34a", "c3": "#a5d6a7",
+        "mood": "organic, life-affirming, serene",
+    },
+    "landscape": {
+        "keywords": ["mountain", "landscape", "valley", "horizon", "sunrise",
+                     "sunset", "hill", "plain", "field", "prairie"],
+        "bg1": "#1a1a2e", "bg2": "#16213e",
+        "c1": "#e94560", "c2": "#f5a623", "c3": "#ffd700",
+        "mood": "expansive, breathtaking, serene grandeur",
+    },
+    "ocean": {
+        "keywords": ["ocean", "sea", "wave", "water", "beach", "shore",
+                     "marine", "coral", "underwater", "deep sea", "deep ocean"],
+        "bg1": "#001f3f", "bg2": "#003366",
+        "c1": "#00b4d8", "c2": "#90e0ef", "c3": "#caf0f8",
+        "mood": "fluid, deep, calming — the rhythm of waves",
+    },
+    "space": {
+        "keywords": ["space", "galaxy", "star", "cosmos", "nebula", "planet",
+                     "universe", "asteroid", "aurora", "cosmic"],
+        "bg1": "#020209", "bg2": "#0a0a23",
+        "c1": "#7c5af1", "c2": "#a855f7", "c3": "#e879f9",
+        "mood": "vast, mysterious, awe-inspiring",
+    },
+    "fire": {
+        "keywords": ["fire", "flame", "lava", "volcano", "heat", "burn", "ember", "inferno"],
+        "bg1": "#1a0000", "bg2": "#2d0000",
+        "c1": "#ff4500", "c2": "#ff8c00", "c3": "#ffd700",
+        "mood": "intense, dramatic, primal energy",
+    },
+    "fantasy": {
+        "keywords": ["fantasy", "magic", "dragon", "wizard", "castle",
+                     "legend", "myth", "enchanted", "mystical", "elven", "sword"],
+        "bg1": "#1a0a2e", "bg2": "#2d1b4e",
+        "c1": "#9b59b6", "c2": "#8e44ad", "c3": "#d7bde2",
+        "mood": "otherworldly, enchanted, imaginative",
+    },
+    "portrait": {
+        "keywords": ["portrait", "face", "person", "figure", "human",
+                     "character", "warrior", "hero", "woman", "man"],
+        "bg1": "#1a1410", "bg2": "#2d241e",
+        "c1": "#e8c99a", "c2": "#d4a96a", "c3": "#7c5af1",
+        "mood": "intimate, revealing, humanising",
+    },
+}
+
+_VISUAL_STYLES = {
+    "digital art", "painting", "photo", "sketch",
+    "watercolor", "illustration", "concept art",
+}
+
+
+def generate_image_concept(prompt: str, style: str = "digital art") -> Dict[str, Any]:
+    """
+    Generate a visual concept description and SVG placeholder image from a text prompt.
+
+    This is a deterministic concept-generation pipeline that analyses the prompt,
+    infers visual theme/palette, and produces a styled SVG placeholder to represent
+    the AI-generated image concept before a real image backend is connected.
+
+    Parameters
+    ----------
+    prompt : str
+        Text description of the image to generate.
+    style : str
+        Visual style hint (e.g. 'digital art', 'painting', 'photo', 'sketch').
+
+    Returns
+    -------
+    dict with keys: prompt, style, description, palette, image_data, width, height, theme
+    """
+    if not prompt or not prompt.strip():
+        return {"error": "prompt must not be empty"}
+
+    clean_style = style.strip().lower() if style.strip() else "digital art"
+    if clean_style not in _VISUAL_STYLES:
+        clean_style = "digital art"
+
+    p = prompt.lower()
+
+    # Detect theme
+    theme_key = "space"  # default
+    for key, tdata in _IMAGE_THEMES.items():
+        if any(kw in p for kw in tdata["keywords"]):
+            theme_key = key
+            break
+
+    theme = _IMAGE_THEMES[theme_key]
+    bg1, bg2 = theme["bg1"], theme["bg2"]
+    c1, c2, c3 = theme["c1"], theme["c2"], theme["c3"]
+
+    opacity = 0.7 if clean_style == "watercolor" else (0.85 if clean_style == "sketch" else 0.92)
+    stroke_w = 2 if clean_style in {"painting", "sketch"} else 1
+
+    prompt_short = prompt[:55] + "…" if len(prompt) > 55 else prompt
+    description = (
+        f'Concept for: \u201c{prompt_short}\u201d. '
+        f"Style: {clean_style}. Theme: {theme_key} \u2014 {theme['mood']}. "
+        f"Palette: {c1}, {c2}, {c3}."
+    )
+
+    # XML-safe prompt
+    safe_prompt = (
+        prompt[:48]
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+    )
+    safe_style = clean_style.replace("&", "&amp;")
+
+    svg = (
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">'
+        f"<defs>"
+        f'<linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">'
+        f'<stop offset="0%" stop-color="{bg1}"/>'
+        f'<stop offset="100%" stop-color="{bg2}"/>'
+        f"</linearGradient>"
+        f'<radialGradient id="gl1" cx="30%" cy="30%" r="40%">'
+        f'<stop offset="0%" stop-color="{c1}" stop-opacity="0.6"/>'
+        f'<stop offset="100%" stop-color="{c1}" stop-opacity="0"/>'
+        f"</radialGradient>"
+        f'<radialGradient id="gl2" cx="70%" cy="70%" r="45%">'
+        f'<stop offset="0%" stop-color="{c2}" stop-opacity="0.5"/>'
+        f'<stop offset="100%" stop-color="{c2}" stop-opacity="0"/>'
+        f"</radialGradient>"
+        f'<radialGradient id="gl3" cx="50%" cy="20%" r="35%">'
+        f'<stop offset="0%" stop-color="{c3}" stop-opacity="0.4"/>'
+        f'<stop offset="100%" stop-color="{c3}" stop-opacity="0"/>'
+        f"</radialGradient>"
+        f'<filter id="blur"><feGaussianBlur stdDeviation="8"/></filter>'
+        f"</defs>"
+        f'<rect width="512" height="512" fill="url(#bg)"/>'
+        f'<circle cx="160" cy="160" r="200" fill="url(#gl1)" filter="url(#blur)"/>'
+        f'<circle cx="350" cy="350" r="220" fill="url(#gl2)" filter="url(#blur)"/>'
+        f'<circle cx="256" cy="100" r="180" fill="url(#gl3)" filter="url(#blur)"/>'
+        f'<circle cx="100" cy="100" r="3" fill="{c1}" opacity="{opacity}"/>'
+        f'<circle cx="200" cy="80" r="2" fill="{c2}" opacity="{opacity}"/>'
+        f'<circle cx="400" cy="120" r="4" fill="{c3}" opacity="{opacity * 0.8:.2f}"/>'
+        f'<circle cx="450" cy="300" r="3" fill="{c1}" opacity="{opacity}"/>'
+        f'<circle cx="60" cy="400" r="2" fill="{c2}" opacity="{opacity}"/>'
+        f'<polygon points="256,50 280,100 320,100 290,130 300,175 256,148 212,175 222,130 192,100 232,100"'
+        f' fill="none" stroke="{c1}" stroke-width="{stroke_w + 0.5}" opacity="0.4"/>'
+        f'<rect x="40" y="200" width="80" height="80" rx="4"'
+        f' fill="none" stroke="{c2}" stroke-width="{stroke_w}" opacity="0.3"'
+        f' transform="rotate(15 80 240)"/>'
+        f'<circle cx="420" cy="150" r="40"'
+        f' fill="none" stroke="{c3}" stroke-width="{stroke_w}" opacity="0.35"/>'
+        f'<rect x="160" y="180" width="192" height="130" rx="8"'
+        f' fill="{bg1}" fill-opacity="0.6" stroke="{c1}" stroke-width="1" opacity="0.7"/>'
+        f'<rect x="0" y="430" width="512" height="82" fill="{bg1}" fill-opacity="0.85"/>'
+        f'<text x="256" y="456" font-family="Inter,system-ui,sans-serif" font-size="13"'
+        f' font-weight="600" fill="{c1}" text-anchor="middle" opacity="0.9">'
+        f"&#x2726; KalaOS AI Image</text>"
+        f'<text x="256" y="474" font-family="Inter,system-ui,sans-serif" font-size="10"'
+        f' fill="{c2}" text-anchor="middle" opacity="0.8">{safe_style}</text>'
+        f'<text x="256" y="494" font-family="Inter,system-ui,sans-serif" font-size="9"'
+        f' fill="white" text-anchor="middle" opacity="0.6">{safe_prompt}</text>'
+        f'<line x1="40" y1="510" x2="472" y2="510" stroke="{c1}" stroke-width="0.5" opacity="0.3"/>'
+        f"</svg>"
+    )
+
+    svg_b64 = base64.b64encode(svg.encode("utf-8")).decode("utf-8")
+
+    return {
+        "prompt": prompt,
+        "style": clean_style,
+        "description": description,
+        "palette": [c1, c2, c3],
+        "image_data": f"data:image/svg+xml;base64,{svg_b64}",
+        "width": 512,
+        "height": 512,
+        "theme": theme_key,
     }
