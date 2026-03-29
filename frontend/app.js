@@ -3396,3 +3396,332 @@ function _renderAnimTimeline(plan) {
   timeline.classList.remove("hidden");
   if (empty) empty.classList.add("hidden");
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   CANVAS STUDIO  🎨  (Phase 14 – Canva + AI Hybrid)
+════════════════════════════════════════════════════════════════════ */
+
+// ── State ─────────────────────────────────────────────────────────────────
+let _csCanvas = null;          // fabric.Canvas instance
+let _csInitDone = false;
+let _csLastAiResult = null;    // last AI generation result
+let _csLayerItemEls = [];      // layer DOM elements (parallel to canvas objects)
+
+// ── Initialise the Fabric.js canvas ──────────────────────────────────────
+function initCanvasStudio() {
+  if (_csInitDone) return;
+  _csInitDone = true;
+
+  const wrap = el("csCanvasWrap");
+  const w = wrap ? wrap.clientWidth || 780 : 780;
+  const h = Math.round(w * 0.5625); // 16:9
+
+  _csCanvas = new fabric.Canvas("csCanvas", {
+    width: w,
+    height: h,
+    backgroundColor: "#ffffff",
+    selection: true,
+    preserveObjectStacking: true,
+  });
+
+  // Sync layers panel on every change
+  _csCanvas.on("object:added",   _csUpdateLayers);
+  _csCanvas.on("object:removed", _csUpdateLayers);
+  _csCanvas.on("object:modified",_csUpdateLayers);
+  _csCanvas.on("selection:created",  _csHighlightLayer);
+  _csCanvas.on("selection:updated",  _csHighlightLayer);
+  _csCanvas.on("selection:cleared",  _csHighlightLayer);
+}
+
+// ── Extend switchVisualTab to init canvas when needed ────────────────────
+(function () {
+  const _origSwitchVisualTab = switchVisualTab;
+  switchVisualTab = function (tab) {
+    _origSwitchVisualTab(tab);
+    if (tab === "canvas") {
+      if (!_csInitDone) {
+        // Small timeout to let the pane render before measuring
+        setTimeout(initCanvasStudio, 30);
+      }
+    }
+  };
+})();
+
+// ── Toolbar actions ────────────────────────────────────────────────────────
+function csAddText() {
+  if (!_csCanvas) return;
+  const t = new fabric.IText("Edit me", {
+    left: 80, top: 80,
+    fontFamily: "Inter, sans-serif",
+    fontSize: 28,
+    fill: el("csFillColor") ? el("csFillColor").value : "#7c5af1",
+    editable: true,
+  });
+  _csCanvas.add(t);
+  _csCanvas.setActiveObject(t);
+  _csCanvas.renderAll();
+}
+
+function csAddRect() {
+  if (!_csCanvas) return;
+  const r = new fabric.Rect({
+    left: 100, top: 100,
+    width: 160, height: 100,
+    fill: el("csFillColor") ? el("csFillColor").value : "#7c5af1",
+    stroke: el("csStrokeColor") ? el("csStrokeColor").value : "#ffffff",
+    strokeWidth: 2,
+    rx: 8, ry: 8,
+  });
+  _csCanvas.add(r);
+  _csCanvas.setActiveObject(r);
+  _csCanvas.renderAll();
+}
+
+function csAddCircle() {
+  if (!_csCanvas) return;
+  const c = new fabric.Circle({
+    left: 120, top: 120,
+    radius: 60,
+    fill: el("csFillColor") ? el("csFillColor").value : "#5eead4",
+    stroke: el("csStrokeColor") ? el("csStrokeColor").value : "#ffffff",
+    strokeWidth: 2,
+  });
+  _csCanvas.add(c);
+  _csCanvas.setActiveObject(c);
+  _csCanvas.renderAll();
+}
+
+function csUploadImage(input) {
+  if (!_csCanvas || !input.files || !input.files[0]) return;
+  const file = input.files[0];
+  const reader = new FileReader();
+  reader.onload = function (e) {
+    fabric.Image.fromURL(e.target.result, function (img) {
+      const maxW = _csCanvas.width * 0.5;
+      if (img.width > maxW) {
+        img.scaleToWidth(maxW);
+      }
+      img.set({ left: 60, top: 60 });
+      _csCanvas.add(img);
+      _csCanvas.setActiveObject(img);
+      _csCanvas.renderAll();
+    });
+  };
+  reader.readAsDataURL(file);
+  // Reset input so same file can be re-uploaded
+  input.value = "";
+}
+
+function csDeleteSelected() {
+  if (!_csCanvas) return;
+  const active = _csCanvas.getActiveObjects();
+  if (!active.length) return;
+  _csCanvas.discardActiveObject();
+  active.forEach(obj => _csCanvas.remove(obj));
+  _csCanvas.renderAll();
+}
+
+function csClearCanvas() {
+  if (!_csCanvas) return;
+  _csCanvas.clear();
+  _csCanvas.backgroundColor = "#ffffff";
+  _csCanvas.renderAll();
+  _csUpdateLayers();
+}
+
+function csBringForward() {
+  if (!_csCanvas) return;
+  const obj = _csCanvas.getActiveObject();
+  if (obj) { _csCanvas.bringForward(obj); _csCanvas.renderAll(); }
+}
+
+function csSendBackward() {
+  if (!_csCanvas) return;
+  const obj = _csCanvas.getActiveObject();
+  if (obj) { _csCanvas.sendBackwards(obj); _csCanvas.renderAll(); }
+}
+
+function csExportPNG() {
+  if (!_csCanvas) return;
+  const dataUrl = _csCanvas.toDataURL({ format: "png", multiplier: 1 });
+  const a = document.createElement("a");
+  a.href = dataUrl;
+  a.download = "kala-canvas.png";
+  a.click();
+}
+
+function csApplyFillColor(hex) {
+  if (!_csCanvas) return;
+  const obj = _csCanvas.getActiveObject();
+  if (obj) { obj.set("fill", hex); _csCanvas.renderAll(); }
+}
+
+function csApplyStrokeColor(hex) {
+  if (!_csCanvas) return;
+  const obj = _csCanvas.getActiveObject();
+  if (obj) { obj.set("stroke", hex); _csCanvas.renderAll(); }
+}
+
+// ── Layers panel ──────────────────────────────────────────────────────────
+function _csObjectLabel(obj) {
+  const typeIcons = {
+    "i-text": "T",
+    "textbox": "T",
+    "text": "T",
+    "rect": "▭",
+    "circle": "◯",
+    "image": "🖼",
+    "group": "⬡",
+  };
+  const icon = typeIcons[obj.type] || "◈";
+  let name = obj.type;
+  if (obj.type === "i-text" || obj.type === "textbox" || obj.type === "text") {
+    const snippet = (obj.text || "").substring(0, 18);
+    name = snippet || "Text";
+  } else if (obj.type === "rect") {
+    name = "Rectangle";
+  } else if (obj.type === "circle") {
+    name = "Circle";
+  } else if (obj.type === "image") {
+    name = "Image";
+  }
+  return { icon, name };
+}
+
+function _csUpdateLayers() {
+  const list = el("csLayersList");
+  const countEl = el("csLayerCount");
+  if (!list || !_csCanvas) return;
+
+  const objects = _csCanvas.getObjects();
+  countEl.textContent = objects.length;
+
+  if (!objects.length) {
+    list.innerHTML = '<p class="cs-empty-hint">No layers yet</p>';
+    return;
+  }
+
+  // Render layers in reverse order (top-most first)
+  const reversed = [...objects].reverse();
+  list.innerHTML = reversed.map((obj, i) => {
+    const { icon, name } = _csObjectLabel(obj);
+    const realIndex = objects.length - 1 - i;
+    return `<div class="cs-layer-item" data-cs-idx="${realIndex}"
+      onclick="_csSelectLayer(${realIndex})"
+      role="listitem" tabindex="0"
+      onkeydown="if(event.key==='Enter')_csSelectLayer(${realIndex})">
+      <span class="cs-layer-icon">${icon}</span>
+      <span class="cs-layer-name">${name}</span>
+    </div>`;
+  }).join("");
+
+  _csHighlightLayer();
+}
+
+function _csSelectLayer(idx) {
+  if (!_csCanvas) return;
+  const objects = _csCanvas.getObjects();
+  const obj = objects[idx];
+  if (!obj) return;
+  _csCanvas.setActiveObject(obj);
+  _csCanvas.renderAll();
+  _csHighlightLayer();
+}
+
+function _csHighlightLayer() {
+  if (!_csCanvas) return;
+  const active = _csCanvas.getActiveObject();
+  const objects = _csCanvas.getObjects();
+  document.querySelectorAll(".cs-layer-item").forEach(item => {
+    const idx = parseInt(item.dataset.csIdx, 10);
+    item.classList.toggle("active", objects[idx] === active);
+  });
+}
+
+// ── AI Image Generator ────────────────────────────────────────────────────
+async function csGenerateAiImage() {
+  const promptEl = el("csAiPrompt");
+  const statusEl = el("csAiStatus");
+  const resultEl = el("csAiResult");
+  const previewEl = el("csAiPreview");
+  const metaEl   = el("csAiMeta");
+  const btnEl    = el("csAiGenerateBtn");
+  const styleEl  = el("csAiStyle");
+
+  const prompt = promptEl ? promptEl.value.trim() : "";
+  if (!prompt) {
+    show(statusEl);
+    statusEl.textContent = "⚠ Please enter a prompt first.";
+    statusEl.classList.add("error");
+    return;
+  }
+
+  // Disable button, show loading
+  if (btnEl) btnEl.disabled = true;
+  hide(resultEl);
+  show(statusEl);
+  statusEl.textContent = "✦ Generating…";
+  statusEl.classList.remove("error");
+
+  try {
+    const resp = await fetch("/visual-studio/generate-image", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        prompt,
+        style: styleEl ? styleEl.value : "cinematic",
+        width: 800,
+        height: 500,
+      }),
+    });
+
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.detail || `Server error ${resp.status}`);
+    }
+
+    const data = await resp.json();
+    _csLastAiResult = data;
+
+    // Show preview
+    previewEl.src = data.preview_url;
+    metaEl.innerHTML =
+      `<strong>Subject:</strong> ${data.subject}<br>` +
+      `<strong>Mood:</strong> ${data.mood}<br>` +
+      `<strong>Style tags:</strong> ${(data.style_tags || []).join(", ")}<br>` +
+      `<strong>Palette:</strong> ` +
+      (data.color_palette || []).map(
+        c => `<span style="display:inline-block;width:12px;height:12px;background:${c};border-radius:2px;border:1px solid rgba(255,255,255,.2);vertical-align:middle;margin-right:2px"></span>`
+      ).join("") + `<br>` +
+      `<strong>Composition:</strong> ${data.composition}`;
+
+    statusEl.textContent = "✦ Generated! Click 'Add to Canvas' to place it.";
+    statusEl.classList.remove("error");
+    show(resultEl);
+  } catch (err) {
+    statusEl.textContent = `⚠ ${err.message}`;
+    statusEl.classList.add("error");
+  } finally {
+    if (btnEl) btnEl.disabled = false;
+  }
+}
+
+function csAddAiImageToCanvas() {
+  if (!_csCanvas || !_csLastAiResult) return;
+  const dataUrl = _csLastAiResult.preview_url;
+  fabric.Image.fromURL(dataUrl, function (img) {
+    const maxW = _csCanvas.width * 0.55;
+    if (img.width > maxW) img.scaleToWidth(maxW);
+    img.set({ left: 40, top: 40 });
+    _csCanvas.add(img);
+    _csCanvas.setActiveObject(img);
+    _csCanvas.renderAll();
+    // Show a brief status
+    const statusEl = el("csAiStatus");
+    if (statusEl) {
+      statusEl.textContent = "✦ Image added to canvas.";
+      statusEl.classList.remove("error");
+      show(statusEl);
+    }
+  });
+}

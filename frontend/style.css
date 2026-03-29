@@ -3470,6 +3470,344 @@ body.focus-mode #artText {
 }
 .anim-empty-icon { font-size: 2.5rem; }
 
+/* ══════════════════════════════════════════════════════════════
+   CANVAS STUDIO  (Phase 14 – Canva + AI Hybrid)
+══════════════════════════════════════════════════════════════ */
+
+.cs-layout {
+  display: grid;
+  grid-template-columns: 72px 1fr 220px;
+  gap: .6rem;
+  height: calc(100vh - 200px);
+  min-height: 460px;
+}
+
+/* ── Toolbar ───────────────────────────────────────────────── */
+.cs-toolbar {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: .25rem;
+  padding: .5rem .3rem;
+  background: var(--surface-2);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  overflow-y: auto;
+}
+
+.cs-toolbar-label {
+  font-size: .62rem;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--text-muted);
+  text-align: center;
+  padding: .2rem 0 .1rem;
+  font-weight: 600;
+}
+
+.cs-tool-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: .15rem;
+  padding: .4rem .2rem;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: background .15s, color .15s, border-color .15s;
+}
+
+.cs-tool-btn:hover {
+  background: var(--surface-3);
+  color: var(--text);
+  border-color: var(--border);
+}
+
+.cs-tool-btn.active {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.cs-tool-btn--danger:hover {
+  background: color-mix(in srgb, #ef4444 12%, transparent);
+  color: #ef4444;
+  border-color: #ef4444;
+}
+
+.cs-tool-btn--export {
+  margin-top: auto;
+}
+
+.cs-tool-icon {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.cs-tool-name {
+  font-size: .58rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  white-space: nowrap;
+}
+
+.cs-tool-sep {
+  height: 1px;
+  background: var(--border);
+  margin: .2rem 0;
+}
+
+.cs-color-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .15rem;
+}
+
+.cs-color-label {
+  font-size: .6rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+/* ── Canvas area ───────────────────────────────────────────── */
+.cs-canvas-area {
+  display: flex;
+  flex-direction: column;
+  gap: .4rem;
+  min-width: 0;
+}
+
+.cs-canvas-wrap {
+  flex: 1;
+  background: #fff;
+  border-radius: var(--radius);
+  border: 1.5px solid var(--border);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.cs-canvas-wrap canvas {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.cs-hint {
+  font-size: .75rem;
+  color: var(--text-muted);
+  text-align: center;
+  margin: 0;
+  padding: .25rem;
+}
+
+/* ── Right panel ───────────────────────────────────────────── */
+.cs-right-panel {
+  display: flex;
+  flex-direction: column;
+  gap: .6rem;
+  overflow: hidden;
+}
+
+.cs-panel-section {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.cs-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: .45rem .65rem;
+  font-size: .78rem;
+  font-weight: 700;
+  color: var(--text);
+  background: var(--surface-3);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.cs-layer-count {
+  font-size: .68rem;
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  color: var(--accent);
+  border-radius: 99px;
+  padding: 0 .5rem;
+  font-weight: 700;
+}
+
+.cs-layers-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: .35rem;
+  min-height: 80px;
+  max-height: 200px;
+}
+
+.cs-empty-hint {
+  font-size: .73rem;
+  color: var(--text-dim);
+  text-align: center;
+  padding: .8rem 0;
+  margin: 0;
+}
+
+.cs-layer-item {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  padding: .3rem .4rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: .75rem;
+  color: var(--text-muted);
+  border: 1px solid transparent;
+  transition: background .12s, color .12s;
+  user-select: none;
+}
+
+.cs-layer-item:hover {
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+.cs-layer-item.active {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.cs-layer-icon {
+  font-size: .9rem;
+  flex-shrink: 0;
+}
+
+.cs-layer-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── AI Image Generator panel ──────────────────────────────── */
+.cs-ai-section {
+  flex: 1;
+  overflow: hidden;
+}
+
+.cs-ai-form {
+  display: flex;
+  flex-direction: column;
+  gap: .45rem;
+  padding: .55rem;
+  overflow-y: auto;
+}
+
+.cs-ai-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: .45rem .55rem;
+  background: var(--bg-alt);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: .78rem;
+  font-family: var(--font-ui);
+  resize: vertical;
+  transition: border-color .15s;
+}
+
+.cs-ai-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.cs-ai-controls {
+  display: flex;
+  gap: .4rem;
+  align-items: center;
+}
+
+.cs-ai-select {
+  flex: 1;
+  padding: .3rem .4rem;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: .75rem;
+  font-family: var(--font-ui);
+}
+
+.cs-ai-generate-btn {
+  padding: .35rem .8rem;
+  font-size: .78rem;
+  white-space: nowrap;
+}
+
+.cs-ai-status {
+  font-size: .73rem;
+  color: var(--text-muted);
+  margin: 0;
+  text-align: center;
+}
+
+.cs-ai-status.error { color: #ef4444; }
+
+.cs-ai-result {
+  display: flex;
+  flex-direction: column;
+  gap: .4rem;
+}
+
+.cs-ai-preview {
+  width: 100%;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  display: block;
+}
+
+.cs-ai-meta {
+  font-size: .7rem;
+  color: var(--text-dim);
+  line-height: 1.45;
+}
+
+.cs-ai-meta strong {
+  color: var(--text-muted);
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+  .cs-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
+    height: auto;
+  }
+  .cs-toolbar {
+    flex-direction: row;
+    flex-wrap: wrap;
+    padding: .4rem;
+  }
+  .cs-toolbar-label { display: none; }
+  .cs-tool-btn { flex-direction: row; gap: .3rem; padding: .3rem .5rem; }
+  .cs-tool-name { font-size: .68rem; }
+  .cs-canvas-wrap { min-height: 280px; }
+  .cs-right-panel { flex-direction: row; }
+  .cs-layers-list { max-height: 120px; }
+}
+
 /* Mobile: AI panel as bottom sheet */
 @media (max-width: 768px) {
   .app-ai-panel {

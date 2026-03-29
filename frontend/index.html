@@ -1120,6 +1120,7 @@
           <button class="visual-tab" data-vtab="photo" onclick="switchVisualTab('photo')" role="tab">📷 Photo Editor</button>
           <button class="visual-tab" data-vtab="video" onclick="switchVisualTab('video')" role="tab">🎬 Video Editor</button>
           <button class="visual-tab" data-vtab="logo" onclick="switchVisualTab('logo')" role="tab">✏️ Logo Maker</button>
+          <button class="visual-tab" data-vtab="canvas" onclick="switchVisualTab('canvas')" role="tab">🎨 Canvas Studio</button>
         </div>
 
         <!-- ─── Paint / Sketch ─── -->
@@ -1317,6 +1318,128 @@
             <div id="logoAnalysisResult" class="hidden"></div>
           </div>
         </div><!-- /vpane-logo -->
+
+        <!-- ─── Canvas Studio (Fabric.js + AI Image Gen) ─── -->
+        <div class="visual-pane hidden" id="vpane-canvas" role="tabpanel">
+          <div class="cs-layout">
+
+            <!-- Left: Toolbar column -->
+            <div class="cs-toolbar" role="toolbar" aria-label="Canvas tools">
+              <span class="cs-toolbar-label">Elements</span>
+              <button class="cs-tool-btn" onclick="csAddText()" title="Add text element">
+                <span class="cs-tool-icon">T</span>
+                <span class="cs-tool-name">Text</span>
+              </button>
+              <button class="cs-tool-btn" onclick="csAddRect()" title="Add rectangle">
+                <span class="cs-tool-icon">▭</span>
+                <span class="cs-tool-name">Rect</span>
+              </button>
+              <button class="cs-tool-btn" onclick="csAddCircle()" title="Add circle">
+                <span class="cs-tool-icon">◯</span>
+                <span class="cs-tool-name">Circle</span>
+              </button>
+              <button class="cs-tool-btn" onclick="el('csImgUpload').click()" title="Upload image to canvas">
+                <span class="cs-tool-icon">🖼</span>
+                <span class="cs-tool-name">Image</span>
+              </button>
+              <input type="file" id="csImgUpload" accept="image/*" style="display:none" onchange="csUploadImage(this)" />
+              <div class="cs-tool-sep"></div>
+              <span class="cs-toolbar-label">Colour</span>
+              <div class="cs-color-row">
+                <label class="cs-color-label" for="csFillColor">Fill</label>
+                <input type="color" id="csFillColor" class="color-swatch-picker" value="#7c5af1" title="Fill colour" oninput="csApplyFillColor(this.value)" />
+              </div>
+              <div class="cs-color-row">
+                <label class="cs-color-label" for="csStrokeColor">Stroke</label>
+                <input type="color" id="csStrokeColor" class="color-swatch-picker" value="#ffffff" title="Stroke colour" oninput="csApplyStrokeColor(this.value)" />
+              </div>
+              <div class="cs-tool-sep"></div>
+              <span class="cs-toolbar-label">Actions</span>
+              <button class="cs-tool-btn cs-tool-btn--danger" onclick="csDeleteSelected()" title="Delete selected element">
+                <span class="cs-tool-icon">🗑</span>
+                <span class="cs-tool-name">Delete</span>
+              </button>
+              <button class="cs-tool-btn" onclick="csClearCanvas()" title="Clear all elements">
+                <span class="cs-tool-icon">✕</span>
+                <span class="cs-tool-name">Clear</span>
+              </button>
+              <button class="cs-tool-btn" onclick="csBringForward()" title="Bring forward">
+                <span class="cs-tool-icon">⬆</span>
+                <span class="cs-tool-name">Forward</span>
+              </button>
+              <button class="cs-tool-btn" onclick="csSendBackward()" title="Send backward">
+                <span class="cs-tool-icon">⬇</span>
+                <span class="cs-tool-name">Back</span>
+              </button>
+              <div class="cs-tool-sep"></div>
+              <button class="cs-tool-btn cs-tool-btn--export" onclick="csExportPNG()" title="Export as PNG">
+                <span class="cs-tool-icon">⬇</span>
+                <span class="cs-tool-name">PNG</span>
+              </button>
+            </div>
+
+            <!-- Centre: Canvas area -->
+            <div class="cs-canvas-area">
+              <div class="cs-canvas-wrap" id="csCanvasWrap">
+                <canvas id="csCanvas" aria-label="Canvas Studio — drag and drop elements"></canvas>
+              </div>
+              <p id="csCanvasHint" class="cs-hint">Add elements from the toolbar or generate an AI image →</p>
+            </div>
+
+            <!-- Right: Layers + AI Image Generator -->
+            <div class="cs-right-panel">
+
+              <!-- Layers panel -->
+              <div class="cs-panel-section">
+                <div class="cs-panel-header">
+                  <span>📋 Layers</span>
+                  <span class="cs-layer-count" id="csLayerCount">0</span>
+                </div>
+                <div class="cs-layers-list" id="csLayersList" role="list" aria-label="Canvas layers">
+                  <p class="cs-empty-hint">No layers yet</p>
+                </div>
+              </div>
+
+              <!-- AI Image Generator -->
+              <div class="cs-panel-section cs-ai-section">
+                <div class="cs-panel-header">
+                  <span>🤖 AI Image</span>
+                </div>
+                <div class="cs-ai-form">
+                  <textarea id="csAiPrompt"
+                    class="cs-ai-textarea"
+                    placeholder="Describe an image… e.g. futuristic cyberpunk city at night"
+                    rows="3"
+                    aria-label="AI image prompt"></textarea>
+                  <div class="cs-ai-controls">
+                    <select id="csAiStyle" class="cs-ai-select" aria-label="Image style">
+                      <option value="cinematic">🎬 Cinematic</option>
+                      <option value="abstract">🎨 Abstract</option>
+                      <option value="illustration">✏️ Illustration</option>
+                      <option value="photorealistic">📷 Photorealistic</option>
+                      <option value="painting">🖌️ Painting</option>
+                      <option value="sketch">📝 Sketch</option>
+                      <option value="anime">🌸 Anime</option>
+                      <option value="watercolor">💧 Watercolor</option>
+                    </select>
+                    <button class="btn-primary cs-ai-generate-btn" onclick="csGenerateAiImage()" id="csAiGenerateBtn">
+                      ✦ Generate
+                    </button>
+                  </div>
+                  <p id="csAiStatus" class="cs-ai-status hidden"></p>
+                  <div id="csAiResult" class="cs-ai-result hidden">
+                    <img id="csAiPreview" class="cs-ai-preview" alt="AI generated preview" />
+                    <div id="csAiMeta" class="cs-ai-meta"></div>
+                    <button class="btn-primary" style="width:100%;margin-top:.5rem" onclick="csAddAiImageToCanvas()">
+                      ➕ Add to Canvas
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+            </div><!-- /cs-right-panel -->
+          </div><!-- /cs-layout -->
+        </div><!-- /vpane-canvas -->
 
       </div><!-- /input-card -->
     </div><!-- /visualStudio -->
@@ -1642,6 +1765,7 @@
 
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script src="app.js"></script>
 </body>
 </html>

@@ -16,6 +16,7 @@ from .temporal       import analyze_temporal
 from .kalavisual     import analyze_visual
 from .kalaproducer   import produce
 from .kalaanimation  import generate_animation_plan, parse_storyboard
+from .kalacanvas    import generate_canvas_image
 
 __all__ = [
     "analyze",
@@ -32,4 +33,5 @@ __all__ = [
     "produce",
     "generate_animation_plan",
     "parse_storyboard",
+    "generate_canvas_image",
 ]
