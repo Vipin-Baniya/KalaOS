@@ -18,6 +18,7 @@ POST /temporal    – Phase 9 temporal meaning, ephemeral art, creative ancestry
 POST /text-studio/assist – AI Writing Assistant (continue/rewrite/improve/convert)
 POST /text-studio/patterns – Pattern Intelligence quick analysis
 POST /animation/generate  – Phase 13 Animation Generator (text/image/story → plan)
+POST /visual-studio/generate-image – Phase 14 Canvas Studio AI Image Generator (prompt → SVG preview)
 """
 
 import logging
@@ -46,6 +47,7 @@ from kalacore.temporal import analyze_temporal
 from kalacore.kalavisual import analyze_visual
 from kalacore.kalaproducer import produce
 from kalacore.kalaanimation import generate_animation_plan, parse_storyboard
+from kalacore.kalacanvas import generate_canvas_image, VALID_STYLES as _CANVAS_STYLES
 from services.llm_service import (
     generate_explanation,
     generate_suggestions,
@@ -1136,6 +1138,86 @@ def animation_generate(request: AnimationGenerateRequest):
             status_code=500, detail=f"Animation generation failed: {exc}"
         )
     return plan
+
+
+# ---------------------------------------------------------------------------
+# Phase 14 – Canvas Studio AI Image Generator
+# ---------------------------------------------------------------------------
+
+class CanvasImageRequest(BaseModel):
+    prompt: str
+    style: str = "cinematic"
+    width: int = 800
+    height: int = 500
+
+    @field_validator("prompt")
+    @classmethod
+    def prompt_must_not_be_empty(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("prompt must not be empty")
+        return v
+
+    @field_validator("style")
+    @classmethod
+    def style_must_be_valid(cls, v: str) -> str:
+        v = v.strip().lower()
+        if v not in _CANVAS_STYLES:
+            raise ValueError(
+                f"style must be one of {sorted(_CANVAS_STYLES)}"
+            )
+        return v
+
+    @field_validator("width", "height")
+    @classmethod
+    def dimension_must_be_in_range(cls, v: int) -> int:
+        if not (100 <= v <= 4096):
+            raise ValueError("width and height must be between 100 and 4096")
+        return v
+
+
+class CanvasImageResponse(BaseModel):
+    prompt: str
+    refined_prompt: str
+    style: str
+    subject: str
+    mood: str
+    color_palette: list
+    composition: str
+    style_tags: list
+    lighting: str
+    width: int
+    height: int
+    preview_url: str
+    suggested_filename: str
+
+
+@app.post(
+    "/visual-studio/generate-image",
+    response_model=CanvasImageResponse,
+    summary="Phase 14 Canvas Studio: generate an AI image preview from a text prompt",
+)
+def canvas_generate_image(request: CanvasImageRequest):
+    """
+    Generate a structured image descriptor and SVG preview from a text prompt.
+
+    Returns colour palette, composition notes, style tags and a
+    base64-encoded SVG preview that can be placed on the Fabric.js canvas.
+    """
+    try:
+        result = generate_canvas_image(
+            prompt=request.prompt,
+            style=request.style,
+            width=request.width,
+            height=request.height,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500, detail=f"Image generation failed: {exc}"
+        )
+    return result
+
 
 class AuthRegisterRequest(BaseModel):
     email: str
