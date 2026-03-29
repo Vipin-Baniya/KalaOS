@@ -126,7 +126,7 @@ _STYLE_LIGHTING: dict[str, str] = {
 
 def _hash_seed(text: str) -> int:
     """Deterministic integer seed derived from *text*."""
-    return int(hashlib.md5(text.encode()).hexdigest(), 16)  # noqa: S324
+    return int(hashlib.sha256(text.encode()).hexdigest(), 16)
 
 
 def _extract_subject(prompt: str) -> str:
@@ -232,7 +232,6 @@ def _escape_svg(text: str) -> str:
             .replace("<", "&lt;")
             .replace(">", "&gt;")
             .replace('"', "&quot;")
-            .replace("'", "&#39;")
     )
 
 
