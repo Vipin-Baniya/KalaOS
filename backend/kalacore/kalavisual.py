@@ -19,10 +19,12 @@ Public API
 ----------
 analyze_visual(description, medium, color_palette, dimensions, style_tags) → dict
 animate_canvas_objects(elements, prompt) → list[dict]
+export_canvas_gif(frames, frame_duration_ms) → str
 """
 
 import base64
 import colorsys
+import io
 import math
 import re
 from typing import Any, Dict, List, Optional, Tuple
@@ -1167,3 +1169,88 @@ def animate_canvas_objects(
         )
 
     return result
+
+
+# ---------------------------------------------------------------------------
+# Phase 14 – Design Canvas GIF Exporter
+# ---------------------------------------------------------------------------
+
+# Maximum frames accepted to prevent abuse / memory exhaustion
+_MAX_GIF_FRAMES: int = 120
+# Maximum frame side dimension (pixels) – frames are downscaled if larger
+_MAX_GIF_SIDE: int = 800
+
+
+def export_canvas_gif(
+    frames: List[str],
+    frame_duration_ms: int = 100,
+) -> str:
+    """
+    Assemble a list of base64-encoded PNG frames into a GIF animation.
+
+    Parameters
+    ----------
+    frames : list of base64 PNG strings.  Each entry may be a raw base64
+             string or a data-URI of the form ``data:image/png;base64,…``.
+    frame_duration_ms : display duration per frame in milliseconds
+                        (clamped to 20–5000 ms).
+
+    Returns
+    -------
+    A ``data:image/gif;base64,…`` string.
+
+    Raises
+    ------
+    ValueError  if *frames* is empty or exceeds :data:`_MAX_GIF_FRAMES`.
+    ImportError if Pillow is not installed.
+    """
+    try:
+        from PIL import Image  # type: ignore
+    except ImportError as exc:  # pragma: no cover
+        raise ImportError(
+            "Pillow is required for GIF export. "
+            "Install it with: pip install Pillow"
+        ) from exc
+
+    if not frames:
+        raise ValueError("frames must not be empty")
+    if len(frames) > _MAX_GIF_FRAMES:
+        raise ValueError(
+            f"Too many frames: {len(frames)} exceeds the limit of {_MAX_GIF_FRAMES}"
+        )
+
+    duration_ms = max(20, min(5000, int(frame_duration_ms)))
+
+    pil_frames: List[Any] = []
+    for raw in frames:
+        # Strip data-URI prefix if present
+        if "," in raw:
+            raw = raw.split(",", 1)[1]
+        img_bytes = base64.b64decode(raw)
+        img = Image.open(io.BytesIO(img_bytes)).convert("RGBA")
+
+        # Downscale if necessary to keep GIF size reasonable
+        w, h = img.size
+        if max(w, h) > _MAX_GIF_SIDE:
+            scale = _MAX_GIF_SIDE / max(w, h)
+            img = img.resize(
+                (max(1, int(w * scale)), max(1, int(h * scale))),
+                Image.LANCZOS,
+            )
+
+        # Convert to palette mode for GIF encoding
+        palette_img = img.convert("P", palette=Image.ADAPTIVE, colors=256)
+        pil_frames.append(palette_img)
+
+    buf = io.BytesIO()
+    pil_frames[0].save(
+        buf,
+        format="GIF",
+        save_all=True,
+        append_images=pil_frames[1:],
+        duration=duration_ms,
+        loop=0,
+        optimize=True,
+    )
+    gif_b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+    return f"data:image/gif;base64,{gif_b64}"

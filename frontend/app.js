@@ -1515,6 +1515,9 @@ async function dcGenerateAI() {
 // Supported animation types and their Fabric.js implementations
 const _DC_ANIM_TYPES = ["fade-in","fade-out","slide-up","slide-down","slide-left","slide-right","scale-in","scale-out","rotate"];
 
+// Monotonic counter for stable per-object IDs (avoids Date.now() collisions)
+let _dcElemIdSeq = 0;
+
 // Store original object state for reset after preview
 const _dcOriginalState = new WeakMap();
 
@@ -1712,7 +1715,7 @@ async function dcAIAnimate() {
 
   // Build elements list with unique ids
   const elements = objects.map((obj, idx) => ({
-    id:   obj._kalaId || (obj._kalaId = `elem-${idx}-${Date.now()}`),
+    id:   obj._kalaId || (obj._kalaId = `elem-${++_dcElemIdSeq}`),
     type: obj.type,
   }));
 

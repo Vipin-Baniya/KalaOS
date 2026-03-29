@@ -20,6 +20,7 @@ POST /text-studio/patterns – Pattern Intelligence quick analysis
 POST /animation/generate  – Phase 13 Animation Generator (text/image/story → plan)
 POST /visual-studio/generate-image – Phase 14 Design Canvas AI image concept generator
 POST /visual-studio/animate        – Phase 14 Design Canvas AI animation mapper
+POST /visual-studio/export-gif     – Phase 14 Design Canvas GIF exporter
 """
 
 import logging
@@ -45,7 +46,7 @@ from kalacore.kalacomposer import compose
 from kalacore.kalaflow import flow
 from kalacore.kalacustody import custody, assess_artistic_lineage
 from kalacore.temporal import analyze_temporal
-from kalacore.kalavisual import analyze_visual, generate_image_concept, animate_canvas_objects
+from kalacore.kalavisual import analyze_visual, generate_image_concept, animate_canvas_objects, export_canvas_gif
 from kalacore.kalaproducer import produce
 from kalacore.kalaanimation import generate_animation_plan, parse_storyboard
 from services.llm_service import (
@@ -1123,7 +1124,7 @@ def design_canvas_generate_image(request: DesignCanvasGenerateRequest):
 
 
 # ---------------------------------------------------------------------------
-# Phase 14 – Design Canvas: AI Animation Mapper
+# Phase 14 – Design Canvas AI Animation Mapper
 # ---------------------------------------------------------------------------
 
 class CanvasElementInput(BaseModel):
@@ -1180,6 +1181,69 @@ def design_canvas_animate(request: CanvasAnimateRequest):
         prompt=request.prompt,
         assignments=[AnimationAssignment(**a) for a in assignments],
     )
+
+
+# ---------------------------------------------------------------------------
+# Phase 14 – Design Canvas GIF Exporter
+# ---------------------------------------------------------------------------
+
+_MAX_EXPORT_FRAMES: int = 120
+
+
+class ExportGifRequest(BaseModel):
+    frames: List[str]
+    frame_duration_ms: int = 100
+
+    @field_validator("frames")
+    @classmethod
+    def frames_must_not_be_empty(cls, v: List[str]) -> List[str]:
+        if not v:
+            raise ValueError("frames must not be empty")
+        if len(v) > _MAX_EXPORT_FRAMES:
+            raise ValueError(
+                f"Too many frames: {len(v)} exceeds limit of {_MAX_EXPORT_FRAMES}"
+            )
+        return v
+
+    @field_validator("frame_duration_ms")
+    @classmethod
+    def duration_must_be_valid(cls, v: int) -> int:
+        if v < 20 or v > 5000:
+            raise ValueError("frame_duration_ms must be between 20 and 5000")
+        return v
+
+
+class ExportGifResponse(BaseModel):
+    gif_data: str
+    frame_count: int
+
+
+@app.post(
+    "/visual-studio/export-gif",
+    response_model=ExportGifResponse,
+    summary="Phase 14 Design Canvas: assemble PNG frames into an animated GIF",
+)
+def design_canvas_export_gif(request: ExportGifRequest):
+    """
+    Convert a sequence of base64-encoded PNG canvas frames into an animated GIF.
+
+    Accepts up to 120 frames and returns a ``data:image/gif;base64,…`` string
+    ready for direct use in an ``<img>`` tag or download link.
+    """
+    try:
+        gif_data = export_canvas_gif(
+            frames=request.frames,
+            frame_duration_ms=request.frame_duration_ms,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except ImportError as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"GIF export failed: {exc}")
+
+    return ExportGifResponse(gif_data=gif_data, frame_count=len(request.frames))
+
 
 _ANIMATION_MODES: set[str] = {
     "text_to_animation",
