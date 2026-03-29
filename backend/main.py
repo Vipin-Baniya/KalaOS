@@ -17,6 +17,7 @@ POST /custody     – Phase 6 KalaCustody artistic fingerprint + legacy record
 POST /temporal    – Phase 9 temporal meaning, ephemeral art, creative ancestry
 POST /text-studio/assist – AI Writing Assistant (continue/rewrite/improve/convert)
 POST /text-studio/patterns – Pattern Intelligence quick analysis
+POST /animation/generate  – Phase 13 Animation Generator (text/image/story → plan)
 """
 
 import logging
@@ -44,6 +45,7 @@ from kalacore.kalacustody import custody, assess_artistic_lineage
 from kalacore.temporal import analyze_temporal
 from kalacore.kalavisual import analyze_visual
 from kalacore.kalaproducer import produce
+from kalacore.kalaanimation import generate_animation_plan, parse_storyboard
 from services.llm_service import (
     generate_explanation,
     generate_suggestions,
@@ -1045,8 +1047,95 @@ def visual_analysis(request: VisualAnalysisRequest):
 
 
 # ---------------------------------------------------------------------------
-# Auth – Registration, Login, Forgot/Reset Password
+# Phase 13 – AI Animation Generator
 # ---------------------------------------------------------------------------
+
+_ANIMATION_MODES: set[str] = {
+    "text_to_animation",
+    "image_to_animation",
+    "story_to_storyboard",
+}
+_ANIMATION_STYLES: set[str] = {
+    "realistic",
+    "cartoon",
+    "anime",
+    "cinematic",
+    "abstract",
+    "lofi",
+}
+
+
+class AnimationGenerateRequest(BaseModel):
+    prompt: str
+    mode: str = "text_to_animation"
+    style: str = "cinematic"
+    duration_sec: int = 10
+
+    @field_validator("prompt")
+    @classmethod
+    def prompt_must_not_be_empty(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("prompt must not be empty")
+        return v
+
+    @field_validator("mode")
+    @classmethod
+    def mode_must_be_valid(cls, v: str) -> str:
+        if v not in _ANIMATION_MODES:
+            raise ValueError(
+                f"mode must be one of {sorted(_ANIMATION_MODES)}"
+            )
+        return v
+
+    @field_validator("style")
+    @classmethod
+    def style_must_be_valid(cls, v: str) -> str:
+        if v not in _ANIMATION_STYLES:
+            raise ValueError(
+                f"style must be one of {sorted(_ANIMATION_STYLES)}"
+            )
+        return v
+
+    @field_validator("duration_sec")
+    @classmethod
+    def duration_must_be_positive(cls, v: int) -> int:
+        if v < 2:
+            raise ValueError("duration_sec must be at least 2")
+        if v > 300:
+            raise ValueError("duration_sec must not exceed 300")
+        return v
+
+
+@app.post(
+    "/animation/generate",
+    summary="Phase 13 Animation Generator: produce an animation plan from text/image/story",
+)
+def animation_generate(request: AnimationGenerateRequest):
+    """
+    Generate a structured animation plan.
+
+    Accepts:
+    - ``text_to_animation`` – a descriptive text prompt
+    - ``image_to_animation`` – a description of a source image
+    - ``story_to_storyboard`` – a multi-scene narrative
+
+    Returns scene breakdowns, keyframes, character notes, audio hints,
+    export formats and a creative score.
+    """
+    try:
+        plan = generate_animation_plan(
+            prompt=request.prompt,
+            mode=request.mode,
+            style=request.style,
+            duration_sec=request.duration_sec,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500, detail=f"Animation generation failed: {exc}"
+        )
+    return plan
 
 class AuthRegisterRequest(BaseModel):
     email: str

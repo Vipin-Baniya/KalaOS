@@ -15,6 +15,7 @@ from .kalacustody    import custody
 from .temporal       import analyze_temporal
 from .kalavisual     import analyze_visual
 from .kalaproducer   import produce
+from .kalaanimation  import generate_animation_plan, parse_storyboard
 
 __all__ = [
     "analyze",
@@ -29,4 +30,6 @@ __all__ = [
     "analyze_temporal",
     "analyze_visual",
     "produce",
+    "generate_animation_plan",
+    "parse_storyboard",
 ]
