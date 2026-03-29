@@ -3749,6 +3749,97 @@ body.focus-mode #artText {
   flex-shrink: 0;
 }
 
+/* ── Design Canvas: Animation Panel ── */
+
+.dc-anim-panel {
+  background: var(--surface-2);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: .7rem .9rem .8rem;
+  margin-top: .6rem;
+}
+
+.dc-anim-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: .55rem;
+  flex-wrap: wrap;
+  gap: .3rem;
+}
+
+.dc-anim-header-btns {
+  display: flex;
+  gap: .4rem;
+}
+
+.dc-anim-play-btn {
+  padding: .28rem .75rem;
+  font-size: .78rem;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--accent);
+  color: var(--accent);
+  cursor: pointer;
+  background: transparent;
+  transition: background .15s, color .15s;
+  white-space: nowrap;
+}
+
+.dc-anim-play-btn:hover {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.dc-anim-controls {
+  display: flex;
+  gap: .45rem;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: .5rem;
+}
+
+.dc-anim-label {
+  display: flex;
+  align-items: center;
+  gap: .3rem;
+  font-size: .78rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.dc-anim-num {
+  width: 55px;
+  padding: .28rem .4rem;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border);
+  background: var(--bg-alt);
+  color: var(--text);
+  font-size: .8rem;
+  text-align: center;
+}
+
+.dc-anim-ai-row {
+  display: flex;
+  gap: .45rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.dc-anim-status {
+  margin-top: .45rem;
+  padding: .35rem .6rem;
+  background: var(--surface-3);
+  border-radius: var(--radius-sm);
+  font-size: .78rem;
+  color: var(--text-muted);
+  border-left: 3px solid var(--accent);
+}
+
+.dc-anim-status.error {
+  border-left-color: var(--negative);
+  color: var(--negative);
+}
+
 /* ── Responsive ── */
 @media (max-width: 700px) {
   .dc-workspace { flex-direction: column; }

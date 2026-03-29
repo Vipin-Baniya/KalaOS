@@ -1510,6 +1510,253 @@ async function dcGenerateAI() {
   }
 }
 
+// ── Design Canvas: Element Animation Engine ───────────────────────────────
+
+// Supported animation types and their Fabric.js implementations
+const _DC_ANIM_TYPES = ["fade-in","fade-out","slide-up","slide-down","slide-left","slide-right","scale-in","scale-out","rotate"];
+
+// Store original object state for reset after preview
+const _dcOriginalState = new WeakMap();
+
+function _dcSaveOriginalState(obj) {
+  if (!_dcOriginalState.has(obj)) {
+    _dcOriginalState.set(obj, {
+      opacity:  obj.opacity  != null ? obj.opacity  : 1,
+      left:     obj.left,
+      top:      obj.top,
+      scaleX:   obj.scaleX  != null ? obj.scaleX   : 1,
+      scaleY:   obj.scaleY  != null ? obj.scaleY   : 1,
+      angle:    obj.angle   != null ? obj.angle    : 0,
+    });
+  }
+}
+
+function _dcRestoreOriginalState(obj) {
+  const s = _dcOriginalState.get(obj);
+  if (!s) return;
+  obj.set({ opacity: s.opacity, left: s.left, top: s.top, scaleX: s.scaleX, scaleY: s.scaleY, angle: s.angle });
+}
+
+/** Animate a single Fabric.js object according to its .animation property. */
+function dcAnimateObject(obj, canvas) {
+  if (!obj || !obj.animation) return;
+  const { type, duration, delay } = obj.animation;
+  const durationMs = (duration || 1) * 1000;
+  const delayMs    = (delay    || 0) * 1000;
+
+  _dcSaveOriginalState(obj);
+
+  const run = () => {
+    switch (type) {
+      case "fade-in":
+        obj.set({ opacity: 0 });
+        canvas.renderAll();
+        fabric.util.animate({
+          startValue: 0, endValue: _dcOriginalState.get(obj).opacity,
+          duration: durationMs,
+          onChange: v => { obj.opacity = v; canvas.renderAll(); },
+        });
+        break;
+
+      case "fade-out":
+        obj.set({ opacity: _dcOriginalState.get(obj).opacity });
+        canvas.renderAll();
+        fabric.util.animate({
+          startValue: _dcOriginalState.get(obj).opacity, endValue: 0,
+          duration: durationMs,
+          onChange: v => { obj.opacity = v; canvas.renderAll(); },
+        });
+        break;
+
+      case "slide-up": {
+        const origTop = _dcOriginalState.get(obj).top;
+        obj.set({ top: origTop + 80, opacity: 0 });
+        canvas.renderAll();
+        fabric.util.animate({
+          startValue: 0, endValue: 1, duration: durationMs,
+          onChange: v => { obj.top = origTop + 80 * (1 - v); obj.opacity = v; canvas.renderAll(); },
+        });
+        break;
+      }
+
+      case "slide-down": {
+        const origTop = _dcOriginalState.get(obj).top;
+        obj.set({ top: origTop - 80, opacity: 0 });
+        canvas.renderAll();
+        fabric.util.animate({
+          startValue: 0, endValue: 1, duration: durationMs,
+          onChange: v => { obj.top = origTop - 80 * (1 - v); obj.opacity = v; canvas.renderAll(); },
+        });
+        break;
+      }
+
+      case "slide-left": {
+        const origLeft = _dcOriginalState.get(obj).left;
+        obj.set({ left: origLeft + 80, opacity: 0 });
+        canvas.renderAll();
+        fabric.util.animate({
+          startValue: 0, endValue: 1, duration: durationMs,
+          onChange: v => { obj.left = origLeft + 80 * (1 - v); obj.opacity = v; canvas.renderAll(); },
+        });
+        break;
+      }
+
+      case "slide-right": {
+        const origLeft = _dcOriginalState.get(obj).left;
+        obj.set({ left: origLeft - 80, opacity: 0 });
+        canvas.renderAll();
+        fabric.util.animate({
+          startValue: 0, endValue: 1, duration: durationMs,
+          onChange: v => { obj.left = origLeft - 80 * (1 - v); obj.opacity = v; canvas.renderAll(); },
+        });
+        break;
+      }
+
+      case "scale-in": {
+        const origSX = _dcOriginalState.get(obj).scaleX;
+        const origSY = _dcOriginalState.get(obj).scaleY;
+        obj.set({ scaleX: 0.01, scaleY: 0.01, opacity: 0 });
+        canvas.renderAll();
+        fabric.util.animate({
+          startValue: 0, endValue: 1, duration: durationMs,
+          onChange: v => { obj.scaleX = 0.01 + origSX * v; obj.scaleY = 0.01 + origSY * v; obj.opacity = v; canvas.renderAll(); },
+        });
+        break;
+      }
+
+      case "scale-out": {
+        const origSX = _dcOriginalState.get(obj).scaleX;
+        const origSY = _dcOriginalState.get(obj).scaleY;
+        obj.set({ scaleX: origSX, scaleY: origSY, opacity: 1 });
+        canvas.renderAll();
+        fabric.util.animate({
+          startValue: 1, endValue: 0, duration: durationMs,
+          onChange: v => { obj.scaleX = origSX * v; obj.scaleY = origSY * v; obj.opacity = v; canvas.renderAll(); },
+        });
+        break;
+      }
+
+      case "rotate": {
+        const origAngle = _dcOriginalState.get(obj).angle;
+        obj.set({ angle: origAngle, opacity: 0 });
+        canvas.renderAll();
+        fabric.util.animate({
+          startValue: origAngle - 180, endValue: origAngle, duration: durationMs,
+          onChange: v => { obj.angle = v; obj.opacity = Math.min(1, (v - (origAngle - 180)) / 90); canvas.renderAll(); },
+        });
+        break;
+      }
+
+      default:
+        // Unknown type – do nothing
+        break;
+    }
+  };
+
+  if (delayMs > 0) {
+    setTimeout(run, delayMs);
+  } else {
+    run();
+  }
+}
+
+/** Apply animation settings from the panel to the currently selected object. */
+function dcApplyAnimation() {
+  if (!_dcReady) return;
+  const active = _dcCanvas.getActiveObject();
+  if (!active) { alert("Select an element first."); return; }
+  const type     = el("dcAnimType")     ? el("dcAnimType").value     : "fade-in";
+  const duration = el("dcAnimDuration") ? parseFloat(el("dcAnimDuration").value) || 1 : 1;
+  const delay    = el("dcAnimDelay")    ? parseFloat(el("dcAnimDelay").value)    || 0 : 0;
+  active.animation = { type, duration, delay };
+  // Clear saved state so next play picks up new params
+  _dcOriginalState.delete(active);
+  _dcShowAnimStatus(`✓ Animation "${type}" applied (${duration}s, delay ${delay}s)`, false);
+}
+
+/** Play all animations on the canvas. */
+function dcPlayAnimations() {
+  if (!_dcReady) return;
+  const objects = _dcCanvas.getObjects();
+  if (objects.length === 0) { _dcShowAnimStatus("No elements on canvas.", false); return; }
+  const animated = objects.filter(o => o.animation);
+  if (animated.length === 0) { _dcShowAnimStatus("No animations set. Apply animations first.", false); return; }
+  // Reset all objects to original state first
+  objects.forEach(o => _dcRestoreOriginalState(o));
+  _dcCanvas.renderAll();
+  // Play each animated object
+  animated.forEach(obj => dcAnimateObject(obj, _dcCanvas));
+  _dcShowAnimStatus(`▶ Playing ${animated.length} animation(s)…`, false);
+}
+
+/** Reset all canvas objects to their original (pre-animation) state. */
+function dcResetAnimations() {
+  if (!_dcReady) return;
+  _dcCanvas.getObjects().forEach(obj => _dcRestoreOriginalState(obj));
+  _dcCanvas.renderAll();
+  _dcShowAnimStatus("↺ Canvas reset.", false);
+}
+
+/** Send canvas objects + prompt to backend; apply returned assignments. */
+async function dcAIAnimate() {
+  if (!_dcReady) return;
+  const objects = _dcCanvas.getObjects();
+  if (objects.length === 0) { _dcShowAnimStatus("Add elements to the canvas first.", false); return; }
+  const promptInput = el("dcAnimAiPrompt");
+  const prompt = promptInput ? promptInput.value.trim() : "";
+  if (!prompt) { alert("Enter an animation prompt first."); return; }
+
+  const animBtn = el("dcAnimAiBtn");
+  if (animBtn) { animBtn.disabled = true; animBtn.textContent = "⏳ Thinking…"; }
+  _dcShowAnimStatus("🤖 Generating AI animations…", false);
+
+  // Build elements list with unique ids
+  const elements = objects.map((obj, idx) => ({
+    id:   obj._kalaId || (obj._kalaId = `elem-${idx}-${Date.now()}`),
+    type: obj.type,
+  }));
+
+  try {
+    const resp = await fetch(`${API_BASE}/visual-studio/animate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ elements, prompt }),
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.detail || `HTTP ${resp.status}`);
+    }
+    const data = await resp.json();
+    const assignments = data.assignments || [];
+
+    // Build id → object map
+    const idMap = {};
+    objects.forEach((obj, idx) => { idMap[elements[idx].id] = obj; });
+
+    // Apply animations
+    assignments.forEach(a => {
+      const obj = idMap[a.id];
+      if (!obj) return;
+      obj.animation = { type: a.animation, duration: a.duration, delay: a.delay };
+      _dcOriginalState.delete(obj);
+    });
+
+    _dcShowAnimStatus(`✓ AI applied ${assignments.length} animation(s). Press ▶ Play to preview.`, false);
+  } catch (err) {
+    _dcShowAnimStatus(`⚠ ${err.message}`, true);
+  } finally {
+    if (animBtn) { animBtn.disabled = false; animBtn.textContent = "🤖 AI Animate"; }
+  }
+}
+
+function _dcShowAnimStatus(msg, isError) {
+  const s = el("dcAnimStatus");
+  if (!s) return;
+  s.textContent = msg;
+  s.className = "dc-anim-status" + (isError ? " error" : "");
+  show(s);
+}
+
 // ── Paint / Sketch Canvas ──────────────────────────────────────────────────
 
 let _paintInitDone = false;
