@@ -187,6 +187,10 @@
         <span class="swatch-preview" style="background:linear-gradient(135deg,#0b0514 40%,#c026d3 70%,#2dd4bf)"></span>
         <span>&#127775; Creator Mode</span>
       </button>
+      <button class="theme-swatch" data-theme="focus" onclick="applyTheme('focus')" role="radio" aria-checked="false">
+        <span class="swatch-preview" style="background:linear-gradient(135deg,#111111 50%,#444444)"></span>
+        <span>&#128247; Focus Mode</span>
+      </button>
     </div>
     <div class="theme-custom-section">
       <h3 class="theme-custom-title">Custom colours</h3>
@@ -258,6 +262,10 @@
         <button class="sidebar-btn" id="visualStudioBtn" onclick="switchStudio('visual')" role="tab" aria-selected="false">
           <span class="sidebar-icon" aria-hidden="true">🎨</span>
           <span class="sidebar-label">Visual Studio</span>
+        </button>
+        <button class="sidebar-btn" id="animationStudioBtn" onclick="switchStudio('animation')" role="tab" aria-selected="false">
+          <span class="sidebar-icon" aria-hidden="true">🎬</span>
+          <span class="sidebar-label">Animation</span>
         </button>
         <button class="sidebar-btn" id="chatStudioBtn" onclick="switchStudio('chat')" role="tab" aria-selected="false">
           <span class="sidebar-icon" aria-hidden="true">💬</span>
@@ -1312,6 +1320,168 @@
 
       </div><!-- /input-card -->
     </div><!-- /visualStudio -->
+
+    <!-- ═══════════════════════════════════════════
+         ANIMATION STUDIO  🎬
+         ═══════════════════════════════════════════ -->
+    <div id="animationStudio" class="input-panel hidden">
+
+      <!-- Animation tool tab bar -->
+      <div class="anim-tools-bar" role="tablist" aria-label="Animation studio tools">
+        <button class="anim-tool-btn active" data-atool="text2anim" onclick="switchAnimTool('text2anim')" role="tab" aria-selected="true">✍️ Text → Anim</button>
+        <button class="anim-tool-btn" data-atool="img2anim" onclick="switchAnimTool('img2anim')" role="tab" aria-selected="false">🖼️ Image → Anim</button>
+        <button class="anim-tool-btn" data-atool="storyboard" onclick="switchAnimTool('storyboard')" role="tab" aria-selected="false">📖 Storyboard</button>
+        <button class="anim-tool-btn" data-atool="timeline" onclick="switchAnimTool('timeline')" role="tab" aria-selected="false">🎞️ Timeline</button>
+      </div>
+
+      <!-- ── Text → Animation ── -->
+      <div class="anim-tool-pane" id="atool-text2anim" role="tabpanel">
+        <div class="input-card anim-tool-card">
+          <h3 class="section-title">Text → Animation</h3>
+          <p class="section-hint">Describe your scene and Kala generates a full animation plan.</p>
+
+          <div class="form-group">
+            <label for="animTextPrompt">Scene description</label>
+            <textarea id="animTextPrompt" rows="5" placeholder="A golden sunrise breaks over misty mountain peaks, light rays piercing through ancient pines…" spellcheck="false"></textarea>
+          </div>
+
+          <div class="anim-options-row">
+            <div class="form-group form-group-inline">
+              <label for="animStyle">Visual style</label>
+              <select id="animStyle">
+                <option value="cinematic">🎬 Cinematic</option>
+                <option value="realistic">📷 Realistic</option>
+                <option value="cartoon">🎠 Cartoon</option>
+                <option value="anime">⛩️ Anime</option>
+                <option value="abstract">🌀 Abstract</option>
+                <option value="lofi">🎧 Lo-Fi</option>
+              </select>
+            </div>
+            <div class="form-group form-group-inline">
+              <label for="animDuration">Duration (sec)</label>
+              <input type="number" id="animDuration" value="10" min="2" max="300" />
+            </div>
+          </div>
+
+          <div class="anim-btn-row">
+            <button class="btn-primary" onclick="generateAnimation('text_to_animation')">✨ Generate Plan</button>
+            <button class="btn-ghost" onclick="clearAnimStudio()">Clear</button>
+          </div>
+          <span id="animStatusMsg" class="status-msg" aria-live="polite" role="status"></span>
+        </div>
+      </div>
+
+      <!-- ── Image → Animation ── -->
+      <div class="anim-tool-pane hidden" id="atool-img2anim" role="tabpanel">
+        <div class="input-card anim-tool-card">
+          <h3 class="section-title">Image → Animation</h3>
+          <p class="section-hint">Describe your source image and Kala will animate it.</p>
+
+          <div class="form-group">
+            <label for="animImgPrompt">Describe the image</label>
+            <textarea id="animImgPrompt" rows="5" placeholder="A vintage photograph of Paris in the 1920s: cobblestone streets, gas lamps, a woman in a flowing dress…" spellcheck="false"></textarea>
+          </div>
+
+          <div class="anim-options-row">
+            <div class="form-group form-group-inline">
+              <label for="animImgStyle">Visual style</label>
+              <select id="animImgStyle">
+                <option value="cinematic">🎬 Cinematic</option>
+                <option value="realistic">📷 Realistic</option>
+                <option value="cartoon">🎠 Cartoon</option>
+                <option value="anime">⛩️ Anime</option>
+                <option value="abstract">🌀 Abstract</option>
+                <option value="lofi">🎧 Lo-Fi</option>
+              </select>
+            </div>
+            <div class="form-group form-group-inline">
+              <label for="animImgDuration">Duration (sec)</label>
+              <input type="number" id="animImgDuration" value="8" min="2" max="300" />
+            </div>
+          </div>
+
+          <button class="btn-primary" onclick="generateAnimation('image_to_animation')">✨ Animate Image</button>
+          <span id="animImgStatusMsg" class="status-msg" aria-live="polite" role="status"></span>
+        </div>
+      </div>
+
+      <!-- ── Storyboard ── -->
+      <div class="anim-tool-pane hidden" id="atool-storyboard" role="tabpanel">
+        <div class="input-card anim-tool-card">
+          <h3 class="section-title">Story → Storyboard</h3>
+          <p class="section-hint">Write your story with scene breaks (---) and Kala builds a full storyboard.</p>
+
+          <div class="form-group">
+            <label for="animStoryPrompt">Your story</label>
+            <textarea id="animStoryPrompt" rows="10" placeholder="The hero wakes at dawn and discovers the village is silent.&#10;---&#10;She walks to the well and finds a strange symbol carved in stone.&#10;---&#10;A crow watches from the tree above, then takes flight." spellcheck="false"></textarea>
+          </div>
+
+          <div class="anim-options-row">
+            <div class="form-group form-group-inline">
+              <label for="animStoryStyle">Visual style</label>
+              <select id="animStoryStyle">
+                <option value="cinematic">🎬 Cinematic</option>
+                <option value="realistic">📷 Realistic</option>
+                <option value="cartoon">🎠 Cartoon</option>
+                <option value="anime">⛩️ Anime</option>
+                <option value="abstract">🌀 Abstract</option>
+                <option value="lofi">🎧 Lo-Fi</option>
+              </select>
+            </div>
+            <div class="form-group form-group-inline">
+              <label for="animStoryDuration">Duration (sec)</label>
+              <input type="number" id="animStoryDuration" value="30" min="2" max="300" />
+            </div>
+          </div>
+
+          <button class="btn-primary" onclick="generateAnimation('story_to_storyboard')">📖 Build Storyboard</button>
+          <span id="animStoryStatusMsg" class="status-msg" aria-live="polite" role="status"></span>
+        </div>
+      </div>
+
+      <!-- ── Timeline ── -->
+      <div class="anim-tool-pane hidden" id="atool-timeline" role="tabpanel">
+        <div class="input-card anim-tool-card">
+          <h3 class="section-title">🎞️ Animation Timeline</h3>
+          <p class="section-hint">Keyframes generated from your last animation plan appear here.</p>
+          <div id="animTimelineEmpty" class="anim-timeline-empty">
+            <span class="anim-empty-icon" aria-hidden="true">🎬</span>
+            <p>Generate an animation plan first to see the timeline.</p>
+          </div>
+          <div id="animTimeline" class="anim-timeline hidden"></div>
+        </div>
+      </div>
+
+      <!-- ── Results Panel (shared) ── -->
+      <section class="results-panel hidden" id="animResultsPanel">
+        <div class="anim-result-header">
+          <h3 class="anim-result-title">✨ Animation Plan</h3>
+          <div class="anim-result-meta" id="animResultMeta"></div>
+        </div>
+
+        <!-- Creative Score -->
+        <div class="anim-score-row" id="animScoreRow"></div>
+
+        <!-- Scenes / Keyframes tabs -->
+        <div class="anim-result-tabs" role="tablist">
+          <button class="anim-result-tab active" data-rtab="scenes" onclick="switchAnimResultTab('scenes')" role="tab">Scenes</button>
+          <button class="anim-result-tab" data-rtab="keyframes" onclick="switchAnimResultTab('keyframes')" role="tab">Keyframes</button>
+          <button class="anim-result-tab" data-rtab="characters" onclick="switchAnimResultTab('characters')" role="tab">Characters</button>
+          <button class="anim-result-tab" data-rtab="audio" onclick="switchAnimResultTab('audio')" role="tab">Audio</button>
+        </div>
+
+        <div class="anim-rtab-pane" id="artab-scenes" role="tabpanel"></div>
+        <div class="anim-rtab-pane hidden" id="artab-keyframes" role="tabpanel"></div>
+        <div class="anim-rtab-pane hidden" id="artab-characters" role="tabpanel"></div>
+        <div class="anim-rtab-pane hidden" id="artab-audio" role="tabpanel"></div>
+
+        <div class="anim-export-row">
+          <span class="anim-export-label">Export formats:</span>
+          <span id="animExportFormats" class="anim-export-chips"></span>
+        </div>
+      </section>
+
+    </div><!-- /animationStudio -->
 
     <!-- ═══════════════════════════════════════════
          KALA CHAT  💬

@@ -3136,3 +3136,263 @@ function escHtml(str) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   ANIMATION STUDIO  🎬  (Phase 13 – AI Animation Generator)
+════════════════════════════════════════════════════════════════════ */
+
+// ── Studio switcher: extend to handle animation ────────────────────────────
+(function () {
+  const _prevSwitch = switchStudio;
+  switchStudio = function (mode) {
+    const animStudio = el("animationStudio");
+    const animBtn    = el("animationStudioBtn");
+
+    // Always hide animation first
+    if (animStudio) animStudio.classList.add("hidden");
+    if (animBtn)    animBtn.classList.remove("active");
+
+    if (mode === "animation") {
+      // Hide all other studios
+      ["textStudio", "musicStudio", "visualStudio", "chatStudio"].forEach(id => {
+        const s = el(id);
+        if (s) s.classList.add("hidden");
+      });
+      ["textStudioBtn", "musicStudioBtn", "visualStudioBtn", "chatStudioBtn"].forEach(id => {
+        const b = el(id);
+        if (b) b.classList.remove("active");
+      });
+      if (animStudio) animStudio.classList.remove("hidden");
+      if (animBtn)    animBtn.classList.add("active");
+      _hideAiPanel();
+      return;
+    }
+
+    _prevSwitch(mode);
+  };
+})();
+
+// ── Animation tool tab switching ──────────────────────────────────────────
+function switchAnimTool(tool) {
+  document.querySelectorAll(".anim-tool-btn").forEach(b => {
+    b.classList.toggle("active", b.dataset.atool === tool);
+    b.setAttribute("aria-selected", b.dataset.atool === tool ? "true" : "false");
+  });
+  document.querySelectorAll(".anim-tool-pane").forEach(p => p.classList.add("hidden"));
+  const pane = el(`atool-${tool}`);
+  if (pane) pane.classList.remove("hidden");
+}
+
+// ── Animation result inner tab switching ─────────────────────────────────
+function switchAnimResultTab(tab) {
+  document.querySelectorAll(".anim-result-tab").forEach(b => {
+    b.classList.toggle("active", b.dataset.rtab === tab);
+  });
+  document.querySelectorAll(".anim-rtab-pane").forEach(p => p.classList.add("hidden"));
+  const pane = el(`artab-${tab}`);
+  if (pane) pane.classList.remove("hidden");
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+function _animSetStatus(msg, isError, statusId) {
+  const el2 = el(statusId || "animStatusMsg");
+  if (!el2) return;
+  el2.textContent = msg;
+  el2.style.color = isError ? "var(--negative)" : "var(--text-muted)";
+}
+
+function clearAnimStudio() {
+  const ids = ["animTextPrompt", "animImgPrompt", "animStoryPrompt"];
+  ids.forEach(id => { const e = el(id); if (e) e.value = ""; });
+  const rp = el("animResultsPanel");
+  if (rp) rp.classList.add("hidden");
+  _animSetStatus("", false);
+  _animSetStatus("", false, "animImgStatusMsg");
+  _animSetStatus("", false, "animStoryStatusMsg");
+}
+
+// ── Generate Animation Plan ───────────────────────────────────────────────
+async function generateAnimation(mode) {
+  let promptId, styleId, durationId, statusId;
+  if (mode === "text_to_animation") {
+    promptId   = "animTextPrompt";
+    styleId    = "animStyle";
+    durationId = "animDuration";
+    statusId   = "animStatusMsg";
+  } else if (mode === "image_to_animation") {
+    promptId   = "animImgPrompt";
+    styleId    = "animImgStyle";
+    durationId = "animImgDuration";
+    statusId   = "animImgStatusMsg";
+  } else {
+    promptId   = "animStoryPrompt";
+    styleId    = "animStoryStyle";
+    durationId = "animStoryDuration";
+    statusId   = "animStoryStatusMsg";
+  }
+
+  const prompt       = (el(promptId)?.value || "").trim();
+  const style        = el(styleId)?.value || "cinematic";
+  const duration_sec = parseInt(el(durationId)?.value || "10", 10);
+
+  if (!prompt) {
+    _animSetStatus("Please enter a prompt first.", true, statusId);
+    return;
+  }
+
+  _animSetStatus("✨ Generating animation plan…", false, statusId);
+
+  try {
+    const resp = await fetch(`${API_BASE}/animation/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt, mode, style, duration_sec }),
+    });
+
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.detail || `Server error ${resp.status}`);
+    }
+
+    const plan = await resp.json();
+    _animSetStatus("", false, statusId);
+    renderAnimationPlan(plan);
+    _renderAnimTimeline(plan);
+
+    // Switch to results
+    const rp = el("animResultsPanel");
+    if (rp) {
+      rp.classList.remove("hidden");
+      rp.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  } catch (err) {
+    _animSetStatus(`Error: ${err.message}`, true, statusId);
+  }
+}
+
+// ── Render animation plan ─────────────────────────────────────────────────
+function renderAnimationPlan(plan) {
+  // Meta
+  const meta = el("animResultMeta");
+  if (meta) {
+    meta.textContent = `${plan.mode.replace(/_/g, " ")} · ${plan.style} · ${plan.duration_sec}s`;
+  }
+
+  // Creative score
+  const scoreRow = el("animScoreRow");
+  if (scoreRow) {
+    const pct = Math.round((plan.creative_score || 0) * 100);
+    scoreRow.innerHTML = `
+      <span>Creative Score</span>
+      <div class="anim-score-bar">
+        <div class="anim-score-fill" style="width:${pct}%"></div>
+      </div>
+      <span>${pct}%</span>`;
+  }
+
+  // Scenes tab
+  const scenesPane = el("artab-scenes");
+  if (scenesPane) {
+    scenesPane.innerHTML = (plan.scenes || []).map(s => `
+      <div class="anim-scene-card">
+        <div class="anim-scene-index">Scene ${s.index}</div>
+        <div class="anim-scene-summary">${escHtml(s.summary || "")}</div>
+        ${s.text !== s.summary ? `<div class="anim-scene-text">${escHtml(s.text || "")}</div>` : ""}
+      </div>`).join("") || '<p style="color:var(--text-dim)">No scenes detected.</p>';
+  }
+
+  // Keyframes tab
+  const kfPane = el("artab-keyframes");
+  if (kfPane) {
+    kfPane.innerHTML = (plan.keyframes || []).map(kf => `
+      <div class="anim-kf-row">
+        <div class="anim-kf-time">${kf.start_time_sec}s</div>
+        <div class="anim-kf-info">
+          <div class="anim-kf-desc">${escHtml(kf.description || "")}</div>
+          <div class="anim-kf-meta">
+            <span class="anim-kf-badge">${escHtml(kf.camera_move || "")}</span>
+            <span class="anim-kf-badge">${escHtml(kf.transition || "")}</span>
+            ${escHtml(kf.style_note || "")}
+          </div>
+        </div>
+      </div>`).join("") || '<p style="color:var(--text-dim)">No keyframes.</p>';
+  }
+
+  // Characters tab
+  const charPane = el("artab-characters");
+  if (charPane) {
+    const chars = plan.character_notes || [];
+    charPane.innerHTML = chars.length
+      ? chars.map(c => `
+        <div class="anim-char-row">
+          <div class="anim-char-avatar">${escHtml(c.name.charAt(0))}</div>
+          <div>
+            <div class="anim-char-name">${escHtml(c.name)}</div>
+            <div class="anim-char-note">${escHtml(c.note || "")}</div>
+          </div>
+        </div>`).join("")
+      : '<p class="anim-char-empty">No characters detected in prompt.</p>';
+  }
+
+  // Audio tab
+  const audioPane = el("artab-audio");
+  if (audioPane) {
+    audioPane.innerHTML = `
+      <div class="anim-audio-hint">
+        <div class="anim-audio-icon">🎵</div>
+        ${escHtml(plan.audio_hint || "Adaptive score matching scene mood")}
+      </div>`;
+  }
+
+  // Export formats
+  const exportChips = el("animExportFormats");
+  if (exportChips) {
+    exportChips.innerHTML = (plan.export_formats || [])
+      .map(f => `<span class="anim-export-chip">${escHtml(f)}</span>`)
+      .join("");
+  }
+
+  // Reset tabs to scenes
+  switchAnimResultTab("scenes");
+}
+
+// ── Timeline renderer ─────────────────────────────────────────────────────
+function _renderAnimTimeline(plan) {
+  const timeline = el("animTimeline");
+  const empty    = el("animTimelineEmpty");
+  if (!timeline) return;
+
+  const kfs = plan.keyframes || [];
+  if (kfs.length === 0) {
+    timeline.classList.add("hidden");
+    if (empty) empty.classList.remove("hidden");
+    return;
+  }
+
+  const totalDur = plan.duration_sec || 10;
+  const colours  = [
+    "#7c5af1", "#2dd4bf", "#f0703a", "#4ade80", "#e23270",
+    "#f59e0b", "#60a5fa", "#c026d3", "#34d399", "#fb7185",
+  ];
+
+  const tracks = kfs.map((kf, i) => {
+    const leftPct  = (kf.start_time_sec / totalDur) * 100;
+    const widthPct = (kf.duration_sec   / totalDur) * 100;
+    const col      = colours[i % colours.length];
+    return `
+      <div class="anim-timeline-track">
+        <div class="anim-timeline-label">Scene ${kf.scene_index}</div>
+        <div class="anim-timeline-strip">
+          <div class="anim-timeline-block"
+               style="left:${leftPct.toFixed(1)}%;width:${Math.max(2, widthPct).toFixed(1)}%;background:${col};color:#fff"
+               title="${escHtml(kf.description || "")}">
+            ${escHtml((kf.description || "").substring(0, 20))}…
+          </div>
+        </div>
+      </div>`;
+  }).join("");
+
+  timeline.innerHTML = tracks;
+  timeline.classList.remove("hidden");
+  if (empty) empty.classList.add("hidden");
+}
