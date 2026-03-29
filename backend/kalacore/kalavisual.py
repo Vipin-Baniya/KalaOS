@@ -18,10 +18,13 @@ Philosophy
 Public API
 ----------
 analyze_visual(description, medium, color_palette, dimensions, style_tags) → dict
+animate_canvas_objects(elements, prompt) → list[dict]
+export_canvas_gif(frames, frame_duration_ms) → str
 """
 
 import base64
 import colorsys
+import io
 import math
 import re
 from typing import Any, Dict, List, Optional, Tuple
@@ -1001,3 +1004,253 @@ def generate_image_concept(prompt: str, style: str = "digital art") -> Dict[str,
         "height": 512,
         "theme": theme_key,
     }
+
+
+# ---------------------------------------------------------------------------
+# Phase 14 – Design Canvas AI Animation Mapper
+# ---------------------------------------------------------------------------
+
+# Valid animation types
+ANIMATION_TYPES: List[str] = [
+    "fade-in",
+    "fade-out",
+    "slide-up",
+    "slide-down",
+    "slide-left",
+    "slide-right",
+    "scale-in",
+    "scale-out",
+    "rotate",
+]
+
+# Prompt keyword → preferred animation style profile
+_ANIM_PROFILES: Dict[str, Dict[str, Any]] = {
+    "cinematic": {
+        "keywords": [
+            "cinematic", "movie", "film", "dramatic", "epic", "intro",
+            "title", "opening", "reveal", "blockbuster",
+        ],
+        # element-type → preferred animation
+        "by_type": {
+            "i-text": "fade-in",
+            "text":   "fade-in",
+            "rect":   "slide-up",
+            "circle": "slide-up",
+            "image":  "fade-in",
+        },
+        "default_anim":  "fade-in",
+        "base_duration": 1.2,
+        "delay_step":    0.4,
+    },
+    "playful": {
+        "keywords": [
+            "bounce", "playful", "fun", "cartoon", "comic", "bubbly",
+            "pop", "kids", "energetic", "lively",
+        ],
+        "by_type": {
+            "i-text": "scale-in",
+            "text":   "scale-in",
+            "rect":   "scale-in",
+            "circle": "rotate",
+            "image":  "scale-in",
+        },
+        "default_anim":  "scale-in",
+        "base_duration": 0.6,
+        "delay_step":    0.2,
+    },
+    "elegant": {
+        "keywords": [
+            "elegant", "smooth", "soft", "fade", "luxury", "minimal",
+            "clean", "subtle", "calm", "peaceful", "serene",
+        ],
+        "by_type": {
+            "i-text": "fade-in",
+            "text":   "fade-in",
+            "rect":   "fade-in",
+            "circle": "fade-in",
+            "image":  "fade-in",
+        },
+        "default_anim":  "fade-in",
+        "base_duration": 1.8,
+        "delay_step":    0.6,
+    },
+    "dynamic": {
+        "keywords": [
+            "dynamic", "intense", "bold", "powerful", "strong", "action",
+            "fast", "quick", "rush", "slide", "swipe", "burst",
+        ],
+        "by_type": {
+            "i-text": "slide-left",
+            "text":   "slide-left",
+            "rect":   "slide-right",
+            "circle": "scale-in",
+            "image":  "slide-up",
+        },
+        "default_anim":  "slide-up",
+        "base_duration": 0.5,
+        "delay_step":    0.15,
+    },
+    "slow": {
+        "keywords": [
+            "slow", "gentle", "drift", "float", "dream", "hazy", "lazy",
+            "meditative", "breathe",
+        ],
+        "by_type": {
+            "i-text": "fade-in",
+            "text":   "fade-in",
+            "rect":   "slide-down",
+            "circle": "fade-in",
+            "image":  "slide-down",
+        },
+        "default_anim":  "fade-in",
+        "base_duration": 2.5,
+        "delay_step":    0.8,
+    },
+}
+
+_ANIM_DEFAULT_PROFILE = "cinematic"
+
+
+def animate_canvas_objects(
+    elements: List[Dict[str, Any]],
+    prompt: str,
+) -> List[Dict[str, Any]]:
+    """
+    AI animation mapper for Design Canvas objects.
+
+    Given a list of canvas element descriptors and a natural-language prompt,
+    returns per-element animation assignments.
+
+    Parameters
+    ----------
+    elements : list of dicts, each with at least ``id`` and ``type`` keys.
+    prompt   : natural-language animation intent (e.g. "cinematic intro").
+
+    Returns
+    -------
+    list of dicts, one per element:
+        { "id": str, "animation": str, "duration": float, "delay": float }
+
+    If *elements* is empty an empty list is returned.  Unrecognised element
+    types fall back to the profile's ``default_anim``.
+    """
+    if not elements:
+        return []
+
+    p = (prompt or "").lower().strip()
+
+    # Detect profile from prompt keywords
+    profile_key = _ANIM_DEFAULT_PROFILE
+    for key, profile in _ANIM_PROFILES.items():
+        if any(kw in p for kw in profile["keywords"]):
+            profile_key = key
+            break
+
+    profile = _ANIM_PROFILES[profile_key]
+    base_duration: float = profile["base_duration"]
+    delay_step: float    = profile["delay_step"]
+    by_type: Dict[str, str] = profile["by_type"]
+    default_anim: str    = profile["default_anim"]
+
+    result: List[Dict[str, Any]] = []
+    for idx, elem in enumerate(elements):
+        elem_id   = elem.get("id", str(idx))
+        elem_type = (elem.get("type") or "").lower()
+
+        anim   = by_type.get(elem_type, default_anim)
+        delay  = round(idx * delay_step, 2)
+        result.append(
+            {
+                "id":        elem_id,
+                "animation": anim,
+                "duration":  base_duration,
+                "delay":     delay,
+            }
+        )
+
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Phase 14 – Design Canvas GIF Exporter
+# ---------------------------------------------------------------------------
+
+# Maximum frames accepted to prevent abuse / memory exhaustion
+_MAX_GIF_FRAMES: int = 120
+# Maximum frame side dimension (pixels) – frames are downscaled if larger
+_MAX_GIF_SIDE: int = 800
+
+
+def export_canvas_gif(
+    frames: List[str],
+    frame_duration_ms: int = 100,
+) -> str:
+    """
+    Assemble a list of base64-encoded PNG frames into a GIF animation.
+
+    Parameters
+    ----------
+    frames : list of base64 PNG strings.  Each entry may be a raw base64
+             string or a data-URI of the form ``data:image/png;base64,…``.
+    frame_duration_ms : display duration per frame in milliseconds
+                        (clamped to 20–5000 ms).
+
+    Returns
+    -------
+    A ``data:image/gif;base64,…`` string.
+
+    Raises
+    ------
+    ValueError  if *frames* is empty or exceeds :data:`_MAX_GIF_FRAMES`.
+    ImportError if Pillow is not installed.
+    """
+    try:
+        from PIL import Image  # type: ignore
+    except ImportError as exc:  # pragma: no cover
+        raise ImportError(
+            "Pillow is required for GIF export. "
+            "Install it with: pip install Pillow"
+        ) from exc
+
+    if not frames:
+        raise ValueError("frames must not be empty")
+    if len(frames) > _MAX_GIF_FRAMES:
+        raise ValueError(
+            f"Too many frames: {len(frames)} exceeds the limit of {_MAX_GIF_FRAMES}"
+        )
+
+    duration_ms = max(20, min(5000, int(frame_duration_ms)))
+
+    pil_frames: List[Any] = []
+    for raw in frames:
+        # Strip data-URI prefix if present
+        if "," in raw:
+            raw = raw.split(",", 1)[1]
+        img_bytes = base64.b64decode(raw)
+        img = Image.open(io.BytesIO(img_bytes)).convert("RGBA")
+
+        # Downscale if necessary to keep GIF size reasonable
+        w, h = img.size
+        if max(w, h) > _MAX_GIF_SIDE:
+            scale = _MAX_GIF_SIDE / max(w, h)
+            img = img.resize(
+                (max(1, int(w * scale)), max(1, int(h * scale))),
+                Image.LANCZOS,
+            )
+
+        # Convert to palette mode for GIF encoding
+        palette_img = img.convert("P", palette=Image.ADAPTIVE, colors=256)
+        pil_frames.append(palette_img)
+
+    buf = io.BytesIO()
+    pil_frames[0].save(
+        buf,
+        format="GIF",
+        save_all=True,
+        append_images=pil_frames[1:],
+        duration=duration_ms,
+        loop=0,
+        optimize=True,
+    )
+    gif_b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+    return f"data:image/gif;base64,{gif_b64}"

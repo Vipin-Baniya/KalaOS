@@ -13,7 +13,7 @@ from .kalacomposer   import compose
 from .kalaflow       import flow
 from .kalacustody    import custody
 from .temporal       import analyze_temporal
-from .kalavisual     import analyze_visual, generate_image_concept
+from .kalavisual     import analyze_visual, generate_image_concept, animate_canvas_objects, export_canvas_gif
 from .kalaproducer   import produce
 from .kalaanimation  import generate_animation_plan, parse_storyboard
 
@@ -30,6 +30,8 @@ __all__ = [
     "analyze_temporal",
     "analyze_visual",
     "generate_image_concept",
+    "animate_canvas_objects",
+    "export_canvas_gif",
     "produce",
     "generate_animation_plan",
     "parse_storyboard",

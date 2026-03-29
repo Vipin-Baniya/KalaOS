@@ -813,3 +813,320 @@ class TestDesignCanvasGenerateImageEndpoint:
             json={"prompt": "   "},
         )
         assert resp.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# Unit tests: animate_canvas_objects
+# ---------------------------------------------------------------------------
+
+from kalacore.kalavisual import animate_canvas_objects, ANIMATION_TYPES
+
+
+class TestAnimateCanvasObjects:
+
+    def test_empty_elements_returns_empty(self):
+        result = animate_canvas_objects([], "cinematic intro")
+        assert result == []
+
+    def test_returns_one_entry_per_element(self):
+        elements = [
+            {"id": "1", "type": "rect"},
+            {"id": "2", "type": "i-text"},
+        ]
+        result = animate_canvas_objects(elements, "cinematic")
+        assert len(result) == 2
+
+    def test_each_entry_has_required_keys(self):
+        elements = [{"id": "a", "type": "rect"}]
+        result = animate_canvas_objects(elements, "fade")
+        entry = result[0]
+        assert "id" in entry
+        assert "animation" in entry
+        assert "duration" in entry
+        assert "delay" in entry
+
+    def test_animation_type_is_valid(self):
+        elements = [{"id": str(i), "type": t} for i, t in
+                    enumerate(["rect", "circle", "i-text", "text", "image"])]
+        result = animate_canvas_objects(elements, "cinematic intro")
+        for entry in result:
+            assert entry["animation"] in ANIMATION_TYPES
+
+    def test_first_element_has_zero_delay(self):
+        elements = [{"id": "x", "type": "rect"}]
+        result = animate_canvas_objects(elements, "anything")
+        assert result[0]["delay"] == 0.0
+
+    def test_delays_increase_for_subsequent_elements(self):
+        elements = [{"id": str(i), "type": "rect"} for i in range(3)]
+        result = animate_canvas_objects(elements, "cinematic")
+        assert result[1]["delay"] > result[0]["delay"]
+        assert result[2]["delay"] > result[1]["delay"]
+
+    def test_duration_is_positive(self):
+        elements = [{"id": "1", "type": "circle"}]
+        result = animate_canvas_objects(elements, "slow and gentle")
+        assert result[0]["duration"] > 0
+
+    def test_id_is_preserved(self):
+        elements = [{"id": "my-unique-id", "type": "rect"}]
+        result = animate_canvas_objects(elements, "bounce playful")
+        assert result[0]["id"] == "my-unique-id"
+
+    def test_cinematic_prompt_uses_fade_for_text(self):
+        elements = [{"id": "1", "type": "i-text"}]
+        result = animate_canvas_objects(elements, "cinematic intro")
+        assert result[0]["animation"] == "fade-in"
+
+    def test_playful_prompt_uses_scale_for_text(self):
+        elements = [{"id": "1", "type": "i-text"}]
+        result = animate_canvas_objects(elements, "bounce and playful")
+        assert result[0]["animation"] == "scale-in"
+
+    def test_empty_prompt_returns_assignments(self):
+        elements = [{"id": "1", "type": "rect"}]
+        result = animate_canvas_objects(elements, "")
+        assert len(result) == 1
+
+    def test_unknown_element_type_uses_default(self):
+        elements = [{"id": "1", "type": "unknown-shape"}]
+        result = animate_canvas_objects(elements, "cinematic")
+        assert result[0]["animation"] in ANIMATION_TYPES
+
+
+# ---------------------------------------------------------------------------
+# API tests: POST /visual-studio/animate
+# ---------------------------------------------------------------------------
+
+class TestCanvasAnimateEndpoint:
+
+    def test_happy_path_returns_assignments(self):
+        resp = client.post(
+            "/visual-studio/animate",
+            json={
+                "elements": [
+                    {"id": "1", "type": "rect"},
+                    {"id": "2", "type": "i-text"},
+                ],
+                "prompt": "cinematic intro",
+            },
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "assignments" in data
+        assert len(data["assignments"]) == 2
+
+    def test_response_echoes_prompt(self):
+        prompt = "dramatic and slow"
+        resp = client.post(
+            "/visual-studio/animate",
+            json={
+                "elements": [{"id": "1", "type": "circle"}],
+                "prompt": prompt,
+            },
+        )
+        assert resp.status_code == 200
+        assert resp.json()["prompt"] == prompt
+
+    def test_each_assignment_has_id_and_animation(self):
+        resp = client.post(
+            "/visual-studio/animate",
+            json={
+                "elements": [{"id": "abc", "type": "rect"}],
+                "prompt": "playful bounce",
+            },
+        )
+        assert resp.status_code == 200
+        assignment = resp.json()["assignments"][0]
+        assert assignment["id"] == "abc"
+        assert assignment["animation"] in ANIMATION_TYPES
+        assert assignment["duration"] > 0
+        assert assignment["delay"] >= 0
+
+    def test_empty_elements_returns_empty_assignments(self):
+        resp = client.post(
+            "/visual-studio/animate",
+            json={"elements": [], "prompt": "cinematic"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["assignments"] == []
+
+    def test_empty_prompt_returns_422(self):
+        resp = client.post(
+            "/visual-studio/animate",
+            json={
+                "elements": [{"id": "1", "type": "rect"}],
+                "prompt": "",
+            },
+        )
+        assert resp.status_code == 422
+
+    def test_whitespace_prompt_returns_422(self):
+        resp = client.post(
+            "/visual-studio/animate",
+            json={
+                "elements": [{"id": "1", "type": "rect"}],
+                "prompt": "   ",
+            },
+        )
+        assert resp.status_code == 422
+
+    def test_missing_prompt_returns_422(self):
+        resp = client.post(
+            "/visual-studio/animate",
+            json={"elements": [{"id": "1", "type": "rect"}]},
+        )
+        assert resp.status_code == 422
+
+    def test_all_valid_animation_types_returned(self):
+        element_types = ["rect", "circle", "i-text", "text", "image"]
+        elements = [{"id": str(i), "type": t} for i, t in enumerate(element_types)]
+        resp = client.post(
+            "/visual-studio/animate",
+            json={"elements": elements, "prompt": "cinematic"},
+        )
+        assert resp.status_code == 200
+        for a in resp.json()["assignments"]:
+            assert a["animation"] in ANIMATION_TYPES
+
+
+# ---------------------------------------------------------------------------
+# Helper: minimal 10×10 red PNG in base64 (used by GIF tests)
+# ---------------------------------------------------------------------------
+
+# data:image/png;base64,... of a 10×10 solid-red RGBA PNG
+_TINY_PNG_B64 = (
+    "iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAAGElEQVR4nGP8z8Dwn4EIwESMolGF"
+    "1FMIAD2cAhK2AyPVAAAAAElFTkSuQmCC"
+)
+_TINY_PNG_DATA_URI = f"data:image/png;base64,{_TINY_PNG_B64}"
+
+
+# ---------------------------------------------------------------------------
+# Unit tests – export_canvas_gif
+# ---------------------------------------------------------------------------
+
+
+class TestExportCanvasGifUnit:
+    """Unit tests for kalavisual.export_canvas_gif."""
+
+    def setup_method(self):
+        from kalacore.kalavisual import export_canvas_gif
+        self._fn = export_canvas_gif
+
+    def test_single_frame_returns_data_uri(self):
+        result = self._fn([_TINY_PNG_B64])
+        assert result.startswith("data:image/gif;base64,")
+
+    def test_data_uri_frame_is_accepted(self):
+        result = self._fn([_TINY_PNG_DATA_URI])
+        assert result.startswith("data:image/gif;base64,")
+
+    def test_multiple_frames_returns_gif(self):
+        result = self._fn([_TINY_PNG_B64, _TINY_PNG_B64, _TINY_PNG_B64])
+        assert result.startswith("data:image/gif;base64,")
+
+    def test_empty_frames_raises_value_error(self):
+        with pytest.raises(ValueError, match="empty"):
+            self._fn([])
+
+    def test_too_many_frames_raises_value_error(self):
+        from kalacore.kalavisual import _MAX_GIF_FRAMES
+        with pytest.raises(ValueError, match="Too many frames"):
+            self._fn([_TINY_PNG_B64] * (_MAX_GIF_FRAMES + 1))
+
+    def test_duration_clamped_below(self):
+        # Should not raise; duration is clamped to 20 ms minimum
+        result = self._fn([_TINY_PNG_B64], frame_duration_ms=1)
+        assert result.startswith("data:image/gif;base64,")
+
+    def test_duration_clamped_above(self):
+        # Should not raise; duration is clamped to 5000 ms maximum
+        result = self._fn([_TINY_PNG_B64], frame_duration_ms=99999)
+        assert result.startswith("data:image/gif;base64,")
+
+    def test_default_duration(self):
+        result = self._fn([_TINY_PNG_B64, _TINY_PNG_B64])
+        assert result.startswith("data:image/gif;base64,")
+
+
+# ---------------------------------------------------------------------------
+# API endpoint tests – POST /visual-studio/export-gif
+# ---------------------------------------------------------------------------
+
+
+class TestExportGifEndpoint:
+    """Integration tests for the /visual-studio/export-gif endpoint."""
+
+    def test_single_frame_returns_200(self):
+        resp = client.post(
+            "/visual-studio/export-gif",
+            json={"frames": [_TINY_PNG_B64]},
+        )
+        assert resp.status_code == 200
+
+    def test_response_contains_gif_data(self):
+        resp = client.post(
+            "/visual-studio/export-gif",
+            json={"frames": [_TINY_PNG_B64]},
+        )
+        data = resp.json()
+        assert "gif_data" in data
+        assert data["gif_data"].startswith("data:image/gif;base64,")
+
+    def test_response_contains_frame_count(self):
+        resp = client.post(
+            "/visual-studio/export-gif",
+            json={"frames": [_TINY_PNG_B64, _TINY_PNG_B64]},
+        )
+        data = resp.json()
+        assert data["frame_count"] == 2
+
+    def test_data_uri_frames_accepted(self):
+        resp = client.post(
+            "/visual-studio/export-gif",
+            json={"frames": [_TINY_PNG_DATA_URI]},
+        )
+        assert resp.status_code == 200
+
+    def test_custom_duration_accepted(self):
+        resp = client.post(
+            "/visual-studio/export-gif",
+            json={"frames": [_TINY_PNG_B64], "frame_duration_ms": 200},
+        )
+        assert resp.status_code == 200
+
+    def test_empty_frames_returns_422(self):
+        resp = client.post(
+            "/visual-studio/export-gif",
+            json={"frames": []},
+        )
+        assert resp.status_code == 422
+
+    def test_missing_frames_returns_422(self):
+        resp = client.post(
+            "/visual-studio/export-gif",
+            json={},
+        )
+        assert resp.status_code == 422
+
+    def test_too_many_frames_returns_422(self):
+        resp = client.post(
+            "/visual-studio/export-gif",
+            json={"frames": [_TINY_PNG_B64] * 121},
+        )
+        assert resp.status_code == 422
+
+    def test_duration_below_minimum_returns_422(self):
+        resp = client.post(
+            "/visual-studio/export-gif",
+            json={"frames": [_TINY_PNG_B64], "frame_duration_ms": 10},
+        )
+        assert resp.status_code == 422
+
+    def test_duration_above_maximum_returns_422(self):
+        resp = client.post(
+            "/visual-studio/export-gif",
+            json={"frames": [_TINY_PNG_B64], "frame_duration_ms": 6000},
+        )
+        assert resp.status_code == 422
