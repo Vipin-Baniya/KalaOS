@@ -654,6 +654,22 @@ class TestGenerateImageConceptUnit:
         result = generate_image_concept("portrait of a warrior woman in armor")
         assert result["theme"] == "portrait"
 
+    def test_abstract_theme_detected(self):
+        result = generate_image_concept("an abstract geometric pattern with fractal shapes")
+        assert result["theme"] == "abstract"
+
+    def test_architecture_theme_detected(self):
+        result = generate_image_concept("a gothic cathedral with stone bridge and facade")
+        assert result["theme"] == "architecture"
+
+    def test_aurora_theme_detected(self):
+        result = generate_image_concept("northern lights borealis dancing in the sky")
+        assert result["theme"] == "aurora"
+
+    def test_desert_theme_detected(self):
+        result = generate_image_concept("golden sand dunes in the sahara desert")
+        assert result["theme"] == "desert"
+
     def test_default_style_is_digital_art(self):
         result = generate_image_concept("a red rose in bloom")
         assert result["style"] == "digital art"

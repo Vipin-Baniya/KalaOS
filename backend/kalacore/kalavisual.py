@@ -817,7 +817,7 @@ _IMAGE_THEMES: Dict[str, Dict[str, Any]] = {
     },
     "space": {
         "keywords": ["space", "galaxy", "star", "cosmos", "nebula", "planet",
-                     "universe", "asteroid", "aurora", "cosmic"],
+                     "universe", "asteroid", "cosmic"],
         "bg1": "#020209", "bg2": "#0a0a23",
         "c1": "#7c5af1", "c2": "#a855f7", "c3": "#e879f9",
         "mood": "vast, mysterious, awe-inspiring",
@@ -841,6 +841,35 @@ _IMAGE_THEMES: Dict[str, Dict[str, Any]] = {
         "bg1": "#1a1410", "bg2": "#2d241e",
         "c1": "#e8c99a", "c2": "#d4a96a", "c3": "#7c5af1",
         "mood": "intimate, revealing, humanising",
+    },
+    "abstract": {
+        "keywords": ["abstract", "geometric", "minimal", "pattern", "fractal",
+                     "surreal", "conceptual", "modern art", "bauhaus", "shape"],
+        "bg1": "#0d0d0d", "bg2": "#1a1a1a",
+        "c1": "#ff6b6b", "c2": "#4ecdc4", "c3": "#ffe66d",
+        "mood": "bold, conceptual, visually striking",
+    },
+    "aurora": {
+        "keywords": ["aurora", "northern lights", "borealis", "polar", "arctic",
+                     "green sky", "dancing lights"],
+        "bg1": "#020c14", "bg2": "#041a2e",
+        "c1": "#00ff88", "c2": "#00ccff", "c3": "#aa44ff",
+        "mood": "ethereal, shimmering, magical — nature's own light show",
+    },
+    "desert": {
+        "keywords": ["desert", "sand", "dune", "sahara", "arid", "cactus",
+                     "dry", "wasteland", "oasis", "sandstorm", "golden"],
+        "bg1": "#1a0e00", "bg2": "#2d1a00",
+        "c1": "#f59e0b", "c2": "#d97706", "c3": "#fcd34d",
+        "mood": "vast, sun-baked, ancient and timeless",
+    },
+    "architecture": {
+        "keywords": ["architecture", "building", "skyscraper", "tower",
+                     "bridge", "structure", "skyline", "cathedral", "facade",
+                     "blueprint", "ruins"],
+        "bg1": "#0a0e1a", "bg2": "#111827",
+        "c1": "#93c5fd", "c2": "#6366f1", "c3": "#e2e8f0",
+        "mood": "grand, structural, human ambition in stone and steel",
     },
 }
 
