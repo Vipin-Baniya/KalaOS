@@ -1825,10 +1825,6 @@ body.focus-mode #artText {
   .writing-toolbar { gap: .2rem; }
 }
 
-/* Visual Studio container */
-#visualStudio { display: none; }
-#visualStudio.active { display: block; }
-
 /* Visual tool tabs */
 .visual-tab-bar {
   display: flex;
