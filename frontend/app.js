@@ -1378,6 +1378,8 @@ function dcRefreshLayers() {
   // Show layers top-to-bottom (reverse stack order)
   [...objects].reverse().forEach((obj, idx) => {
     const realIdx = objects.length - 1 - idx;
+    const isTop    = realIdx === objects.length - 1;
+    const isBottom = realIdx === 0;
     const icon = obj.type === "i-text" || obj.type === "text" ? "🔤"
                : obj.type === "rect"   ? "⬛"
                : obj.type === "circle" ? "⭕"
@@ -1390,7 +1392,39 @@ function dcRefreshLayers() {
     const isActive = activeObjs.includes(obj);
     const item = document.createElement("div");
     item.className = "dc-layer-item" + (isActive ? " active" : "");
-    item.innerHTML = `<span class="dc-layer-icon">${icon}</span><span class="dc-layer-name" title="${name}">${name}</span>`;
+
+    const upBtn  = document.createElement("button");
+    upBtn.className  = "dc-layer-order-btn";
+    upBtn.title      = "Move layer up";
+    upBtn.textContent = "↑";
+    upBtn.disabled   = isTop;
+    upBtn.addEventListener("click", e => { e.stopPropagation(); dcMoveLayerUp(obj); });
+
+    const downBtn = document.createElement("button");
+    downBtn.className  = "dc-layer-order-btn";
+    downBtn.title      = "Move layer down";
+    downBtn.textContent = "↓";
+    downBtn.disabled   = isBottom;
+    downBtn.addEventListener("click", e => { e.stopPropagation(); dcMoveLayerDown(obj); });
+
+    const iconSpan = document.createElement("span");
+    iconSpan.className = "dc-layer-icon";
+    iconSpan.textContent = icon;
+
+    const nameSpan = document.createElement("span");
+    nameSpan.className = "dc-layer-name";
+    nameSpan.title = name;
+    nameSpan.textContent = name;
+
+    const orderBtns = document.createElement("span");
+    orderBtns.className = "dc-layer-order-btns";
+    orderBtns.appendChild(upBtn);
+    orderBtns.appendChild(downBtn);
+
+    item.appendChild(iconSpan);
+    item.appendChild(nameSpan);
+    item.appendChild(orderBtns);
+
     item.addEventListener("click", () => {
       _dcCanvas.setActiveObject(obj);
       _dcCanvas.renderAll();
@@ -1398,6 +1432,20 @@ function dcRefreshLayers() {
     });
     list.appendChild(item);
   });
+}
+
+function dcMoveLayerUp(obj) {
+  if (!_dcReady || !obj) return;
+  _dcCanvas.bringForward(obj);
+  _dcCanvas.renderAll();
+  dcRefreshLayers();
+}
+
+function dcMoveLayerDown(obj) {
+  if (!_dcReady || !obj) return;
+  _dcCanvas.sendBackwards(obj);
+  _dcCanvas.renderAll();
+  dcRefreshLayers();
 }
 
 async function dcGenerateAI() {

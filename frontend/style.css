@@ -3591,7 +3591,7 @@ body.focus-mode #artText {
   display: flex;
   align-items: center;
   gap: .4rem;
-  padding: .3rem .6rem;
+  padding: .3rem .4rem .3rem .6rem;
   font-size: .78rem;
   cursor: pointer;
   color: var(--text-muted);
@@ -3599,7 +3599,6 @@ body.focus-mode #artText {
   transition: background .15s;
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .dc-layer-item:hover {
@@ -3622,7 +3621,38 @@ body.focus-mode #artText {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 100px;
+  flex: 1;
+  min-width: 0;
+}
+
+.dc-layer-order-btns {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.dc-layer-order-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: .65rem;
+  line-height: 1;
+  padding: 1px 3px;
+  border-radius: 2px;
+  transition: color .15s, background .15s;
+}
+
+.dc-layer-order-btn:hover:not(:disabled) {
+  color: var(--accent);
+  background: var(--accent-dim, rgba(124,90,241,.18));
+}
+
+.dc-layer-order-btn:disabled {
+  opacity: .25;
+  cursor: default;
 }
 
 /* ── AI Panel ── */
@@ -3728,6 +3758,7 @@ body.focus-mode #artText {
   .dc-workspace { flex-direction: column; }
   .dc-layers-panel { width: 100%; max-height: 150px; }
   .dc-layers-list { display: flex; flex-wrap: nowrap; overflow-x: auto; padding: .2rem .3rem; }
-  .dc-layer-item { flex-direction: column; min-width: 60px; text-align: center; gap: .1rem; padding: .4rem .3rem; }
+  .dc-layer-item { flex-direction: column; min-width: 70px; text-align: center; gap: .1rem; padding: .4rem .3rem; }
   .dc-layer-item .dc-layer-name { font-size: .7rem; }
+  .dc-layer-order-btns { flex-direction: row; margin-left: 0; }
 }
