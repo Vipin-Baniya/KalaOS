@@ -1120,6 +1120,7 @@
           <button class="visual-tab" data-vtab="photo" onclick="switchVisualTab('photo')" role="tab">📷 Photo Editor</button>
           <button class="visual-tab" data-vtab="video" onclick="switchVisualTab('video')" role="tab">🎬 Video Editor</button>
           <button class="visual-tab" data-vtab="logo" onclick="switchVisualTab('logo')" role="tab">✏️ Logo Maker</button>
+          <button class="visual-tab" data-vtab="canvas" onclick="switchVisualTab('canvas')" role="tab">🎨 Design Canvas</button>
         </div>
 
         <!-- ─── Paint / Sketch ─── -->
@@ -1317,6 +1318,68 @@
             <div id="logoAnalysisResult" class="hidden"></div>
           </div>
         </div><!-- /vpane-logo -->
+
+        <!-- ─── Design Canvas (Canva + AI MVP) ─── -->
+        <div class="visual-pane hidden" id="vpane-canvas" role="tabpanel">
+
+          <!-- Top Toolbar -->
+          <div class="dc-toolbar" role="toolbar" aria-label="Design Canvas toolbar">
+            <button class="tool-btn dc-tool-btn" onclick="dcAddText()" title="Add Text">🔤 Text</button>
+            <button class="tool-btn dc-tool-btn" onclick="dcAddRect()" title="Add Rectangle">⬛ Rect</button>
+            <button class="tool-btn dc-tool-btn" onclick="dcAddCircle()" title="Add Circle">⭕ Circle</button>
+            <div class="tool-sep"></div>
+            <button class="tool-btn dc-tool-btn" onclick="el('dcImageUpload').click()" title="Upload Image">🖼 Image</button>
+            <input type="file" id="dcImageUpload" accept="image/*" style="display:none" onchange="dcUploadImage(this)" />
+            <div class="tool-sep"></div>
+            <input type="color" id="dcFillColor" value="#7c5af1" class="color-swatch-picker" title="Fill / text colour" onchange="dcUpdateActiveColor()" />
+            <div class="tool-sep"></div>
+            <button class="tool-btn dc-tool-btn" onclick="dcDeleteSelected()" title="Delete selected">🗑 Delete</button>
+            <button class="tool-btn dc-tool-btn" onclick="dcClear()" title="Clear canvas">✕ Clear</button>
+            <button class="tool-btn dc-tool-btn" onclick="dcSave()" title="Save canvas as PNG">⬇ Save PNG</button>
+          </div>
+
+          <!-- Canvas + Layers layout -->
+          <div class="dc-workspace">
+
+            <!-- Fabric.js canvas area -->
+            <div class="dc-canvas-wrap" id="dcCanvasWrap">
+              <canvas id="designCanvas"></canvas>
+            </div>
+
+            <!-- Layers Panel -->
+            <div class="dc-layers-panel">
+              <div class="dc-layers-header">
+                <span>Layers</span>
+                <button class="btn-ghost" style="padding:.2rem .5rem;font-size:.75rem" onclick="dcRefreshLayers()" title="Refresh layers">↺</button>
+              </div>
+              <div id="dcLayersList" class="dc-layers-list"></div>
+            </div>
+          </div>
+
+          <!-- AI Image Generator Panel -->
+          <div class="dc-ai-panel">
+            <h3 class="section-heading" style="font-size:.9rem;margin-bottom:.5rem">🤖 AI Image Generator</h3>
+            <div class="dc-ai-form">
+              <input type="text" id="dcAiPrompt"
+                     placeholder='e.g. "futuristic cyberpunk city at night"'
+                     class="dc-ai-input" />
+              <select id="dcAiStyle" class="dc-ai-select">
+                <option value="digital art">Digital Art</option>
+                <option value="painting">Painting</option>
+                <option value="concept art">Concept Art</option>
+                <option value="illustration">Illustration</option>
+                <option value="watercolor">Watercolor</option>
+                <option value="sketch">Sketch</option>
+                <option value="photo">Photo</option>
+              </select>
+              <button class="btn-primary dc-ai-btn" onclick="dcGenerateAI()" id="dcAiGenBtn">
+                ✦ Generate &amp; Add to Canvas
+              </button>
+            </div>
+            <div id="dcAiResult" class="hidden dc-ai-result"></div>
+          </div>
+
+        </div><!-- /vpane-canvas -->
 
       </div><!-- /input-card -->
     </div><!-- /visualStudio -->
@@ -1642,6 +1705,7 @@
 
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js" crossorigin="anonymous"></script>
 <script src="app.js"></script>
 </body>
 </html>

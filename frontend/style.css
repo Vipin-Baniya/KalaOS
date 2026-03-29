@@ -3509,3 +3509,225 @@ body.focus-mode #artText {
   .app-sidebar { width: 60px; }
   .sidebar-btn { padding: .7rem; justify-content: center; }
 }
+
+/* =========================================================================
+   Phase 14 – Design Canvas (Canva + AI MVP)
+   ========================================================================= */
+
+/* ── Toolbar ── */
+.dc-toolbar {
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+  flex-wrap: wrap;
+  padding: .5rem .6rem;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  margin-bottom: .6rem;
+  border: 1px solid var(--border);
+}
+
+.dc-tool-btn {
+  font-size: .78rem;
+  padding: .28rem .65rem;
+  white-space: nowrap;
+}
+
+/* ── Workspace: canvas + layers side by side ── */
+.dc-workspace {
+  display: flex;
+  gap: .7rem;
+  align-items: flex-start;
+  margin-bottom: .7rem;
+}
+
+.dc-canvas-wrap {
+  flex: 1 1 0;
+  min-width: 0;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: #1a1a2e;
+  position: relative;
+}
+
+.dc-canvas-wrap canvas {
+  display: block;
+  max-width: 100%;
+}
+
+/* ── Layers panel ── */
+.dc-layers-panel {
+  width: 160px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  max-height: 480px;
+  overflow: hidden;
+}
+
+.dc-layers-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: .4rem .6rem;
+  font-size: .78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-3);
+}
+
+.dc-layers-list {
+  overflow-y: auto;
+  flex: 1;
+  padding: .3rem 0;
+}
+
+.dc-layer-item {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  padding: .3rem .6rem;
+  font-size: .78rem;
+  cursor: pointer;
+  color: var(--text-muted);
+  border-radius: 0;
+  transition: background .15s;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dc-layer-item:hover {
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+.dc-layer-item.active {
+  background: var(--accent-dim, rgba(124,90,241,.18));
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.dc-layer-item .dc-layer-icon {
+  font-size: .9rem;
+  flex-shrink: 0;
+}
+
+.dc-layer-item .dc-layer-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100px;
+}
+
+/* ── AI Panel ── */
+.dc-ai-panel {
+  background: var(--surface-2);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: .7rem .9rem .8rem;
+}
+
+.dc-ai-form {
+  display: flex;
+  gap: .45rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.dc-ai-input {
+  flex: 1 1 260px;
+  min-width: 200px;
+  padding: .38rem .6rem;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border);
+  background: var(--bg-alt);
+  color: var(--text);
+  font-size: .83rem;
+  font-family: var(--font-ui);
+  outline: none;
+  transition: border-color .2s;
+}
+
+.dc-ai-input:focus {
+  border-color: var(--accent);
+}
+
+.dc-ai-select {
+  padding: .38rem .5rem;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border);
+  background: var(--surface-3);
+  color: var(--text);
+  font-size: .8rem;
+  cursor: pointer;
+}
+
+.dc-ai-btn {
+  padding: .38rem 1.1rem;
+  font-size: .82rem;
+  white-space: nowrap;
+}
+
+.dc-ai-result {
+  margin-top: .65rem;
+  padding: .55rem .7rem;
+  background: var(--surface-3);
+  border-radius: var(--radius-sm);
+  font-size: .8rem;
+  color: var(--text-muted);
+  border-left: 3px solid var(--accent);
+}
+
+.dc-ai-result .dc-ai-preview {
+  display: flex;
+  gap: .8rem;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.dc-ai-result .dc-ai-preview img {
+  width: 80px;
+  height: 80px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+}
+
+.dc-ai-result .dc-ai-desc {
+  flex: 1;
+  min-width: 180px;
+  font-size: .78rem;
+  line-height: 1.45;
+}
+
+.dc-ai-palette {
+  display: flex;
+  gap: .3rem;
+  margin-top: .4rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.dc-ai-swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+/* ── Responsive ── */
+@media (max-width: 700px) {
+  .dc-workspace { flex-direction: column; }
+  .dc-layers-panel { width: 100%; max-height: 150px; }
+  .dc-layers-list { display: flex; flex-wrap: nowrap; overflow-x: auto; padding: .2rem .3rem; }
+  .dc-layer-item { flex-direction: column; min-width: 60px; text-align: center; gap: .1rem; padding: .4rem .3rem; }
+  .dc-layer-item .dc-layer-name { font-size: .7rem; }
+}
