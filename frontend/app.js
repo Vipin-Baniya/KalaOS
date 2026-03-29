@@ -1362,6 +1362,96 @@ function dcSave() {
   a.click();
 }
 
+/** Export the Fabric.js canvas state as a downloadable JSON file. */
+function dcExportJson() {
+  if (!_dcReady) return;
+  const json = JSON.stringify(_dcCanvas.toJSON(["_kalaId", "animation"]), null, 2);
+  const blob = new Blob([json], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "kala-design.json";
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+/** Import a previously-exported canvas JSON file onto the canvas. */
+function dcImportJson() {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "application/json,.json";
+  input.onchange = () => {
+    const file = input.files && input.files[0];
+    if (!file || !_dcReady) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        _dcCanvas.loadFromJSON(e.target.result, () => {
+          _dcCanvas.renderAll();
+          dcRefreshLayers();
+        });
+      } catch {
+        alert("Could not load file — make sure it is a valid Kala Design JSON.");
+      }
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+}
+
+/**
+ * Capture the current canvas as a PNG frame and accumulate it in the GIF
+ * frame buffer.  The first call clears the buffer.  After collecting the
+ * desired frames call dcDownloadGif() to assemble and download the GIF.
+ */
+let _dcGifFrames = [];
+let _dcGifDurationMs = 100;
+
+function dcCaptureGifFrame() {
+  if (!_dcReady) return;
+  const dataURL = _dcCanvas.toDataURL({ format: "png" });
+  _dcGifFrames.push(dataURL);
+  _dcShowAnimStatus(`📷 Frame ${_dcGifFrames.length} captured. Click again to add more, then ⬇ Export GIF.`, false);
+}
+
+/** Send the accumulated frames to the backend and download the resulting GIF. */
+async function dcExportGif() {
+  if (!_dcReady) return;
+
+  let frames = _dcGifFrames.slice();
+  // If no frames were pre-captured, use the current canvas state as a single frame
+  if (frames.length === 0) {
+    frames = [_dcCanvas.toDataURL({ format: "png" })];
+  }
+  if (frames.length === 0) { alert("Nothing on the canvas to export."); return; }
+
+  const gifBtn = el("dcExportGifBtn");
+  if (gifBtn) { gifBtn.disabled = true; gifBtn.textContent = "⏳ Exporting…"; }
+  _dcShowAnimStatus("⏳ Building GIF…", false);
+
+  try {
+    const resp = await fetch(`${API_BASE}/visual-studio/export-gif`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ frames, frame_duration_ms: _dcGifDurationMs }),
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.detail || `HTTP ${resp.status}`);
+    }
+    const data = await resp.json();
+    const a = document.createElement("a");
+    a.href = data.gif_data;
+    a.download = "kala-animation.gif";
+    a.click();
+    _dcGifFrames = [];
+    _dcShowAnimStatus(`✓ GIF exported (${data.frame_count} frame${data.frame_count !== 1 ? "s" : ""}).`, false);
+  } catch (err) {
+    _dcShowAnimStatus(`⚠ GIF export failed: ${err.message}`, true);
+  } finally {
+    if (gifBtn) { gifBtn.disabled = false; gifBtn.textContent = "🎞 Export GIF"; }
+  }
+}
+
 function dcRefreshLayers() {
   if (!_dcReady) return;
   const list = el("dcLayersList");

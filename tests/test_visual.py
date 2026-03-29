@@ -988,3 +988,145 @@ class TestCanvasAnimateEndpoint:
         assert resp.status_code == 200
         for a in resp.json()["assignments"]:
             assert a["animation"] in ANIMATION_TYPES
+
+
+# ---------------------------------------------------------------------------
+# Helper: minimal 10×10 red PNG in base64 (used by GIF tests)
+# ---------------------------------------------------------------------------
+
+# data:image/png;base64,... of a 10×10 solid-red RGBA PNG
+_TINY_PNG_B64 = (
+    "iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAAGElEQVR4nGP8z8Dwn4EIwESMolGF"
+    "1FMIAD2cAhK2AyPVAAAAAElFTkSuQmCC"
+)
+_TINY_PNG_DATA_URI = f"data:image/png;base64,{_TINY_PNG_B64}"
+
+
+# ---------------------------------------------------------------------------
+# Unit tests – export_canvas_gif
+# ---------------------------------------------------------------------------
+
+
+class TestExportCanvasGifUnit:
+    """Unit tests for kalavisual.export_canvas_gif."""
+
+    def setup_method(self):
+        from kalacore.kalavisual import export_canvas_gif
+        self._fn = export_canvas_gif
+
+    def test_single_frame_returns_data_uri(self):
+        result = self._fn([_TINY_PNG_B64])
+        assert result.startswith("data:image/gif;base64,")
+
+    def test_data_uri_frame_is_accepted(self):
+        result = self._fn([_TINY_PNG_DATA_URI])
+        assert result.startswith("data:image/gif;base64,")
+
+    def test_multiple_frames_returns_gif(self):
+        result = self._fn([_TINY_PNG_B64, _TINY_PNG_B64, _TINY_PNG_B64])
+        assert result.startswith("data:image/gif;base64,")
+
+    def test_empty_frames_raises_value_error(self):
+        with pytest.raises(ValueError, match="empty"):
+            self._fn([])
+
+    def test_too_many_frames_raises_value_error(self):
+        from kalacore.kalavisual import _MAX_GIF_FRAMES
+        with pytest.raises(ValueError, match="Too many frames"):
+            self._fn([_TINY_PNG_B64] * (_MAX_GIF_FRAMES + 1))
+
+    def test_duration_clamped_below(self):
+        # Should not raise; duration is clamped to 20 ms minimum
+        result = self._fn([_TINY_PNG_B64], frame_duration_ms=1)
+        assert result.startswith("data:image/gif;base64,")
+
+    def test_duration_clamped_above(self):
+        # Should not raise; duration is clamped to 5000 ms maximum
+        result = self._fn([_TINY_PNG_B64], frame_duration_ms=99999)
+        assert result.startswith("data:image/gif;base64,")
+
+    def test_default_duration(self):
+        result = self._fn([_TINY_PNG_B64, _TINY_PNG_B64])
+        assert result.startswith("data:image/gif;base64,")
+
+
+# ---------------------------------------------------------------------------
+# API endpoint tests – POST /visual-studio/export-gif
+# ---------------------------------------------------------------------------
+
+
+class TestExportGifEndpoint:
+    """Integration tests for the /visual-studio/export-gif endpoint."""
+
+    def test_single_frame_returns_200(self):
+        resp = client.post(
+            "/visual-studio/export-gif",
+            json={"frames": [_TINY_PNG_B64]},
+        )
+        assert resp.status_code == 200
+
+    def test_response_contains_gif_data(self):
+        resp = client.post(
+            "/visual-studio/export-gif",
+            json={"frames": [_TINY_PNG_B64]},
+        )
+        data = resp.json()
+        assert "gif_data" in data
+        assert data["gif_data"].startswith("data:image/gif;base64,")
+
+    def test_response_contains_frame_count(self):
+        resp = client.post(
+            "/visual-studio/export-gif",
+            json={"frames": [_TINY_PNG_B64, _TINY_PNG_B64]},
+        )
+        data = resp.json()
+        assert data["frame_count"] == 2
+
+    def test_data_uri_frames_accepted(self):
+        resp = client.post(
+            "/visual-studio/export-gif",
+            json={"frames": [_TINY_PNG_DATA_URI]},
+        )
+        assert resp.status_code == 200
+
+    def test_custom_duration_accepted(self):
+        resp = client.post(
+            "/visual-studio/export-gif",
+            json={"frames": [_TINY_PNG_B64], "frame_duration_ms": 200},
+        )
+        assert resp.status_code == 200
+
+    def test_empty_frames_returns_422(self):
+        resp = client.post(
+            "/visual-studio/export-gif",
+            json={"frames": []},
+        )
+        assert resp.status_code == 422
+
+    def test_missing_frames_returns_422(self):
+        resp = client.post(
+            "/visual-studio/export-gif",
+            json={},
+        )
+        assert resp.status_code == 422
+
+    def test_too_many_frames_returns_422(self):
+        resp = client.post(
+            "/visual-studio/export-gif",
+            json={"frames": [_TINY_PNG_B64] * 121},
+        )
+        assert resp.status_code == 422
+
+    def test_duration_below_minimum_returns_422(self):
+        resp = client.post(
+            "/visual-studio/export-gif",
+            json={"frames": [_TINY_PNG_B64], "frame_duration_ms": 10},
+        )
+        assert resp.status_code == 422
+
+    def test_duration_above_maximum_returns_422(self):
+        resp = client.post(
+            "/visual-studio/export-gif",
+            json={"frames": [_TINY_PNG_B64], "frame_duration_ms": 6000},
+        )
+        assert resp.status_code == 422

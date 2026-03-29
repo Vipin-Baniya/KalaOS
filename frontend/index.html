@@ -1336,6 +1336,8 @@
             <button class="tool-btn dc-tool-btn" onclick="dcDeleteSelected()" title="Delete selected">🗑 Delete</button>
             <button class="tool-btn dc-tool-btn" onclick="dcClear()" title="Clear canvas">✕ Clear</button>
             <button class="tool-btn dc-tool-btn" onclick="dcSave()" title="Save canvas as PNG">⬇ Save PNG</button>
+            <button class="tool-btn dc-tool-btn" onclick="dcExportJson()" title="Export canvas as JSON">⬇ Export JSON</button>
+            <button class="tool-btn dc-tool-btn" onclick="dcImportJson()" title="Import canvas from JSON">⬆ Import JSON</button>
           </div>
 
           <!-- Canvas + Layers layout -->
@@ -1413,6 +1415,11 @@
             <div class="dc-anim-ai-row">
               <input type="text" id="dcAnimAiPrompt" placeholder='e.g. "cinematic intro" or "playful bounce"' class="dc-ai-input" />
               <button class="btn-primary dc-ai-btn" onclick="dcAIAnimate()" id="dcAnimAiBtn" title="Let AI assign animations">🤖 AI Animate</button>
+            </div>
+            <!-- GIF export -->
+            <div class="dc-anim-ai-row">
+              <button class="btn-ghost dc-anim-play-btn" onclick="dcCaptureGifFrame()" title="Capture current canvas as a GIF frame">📷 Capture Frame</button>
+              <button class="btn-primary dc-ai-btn" onclick="dcExportGif()" id="dcExportGifBtn" title="Export captured frames (or current canvas) as GIF">🎞 Export GIF</button>
             </div>
             <div id="dcAnimStatus" class="hidden dc-anim-status"></div>
           </div>
