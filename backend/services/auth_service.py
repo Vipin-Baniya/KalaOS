@@ -108,13 +108,17 @@ def _db_init() -> None:
                     expires_at INTEGER NOT NULL
                 )
             """)
+            _MIGRATION_COLS = {"avatar_url": "''", "bio": "''"}
             for col, default in [("avatar_url", "''"), ("bio", "''")]:
+                if col not in _MIGRATION_COLS:
+                    continue  # safety: only known columns
                 try:
                     conn.execute(
                         f"ALTER TABLE users ADD COLUMN {col} TEXT NOT NULL DEFAULT {default}"
                     )
-                except Exception:
-                    pass  # column already exists
+                except sqlite3.OperationalError as exc:
+                    if "duplicate column name" not in str(exc).lower():
+                        raise  # unexpected error — re-raise
 
 
 def _db_upsert_user(email: str, user: dict) -> None:
@@ -428,7 +432,22 @@ def get_user(token: str) -> Optional[dict]:
     if not user:
         return None
     return {"email": user["email"], "name": user["name"],
-            "avatar_url": user.get("avatar_url", ""), "bio": user.get("bio", "")}
+            "avatar_url": user.get("avatar_url", ""), "bio": user.get("bio", ""),
+            "created_at": user["created_at"]}
+
+
+def get_user_by_email(email: str) -> Optional[dict]:
+    """Return public profile for a user by email, or None if not found."""
+    user = _USERS.get(email.strip().lower())
+    if not user:
+        return None
+    return {
+        "email":      user["email"],
+        "name":       user["name"],
+        "avatar_url": user.get("avatar_url", ""),
+        "bio":        user.get("bio", ""),
+        "created_at": user["created_at"],
+    }
 
 
 def update_profile(token: str, name: str,

@@ -331,6 +331,8 @@ def list_conversations(token: str) -> List[dict]:
     me = _require_auth(token)
     with _db_lock:
         with _get_db() as conn:
+            # Order by created_at DESC, then rowid DESC as a stable tiebreaker
+            # for messages inserted within the same second (rowid reflects insertion order).
             rows = conn.execute(
                 """
                 SELECT

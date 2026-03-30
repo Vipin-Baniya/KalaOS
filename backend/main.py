@@ -1488,16 +1488,10 @@ def auth_delete_account(request: AuthDeleteAccountRequest):
 @app.get("/user/{user_id}", summary="Get public user profile")
 def get_user_profile(user_id: str):
     """Return public profile for a user by email."""
-    user = auth_service._USERS.get(user_id.lower())
+    user = auth_service.get_user_by_email(user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
-    return {
-        "email":      user["email"],
-        "name":       user["name"],
-        "avatar_url": user.get("avatar_url", ""),
-        "bio":        user.get("bio", ""),
-        "created_at": user["created_at"],
-    }
+    return user
 
 
 # ---------------------------------------------------------------------------
