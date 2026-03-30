@@ -4899,3 +4899,312 @@ body.focus-mode #artText {
 .vs-bg-lofi          { background: linear-gradient(135deg, #1a1610, #2e2416, #3d3220) !important; }
 .vs-bg-corporate     { background: linear-gradient(135deg, #0a192f, #172a45, #1e3a5f) !important; }
 .vs-bg-abstract      { background: linear-gradient(135deg, #0d0221, #190d3c, #3b0764) !important; }
+
+/* ══════════════════════════════════════════════════════════
+   PHASE 16 — Notifications Bell
+   ══════════════════════════════════════════════════════════ */
+.notif-bell-wrap {
+  position: relative;
+  display: inline-flex;
+}
+.notif-bell-btn {
+  position: relative;
+  font-size: 1rem;
+}
+.notif-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: #e23270;
+  color: #fff;
+  font-size: .62rem;
+  font-weight: 700;
+  border-radius: 10px;
+  min-width: 16px;
+  height: 16px;
+  line-height: 16px;
+  text-align: center;
+  padding: 0 3px;
+  pointer-events: none;
+}
+.notif-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 320px;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 32px rgba(0,0,0,.45);
+  z-index: 2000;
+  overflow: hidden;
+}
+.notif-dropdown-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: .7rem 1rem .5rem;
+  border-bottom: 1px solid var(--border);
+}
+.notif-dropdown-title { font-weight: 600; font-size: .9rem; }
+.notif-list {
+  max-height: 320px;
+  overflow-y: auto;
+}
+.notif-empty {
+  font-size: .85rem;
+  color: var(--text-dim);
+  padding: 1rem;
+  text-align: center;
+  margin: 0;
+}
+.notif-item {
+  display: flex;
+  gap: .55rem;
+  align-items: flex-start;
+  padding: .65rem 1rem;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background .12s;
+}
+.notif-item:last-child { border-bottom: none; }
+.notif-item:hover { background: var(--surface-3); }
+.notif-item.unread { background: rgba(124,90,241,.07); }
+.notif-item-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: .05rem; }
+.notif-item-body { flex: 1; min-width: 0; }
+.notif-item-text { font-size: .82rem; color: var(--text); line-height: 1.4; }
+.notif-item-time { font-size: .74rem; color: var(--text-dim); margin-top: .15rem; }
+
+/* ══════════════════════════════════════════════════════════
+   PHASE 16 — Floating AI Assistant
+   ══════════════════════════════════════════════════════════ */
+.kala-assist-fab {
+  position: fixed;
+  bottom: 2rem;
+  right: 1.5rem;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.35rem;
+  cursor: pointer;
+  box-shadow: 0 4px 24px rgba(124,90,241,.55);
+  z-index: 3000;
+  transition: transform .18s, box-shadow .18s;
+  user-select: none;
+}
+.kala-assist-fab:hover {
+  transform: scale(1.08);
+  box-shadow: 0 6px 32px rgba(124,90,241,.7);
+}
+.kala-assist-fab-label {
+  font-size: .56rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  line-height: 1;
+  margin-top: 1px;
+  opacity: .85;
+}
+.kala-assist-panel {
+  position: fixed;
+  bottom: 5.5rem;
+  right: 1.5rem;
+  width: 340px;
+  max-height: 520px;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 10px 40px rgba(0,0,0,.55);
+  z-index: 2999;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: assistSlideUp .22s ease;
+}
+@keyframes assistSlideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.kala-assist-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: .75rem 1rem .55rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.kala-assist-title { font-weight: 700; font-size: .95rem; }
+.kala-assist-subtitle {
+  font-size: .78rem;
+  color: var(--text-dim);
+  padding: .35rem 1rem 0;
+  margin: 0;
+}
+.kala-assist-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: .65rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: .55rem;
+}
+.assist-msg {
+  max-width: 88%;
+  padding: .5rem .75rem;
+  border-radius: 12px;
+  font-size: .85rem;
+  line-height: 1.45;
+}
+.assist-msg.user {
+  align-self: flex-end;
+  background: var(--accent);
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+.assist-msg.ai {
+  align-self: flex-start;
+  background: var(--surface-3);
+  color: var(--text);
+  border-bottom-left-radius: 4px;
+}
+.kala-assist-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem;
+  padding: .4rem .75rem .55rem;
+}
+.assist-suggestion-chip {
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  font-size: .75rem;
+  padding: .25rem .6rem;
+  cursor: pointer;
+  color: var(--text-dim);
+  transition: border-color .12s, color .12s;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
+}
+.assist-suggestion-chip:hover { border-color: var(--accent); color: var(--accent); }
+.kala-assist-input-row {
+  display: flex;
+  gap: .4rem;
+  padding: .55rem .75rem .75rem;
+  border-top: 1px solid var(--border);
+}
+.kala-assist-input {
+  flex: 1;
+  background: var(--surface-3);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  padding: .4rem .65rem;
+  font-size: .85rem;
+  font-family: inherit;
+}
+.kala-assist-input:focus { outline: none; border-color: var(--accent); }
+.kala-assist-send {
+  padding: .4rem .8rem;
+  font-size: 1rem;
+  border-radius: var(--radius-sm);
+  min-width: 36px;
+}
+
+/* ══════════════════════════════════════════════════════════
+   PHASE 16 — Comments in Feed
+   ══════════════════════════════════════════════════════════ */
+.feed-comment-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  background: transparent;
+  border: 1.5px solid var(--border);
+  border-radius: 20px;
+  padding: .28rem .7rem;
+  font-size: .8rem;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: border-color .12s, color .12s;
+}
+.feed-comment-btn:hover { border-color: var(--accent); color: var(--accent); }
+.feed-follow-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  background: transparent;
+  border: 1.5px solid var(--border);
+  border-radius: 20px;
+  padding: .28rem .7rem;
+  font-size: .8rem;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all .12s;
+  margin-left: auto;
+}
+.feed-follow-btn:hover { border-color: var(--accent); color: var(--accent); }
+.feed-follow-btn.following { border-color: var(--accent); color: var(--accent); background: rgba(124,90,241,.1); }
+.feed-comments-section {
+  border-top: 1px solid var(--border);
+  margin-top: .6rem;
+  padding-top: .6rem;
+}
+.feed-comments-list {
+  display: flex;
+  flex-direction: column;
+  gap: .4rem;
+  max-height: 200px;
+  overflow-y: auto;
+  margin-bottom: .5rem;
+}
+.feed-comment-item {
+  font-size: .81rem;
+  color: var(--text);
+  background: var(--surface-3);
+  border-radius: 8px;
+  padding: .35rem .6rem;
+}
+.feed-comment-author {
+  font-weight: 600;
+  color: var(--accent);
+  margin-right: .35rem;
+}
+.feed-comment-compose {
+  display: flex;
+  gap: .4rem;
+  margin-top: .4rem;
+}
+.feed-comment-input {
+  flex: 1;
+  background: var(--surface-3);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  padding: .3rem .55rem;
+  font-size: .82rem;
+  font-family: inherit;
+}
+.feed-comment-input:focus { outline: none; border-color: var(--accent); }
+
+/* ══════════════════════════════════════════════════════════
+   PHASE 16 — Transform modal result
+   ══════════════════════════════════════════════════════════ */
+.transform-result {
+  margin-top: .8rem;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: .75rem 1rem;
+  font-size: .82rem;
+  color: var(--text);
+  max-height: 280px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  font-family: monospace;
+}
