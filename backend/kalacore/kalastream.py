@@ -84,7 +84,7 @@ _OVERLAY_TEMPLATES: dict[str, dict[str, Any]] = {
 
 
 def _now() -> str:
-    return datetime.datetime.utcnow().isoformat() + "Z"
+    return datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 def _deterministic_int(seed: str, lo: int, hi: int) -> int:

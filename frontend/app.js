@@ -5689,3 +5689,399 @@ document.addEventListener("DOMContentLoaded", () => {
   // Kick off initial notif count poll after login
   setTimeout(() => { if (_authToken) _pollNotifCount(); }, 3000);
 });
+
+// ══════════════════════════════════════════════════════════
+// COLLABORATION, STREAMING & EXPORT STUDIOS
+// ══════════════════════════════════════════════════════════
+
+// ── switchStudio wrapper for new studios ──────────────────
+(function () {
+  const _prevSS = switchStudio;
+  const _NEW_STUDIOS = ["collabStudio", "streamStudio", "exportStudio"];
+  const _NEW_BTNS    = ["collabStudioBtn", "streamStudioBtn", "exportStudioBtn"];
+
+  switchStudio = function (mode) {
+    // Always hide new studios and deactivate their buttons
+    _NEW_STUDIOS.forEach(id => { const s = el(id); if (s) s.classList.add("hidden"); });
+    _NEW_BTNS.forEach(id => { const b = el(id); if (b) { b.classList.remove("active"); b.setAttribute("aria-selected", "false"); } });
+
+    if (mode === "collab") {
+      ["textStudio","musicStudio","visualStudio","animationStudio","videoStudio","chatStudio","feedStudio","dmsStudio","profileStudio","streamStudio","exportStudio"].forEach(id => { const s = el(id); if (s) s.classList.add("hidden"); });
+      ["textStudioBtn","musicStudioBtn","visualStudioBtn","animationStudioBtn","videoStudioBtn","chatStudioBtn","feedStudioBtn","dmsStudioBtn","profileStudioBtn","streamStudioBtn","exportStudioBtn"].forEach(id => { const b = el(id); if (b) { b.classList.remove("active"); b.setAttribute("aria-selected","false"); } });
+      const s = el("collabStudio"), btn = el("collabStudioBtn");
+      if (s) s.classList.remove("hidden");
+      if (btn) { btn.classList.add("active"); btn.setAttribute("aria-selected","true"); }
+      _hideAiPanel();
+      return;
+    }
+
+    if (mode === "stream") {
+      ["textStudio","musicStudio","visualStudio","animationStudio","videoStudio","chatStudio","feedStudio","dmsStudio","profileStudio","collabStudio","exportStudio"].forEach(id => { const s = el(id); if (s) s.classList.add("hidden"); });
+      ["textStudioBtn","musicStudioBtn","visualStudioBtn","animationStudioBtn","videoStudioBtn","chatStudioBtn","feedStudioBtn","dmsStudioBtn","profileStudioBtn","collabStudioBtn","exportStudioBtn"].forEach(id => { const b = el(id); if (b) { b.classList.remove("active"); b.setAttribute("aria-selected","false"); } });
+      const s = el("streamStudio"), btn = el("streamStudioBtn");
+      if (s) s.classList.remove("hidden");
+      if (btn) { btn.classList.add("active"); btn.setAttribute("aria-selected","true"); }
+      _hideAiPanel();
+      return;
+    }
+
+    if (mode === "export") {
+      ["textStudio","musicStudio","visualStudio","animationStudio","videoStudio","chatStudio","feedStudio","dmsStudio","profileStudio","collabStudio","streamStudio"].forEach(id => { const s = el(id); if (s) s.classList.add("hidden"); });
+      ["textStudioBtn","musicStudioBtn","visualStudioBtn","animationStudioBtn","videoStudioBtn","chatStudioBtn","feedStudioBtn","dmsStudioBtn","profileStudioBtn","collabStudioBtn","streamStudioBtn"].forEach(id => { const b = el(id); if (b) { b.classList.remove("active"); b.setAttribute("aria-selected","false"); } });
+      const s = el("exportStudio"), btn = el("exportStudioBtn");
+      if (s) s.classList.remove("hidden");
+      if (btn) { btn.classList.add("active"); btn.setAttribute("aria-selected","true"); }
+      _hideAiPanel();
+      return;
+    }
+
+    _prevSS(mode);
+  };
+})();
+
+// ── Collab helpers ────────────────────────────────────────
+function switchCollabTool(tool) {
+  document.querySelectorAll(".collab-tool-btn").forEach(b => {
+    const active = b.dataset.ctool === tool;
+    b.classList.toggle("active", active);
+    b.setAttribute("aria-selected", String(active));
+  });
+  document.querySelectorAll(".collab-tool-pane").forEach(p => {
+    p.classList.toggle("hidden", p.id !== `ctool-${tool}`);
+  });
+}
+
+async function createCollabWorkspace() {
+  const name = el("collabWorkspaceName")?.value?.trim();
+  const project_type = el("collabProjectType")?.value || "music";
+  const description = el("collabDescription")?.value?.trim() || "";
+  const statusEl = el("collabWorkspaceStatus");
+  const resultEl = el("collabWorkspaceResult");
+  if (!name) { if (statusEl) statusEl.textContent = "Please enter a workspace name."; return; }
+  if (statusEl) statusEl.textContent = "Creating workspace…";
+  if (resultEl) resultEl.classList.add("hidden");
+  try {
+    const resp = await fetch(`${API_BASE}/collab/workspace`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, project_type, owner: _authUser?.email || "anonymous", description }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) { if (statusEl) statusEl.textContent = `Error: ${data.detail || "Failed"}`; return; }
+    if (statusEl) statusEl.textContent = `✓ Workspace created! ID: ${data.workspace_id}`;
+    if (resultEl) { resultEl.textContent = JSON.stringify(data, null, 2); resultEl.classList.remove("hidden"); }
+    // Pre-fill the invite and activity workspace ID
+    const invEl = el("collabInviteWorkspaceId");
+    const actEl = el("collabActivityWorkspaceId");
+    if (invEl) invEl.value = data.workspace_id;
+    if (actEl) actEl.value = data.workspace_id;
+  } catch (err) {
+    if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`;
+  }
+}
+
+async function inviteCollaborator() {
+  const workspace_id = el("collabInviteWorkspaceId")?.value?.trim();
+  const user_email = el("collabInviteEmail")?.value?.trim();
+  const role = el("collabInviteRole")?.value || "editor";
+  const statusEl = el("collabInviteStatus");
+  const resultEl = el("collabInviteResult");
+  if (!workspace_id || !user_email) { if (statusEl) statusEl.textContent = "Please fill workspace ID and email."; return; }
+  if (statusEl) statusEl.textContent = "Sending invite…";
+  if (resultEl) resultEl.classList.add("hidden");
+  try {
+    const resp = await fetch(`${API_BASE}/collab/workspace/${encodeURIComponent(workspace_id)}/invite`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_email, role }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) { if (statusEl) statusEl.textContent = `Error: ${data.detail || "Failed"}`; return; }
+    if (statusEl) statusEl.textContent = `✓ ${user_email} invited as ${role}`;
+    if (resultEl) { resultEl.textContent = JSON.stringify(data, null, 2); resultEl.classList.remove("hidden"); }
+  } catch (err) {
+    if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`;
+  }
+}
+
+async function loadCollabActivity() {
+  const workspace_id = el("collabActivityWorkspaceId")?.value?.trim();
+  const user_email = el("collabActivityUser")?.value?.trim() || "";
+  const statusEl = el("collabActivityStatus");
+  const listEl = el("collabActivityList");
+  if (!workspace_id) { if (statusEl) statusEl.textContent = "Please enter a workspace ID."; return; }
+  if (statusEl) statusEl.textContent = "Loading activity…";
+  if (listEl) { listEl.classList.add("hidden"); listEl.innerHTML = ""; }
+  try {
+    const params = user_email ? `?user_email=${encodeURIComponent(user_email)}` : "";
+    const resp = await fetch(`${API_BASE}/collab/workspace/${encodeURIComponent(workspace_id)}/activity${params}`);
+    const data = await resp.json();
+    if (!resp.ok) { if (statusEl) statusEl.textContent = `Error: ${data.detail || "Failed"}`; return; }
+    const items = data.activities || [];
+    if (statusEl) statusEl.textContent = `✓ ${items.length} activity item${items.length !== 1 ? "s" : ""}`;
+    if (listEl) {
+      listEl.innerHTML = items.length === 0
+        ? "<p style='color:var(--text-dim);font-size:.83rem'>No activity yet.</p>"
+        : items.map(a => `<div class="collab-activity-item"><span class="ca-icon">${a.icon || "🔹"}</span><span>${esc(a.description || a.action)}</span><span class="ca-time">${esc(a.timestamp ? a.timestamp.replace("T"," ").slice(0,16) : "")}</span></div>`).join("");
+      listEl.classList.remove("hidden");
+    }
+  } catch (err) {
+    if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`;
+  }
+}
+
+async function getCollabSuggestions() {
+  const project_type = el("collabSuggestType")?.value || "music";
+  const context = el("collabSuggestContext")?.value?.trim() || "";
+  const statusEl = el("collabSuggestStatus");
+  const resultEl = el("collabSuggestResult");
+  if (statusEl) statusEl.textContent = "Getting suggestions…";
+  if (resultEl) resultEl.classList.add("hidden");
+  try {
+    const resp = await fetch(`${API_BASE}/collab/suggestions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ workspace_id: "ws_temp", project_type, context }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) { if (statusEl) statusEl.textContent = `Error: ${data.detail || "Failed"}`; return; }
+    if (statusEl) statusEl.textContent = "✓ AI suggestions ready";
+    if (resultEl) { resultEl.textContent = JSON.stringify(data, null, 2); resultEl.classList.remove("hidden"); }
+  } catch (err) {
+    if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`;
+  }
+}
+
+// ── Stream helpers ────────────────────────────────────────
+function switchStreamTool(tool) {
+  document.querySelectorAll(".stream-tool-btn").forEach(b => {
+    const active = b.dataset.stool === tool;
+    b.classList.toggle("active", active);
+    b.setAttribute("aria-selected", String(active));
+  });
+  document.querySelectorAll(".stream-tool-pane").forEach(p => {
+    p.classList.toggle("hidden", p.id !== `stool-${tool}`);
+  });
+}
+
+async function setupStream() {
+  const platform = el("streamPlatform")?.value || "youtube";
+  const title = el("streamTitle")?.value?.trim();
+  const quality = el("streamQuality")?.value || "1080p";
+  const description = el("streamDescription")?.value?.trim() || "";
+  const statusEl = el("streamSetupStatus");
+  const resultEl = el("streamSetupResult");
+  if (!title) { if (statusEl) statusEl.textContent = "Please enter a stream title."; return; }
+  if (statusEl) statusEl.textContent = "Configuring stream…";
+  if (resultEl) resultEl.classList.add("hidden");
+  try {
+    const resp = await fetch(`${API_BASE}/stream/setup`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ platform, title, quality, description }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) { if (statusEl) statusEl.textContent = `Error: ${data.detail || "Failed"}`; return; }
+    if (statusEl) statusEl.textContent = `✓ Stream configured! ID: ${data.stream_id}`;
+    // Pre-fill analytics stream ID
+    const analEl = el("streamAnalyticsId");
+    if (analEl) analEl.value = data.stream_id;
+    if (resultEl) { resultEl.textContent = JSON.stringify(data, null, 2); resultEl.classList.remove("hidden"); }
+  } catch (err) {
+    if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`;
+  }
+}
+
+async function loadStreamAnalytics() {
+  const stream_id = el("streamAnalyticsId")?.value?.trim();
+  const duration = parseInt(el("streamDuration")?.value || "60", 10);
+  const statusEl = el("streamAnalyticsStatus");
+  const resultEl = el("streamAnalyticsResult");
+  if (!stream_id) { if (statusEl) statusEl.textContent = "Please enter a stream ID."; return; }
+  if (statusEl) statusEl.textContent = "Loading analytics…";
+  if (resultEl) resultEl.classList.add("hidden");
+  try {
+    const resp = await fetch(`${API_BASE}/stream/${encodeURIComponent(stream_id)}/analytics?duration_minutes=${duration}`);
+    const data = await resp.json();
+    if (!resp.ok) { if (statusEl) statusEl.textContent = `Error: ${data.detail || "Failed"}`; return; }
+    if (statusEl) statusEl.textContent = `✓ Analytics loaded — peak: ${data.peak_viewers} viewers`;
+    if (resultEl) { resultEl.textContent = JSON.stringify(data, null, 2); resultEl.classList.remove("hidden"); }
+  } catch (err) {
+    if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`;
+  }
+}
+
+async function generateStreamOverlay() {
+  const title = el("streamOverlayTitle")?.value?.trim();
+  const style = el("streamOverlayStyle")?.value || "minimal";
+  const statusEl = el("streamOverlayStatus");
+  const resultEl = el("streamOverlayResult");
+  if (!title) { if (statusEl) statusEl.textContent = "Please enter a title for the overlay."; return; }
+  if (statusEl) statusEl.textContent = "Generating overlay…";
+  if (resultEl) resultEl.classList.add("hidden");
+  try {
+    const resp = await fetch(`${API_BASE}/stream/overlay`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title, style }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) { if (statusEl) statusEl.textContent = `Error: ${data.detail || "Failed"}`; return; }
+    if (statusEl) statusEl.textContent = "✓ Overlay config generated";
+    if (resultEl) { resultEl.textContent = JSON.stringify(data, null, 2); resultEl.classList.remove("hidden"); }
+  } catch (err) {
+    if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`;
+  }
+}
+
+// ── Export helpers ────────────────────────────────────────
+const _EXPORT_FORMATS = {
+  music:     ["mp3","wav","flac","ogg","aac"],
+  video:     ["mp4","webm","mov","avi","mkv"],
+  image:     ["png","jpg","webp","svg","bmp"],
+  text:      ["pdf","docx","txt","markdown"],
+  animation: ["mp4","gif","webm"],
+};
+
+function switchExportTool(tool) {
+  document.querySelectorAll(".export-tool-btn").forEach(b => {
+    const active = b.dataset.etool === tool;
+    b.classList.toggle("active", active);
+    b.setAttribute("aria-selected", String(active));
+  });
+  document.querySelectorAll(".export-tool-pane").forEach(p => {
+    p.classList.toggle("hidden", p.id !== `etool-${tool}`);
+  });
+}
+
+function updateExportFormats() {
+  const studio = el("exportStudioType")?.value || "music";
+  const fmtSel = el("exportFormat");
+  if (!fmtSel) return;
+  const fmts = _EXPORT_FORMATS[studio] || ["mp3"];
+  fmtSel.innerHTML = fmts.map(f => `<option value="${f}">${f.toUpperCase()}</option>`).join("");
+}
+
+async function prepareExport() {
+  const studio = el("exportStudioType")?.value || "music";
+  const format = el("exportFormat")?.value || "mp3";
+  const quality = el("exportQuality")?.value || "high";
+  const content = el("exportContent")?.value?.trim() || "";
+  const statusEl = el("exportPrepareStatus");
+  const resultEl = el("exportPrepareResult");
+  if (!content) { if (statusEl) statusEl.textContent = "Please describe your content."; return; }
+  if (statusEl) statusEl.textContent = "Preparing export…";
+  if (resultEl) resultEl.classList.add("hidden");
+  try {
+    const resp = await fetch(`${API_BASE}/export/prepare`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ studio, format, content, quality }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) { if (statusEl) statusEl.textContent = `Error: ${data.detail || "Failed"}`; return; }
+    if (statusEl) statusEl.textContent = `✓ Export ready — ${data.format?.toUpperCase()} (${data.estimated_size_mb} MB)`;
+    if (resultEl) { resultEl.textContent = JSON.stringify(data, null, 2); resultEl.classList.remove("hidden"); }
+  } catch (err) {
+    if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`;
+  }
+}
+
+async function importFromUrl() {
+  const url = el("importUrl")?.value?.trim();
+  const studio = el("importStudio")?.value || "music";
+  const statusEl = el("importStatus");
+  const resultEl = el("importResult");
+  if (!url) { if (statusEl) statusEl.textContent = "Please enter a URL."; return; }
+  if (statusEl) statusEl.textContent = "Importing…";
+  if (resultEl) resultEl.classList.add("hidden");
+  try {
+    const resp = await fetch(`${API_BASE}/export/import-url`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url, studio }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) { if (statusEl) statusEl.textContent = `Error: ${data.detail || "Failed"}`; return; }
+    if (statusEl) statusEl.textContent = `✓ Imported ${data.detected_format?.toUpperCase() || "file"} → ${studio} studio`;
+    if (resultEl) { resultEl.textContent = JSON.stringify(data, null, 2); resultEl.classList.remove("hidden"); }
+  } catch (err) {
+    if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`;
+  }
+}
+
+function addBatchItem() {
+  const container = el("batchItems");
+  if (!container) return;
+  const row = document.createElement("div");
+  row.className = "batch-item-row";
+  row.innerHTML = `
+    <select class="vs-select batch-studio">
+      <option value="music">🎵 Music</option>
+      <option value="video">🎥 Video</option>
+      <option value="image">🖼️ Image</option>
+      <option value="text">✍️ Text</option>
+    </select>
+    <select class="vs-select batch-format">
+      <option value="mp3">MP3</option>
+      <option value="mp4">MP4</option>
+      <option value="png">PNG</option>
+      <option value="pdf">PDF</option>
+    </select>
+    <input type="text" class="batch-content" placeholder="Content description" />
+    <button class="btn-icon-round" onclick="this.parentElement.remove()" title="Remove">✕</button>`;
+  container.appendChild(row);
+}
+
+async function runBatchExport() {
+  const rows = document.querySelectorAll(".batch-item-row");
+  const items = [];
+  rows.forEach(row => {
+    const studio = row.querySelector(".batch-studio")?.value;
+    const format = row.querySelector(".batch-format")?.value;
+    const content = row.querySelector(".batch-content")?.value?.trim() || "";
+    if (studio && format) items.push({ studio, format, content, quality: "high" });
+  });
+  const statusEl = el("batchExportStatus");
+  const resultEl = el("batchExportResult");
+  if (items.length === 0) { if (statusEl) statusEl.textContent = "Add at least one item."; return; }
+  if (statusEl) statusEl.textContent = `Exporting ${items.length} item${items.length !== 1 ? "s" : ""}…`;
+  if (resultEl) resultEl.classList.add("hidden");
+  try {
+    const resp = await fetch(`${API_BASE}/export/batch`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) { if (statusEl) statusEl.textContent = `Error: ${data.detail || "Failed"}`; return; }
+    if (statusEl) statusEl.textContent = `✓ Batch export: ${data.total_items} items, ${data.estimated_total_size_mb} MB total`;
+    if (resultEl) { resultEl.textContent = JSON.stringify(data, null, 2); resultEl.classList.remove("hidden"); }
+  } catch (err) {
+    if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`;
+  }
+}
+
+async function runQualityCheck() {
+  const export_id = el("qualityCheckExportId")?.value?.trim();
+  const format = el("qualityCheckFormat")?.value?.trim() || "mp3";
+  const content_preview = el("qualityCheckContent")?.value?.trim() || "";
+  const statusEl = el("qualityCheckStatus");
+  const resultEl = el("qualityCheckResult");
+  if (!export_id) { if (statusEl) statusEl.textContent = "Please enter an export ID."; return; }
+  if (statusEl) statusEl.textContent = "Running quality check…";
+  if (resultEl) resultEl.classList.add("hidden");
+  try {
+    const resp = await fetch(`${API_BASE}/ai/quality-check`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ export_id, format, content_preview }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) { if (statusEl) statusEl.textContent = `Error: ${data.detail || "Failed"}`; return; }
+    if (statusEl) statusEl.textContent = `✓ Quality score: ${data.quality_score}/100 (Grade ${data.grade})`;
+    if (resultEl) { resultEl.textContent = JSON.stringify(data, null, 2); resultEl.classList.remove("hidden"); }
+  } catch (err) {
+    if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`;
+  }
+}

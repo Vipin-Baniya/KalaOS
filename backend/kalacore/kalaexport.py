@@ -83,7 +83,7 @@ _EXTENSION_FORMAT: dict[str, str] = {
 
 
 def _now() -> str:
-    return datetime.datetime.utcnow().isoformat() + "Z"
+    return datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 def _estimate_size(fmt: str, quality: str, content_len: int) -> float:

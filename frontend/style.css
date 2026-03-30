@@ -5208,3 +5208,163 @@ body.focus-mode #artText {
   white-space: pre-wrap;
   font-family: monospace;
 }
+
+/* ══════════════════════════════════════════════════════════
+   COLLABORATION STUDIO
+   ══════════════════════════════════════════════════════════ */
+.collab-tool-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem;
+  padding: .5rem 1rem;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+}
+.collab-tool-btn {
+  padding: .35rem .85rem;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: .82rem;
+  font-weight: 500;
+  transition: all .15s;
+}
+.collab-tool-btn:hover { border-color: var(--accent); color: var(--text); }
+.collab-tool-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.collab-tool-pane { padding: 1rem; }
+.collab-tool-card { max-width: 640px; }
+.collab-result {
+  margin-top: .8rem;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: .75rem 1rem;
+  font-size: .82rem;
+  color: var(--text);
+  max-height: 300px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  font-family: monospace;
+}
+.collab-activity-list {
+  margin-top: .8rem;
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+}
+.collab-activity-item {
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: .55rem .85rem;
+  font-size: .82rem;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+}
+.collab-activity-item .ca-icon { font-size: 1.1rem; }
+.collab-activity-item .ca-time { color: var(--text-dim); font-size: .75rem; margin-left: auto; }
+
+/* ══════════════════════════════════════════════════════════
+   STREAMING STUDIO
+   ══════════════════════════════════════════════════════════ */
+.stream-tool-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem;
+  padding: .5rem 1rem;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+}
+.stream-tool-btn {
+  padding: .35rem .85rem;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: .82rem;
+  font-weight: 500;
+  transition: all .15s;
+}
+.stream-tool-btn:hover { border-color: var(--accent); color: var(--text); }
+.stream-tool-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.stream-tool-pane { padding: 1rem; }
+.stream-tool-card { max-width: 640px; }
+.stream-result {
+  margin-top: .8rem;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: .75rem 1rem;
+  font-size: .82rem;
+  color: var(--text);
+  max-height: 300px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  font-family: monospace;
+}
+
+/* ══════════════════════════════════════════════════════════
+   EXPORT / IMPORT STUDIO
+   ══════════════════════════════════════════════════════════ */
+.export-tool-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem;
+  padding: .5rem 1rem;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+}
+.export-tool-btn {
+  padding: .35rem .85rem;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: .82rem;
+  font-weight: 500;
+  transition: all .15s;
+}
+.export-tool-btn:hover { border-color: var(--accent); color: var(--text); }
+.export-tool-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.export-tool-pane { padding: 1rem; }
+.export-tool-card { max-width: 640px; }
+.export-result {
+  margin-top: .8rem;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: .75rem 1rem;
+  font-size: .82rem;
+  color: var(--text);
+  max-height: 300px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  font-family: monospace;
+}
+.batch-item-row {
+  display: flex;
+  gap: .5rem;
+  margin-bottom: .5rem;
+  align-items: center;
+}
+.batch-item-row .batch-studio,
+.batch-item-row .batch-format { flex-shrink: 0; }
+.batch-item-row .batch-content { flex: 1; }
