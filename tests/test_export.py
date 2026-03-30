@@ -239,6 +239,12 @@ def test_api_export_batch():
     data = resp.json()
     assert data["total_items"] == 2
     assert len(data["items"]) == 2
+    assert data["items"][0]["quality"] == "high"
+    assert data["items"][1]["quality"] == "low"
+    assert data["items"][0]["studio"] == "visual"
+    assert data["items"][1]["studio"] == "text"
+    assert "estimated_total_size_mb" in data
+    assert data["status"] == "ready"
 
 
 def test_api_export_batch_empty():

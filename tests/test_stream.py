@@ -171,6 +171,13 @@ def test_api_stream_analytics():
     data = resp.json()
     assert data["stream_id"] == "test-stream-001"
     assert data["duration_minutes"] == 60  # default
+    assert "peak_viewers" in data
+    assert "avg_viewers" in data
+    assert "engagement_rate" in data
+    assert "donations" in data
+    assert "chat_messages" in data
+    assert "new_followers" in data
+    assert data["peak_viewers"] >= data["avg_viewers"]
 
 
 def test_api_stream_analytics_custom_duration():

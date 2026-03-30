@@ -228,6 +228,16 @@ def test_ai_quality_check_grade_values():
     assert resp.json()["grade"] in ("A", "B", "C", "D")
 
 
+def test_ai_quality_check_grade_logic():
+    # exp-0 → score=65 → D, exp-1 → score=98 → A, exp-7 → score=87 → B, exp-3 → score=71 → C
+    cases = [("exp-0", "D"), ("exp-1", "A"), ("exp-7", "B"), ("exp-3", "C")]
+    for export_id, expected_grade in cases:
+        resp = client.post("/ai/quality-check", json={"export_id": export_id, "format": "mp3"})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["grade"] == expected_grade, f"{export_id}: expected {expected_grade}, got {data['grade']} (score={data['quality_score']})"
+
+
 def test_ai_quality_check_empty_export_id():
     resp = client.post("/ai/quality-check", json={
         "export_id": "",
