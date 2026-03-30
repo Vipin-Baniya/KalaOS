@@ -52,6 +52,7 @@ from kalacore.kalavisual import analyze_visual, generate_image_concept, animate_
 from kalacore.kalaproducer import produce, generate_ai_beat
 from kalacore.kalaanimation import generate_animation_plan, parse_storyboard
 from kalacore.kalavideo import generate_video_script, build_scene, _VALID_STYLES as _VIDEO_STYLES
+from kalacore.kalaintelligence import transform as intelligence_transform, ai_assist, VALID_INPUT_TYPES, VALID_OUTPUT_TYPES
 from services.llm_service import (
     generate_explanation,
     generate_suggestions,
@@ -1758,3 +1759,217 @@ def video_generate_script(request: VideoScriptRequest):
     return result
 
 
+
+# ---------------------------------------------------------------------------
+# Phase 16 — Creative Intelligence Engine  POST /ai/transform
+# ---------------------------------------------------------------------------
+
+class AiTransformRequest(BaseModel):
+    input_type:  str
+    output_type: str
+    data:        str
+    options:     dict = {}
+
+    @field_validator("input_type")
+    @classmethod
+    def input_type_valid(cls, v: str) -> str:
+        if v not in VALID_INPUT_TYPES:
+            raise ValueError(f"Invalid input_type '{v}'. Valid: {sorted(VALID_INPUT_TYPES)}")
+        return v
+
+    @field_validator("output_type")
+    @classmethod
+    def output_type_valid(cls, v: str) -> str:
+        if v not in VALID_OUTPUT_TYPES:
+            raise ValueError(f"Invalid output_type '{v}'. Valid: {sorted(VALID_OUTPUT_TYPES)}")
+        return v
+
+    @field_validator("data")
+    @classmethod
+    def data_not_empty(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("data must not be empty.")
+        return v.strip()
+
+
+@app.post(
+    "/ai/transform",
+    summary="Creative Intelligence Engine: cross-medium AI transforms",
+)
+def ai_transform(request: AiTransformRequest):
+    """
+    Transform creative content across media types.
+
+    Supported pairs
+    ---------------
+    - text   → video   (poem/story → scene-based video script)
+    - text   → song    (prose/lyrics → song structure + beat recipe)
+    - design → animation (design brief → animation plan)
+    - music  → video   (music description → visualizer video config)
+    """
+    try:
+        result = intelligence_transform(
+            input_type=request.input_type,
+            output_type=request.output_type,
+            data=request.data,
+            options=request.options,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Transform failed: {exc}")
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Phase 16 — Universal AI Assistant  POST /ai/assistant
+# ---------------------------------------------------------------------------
+
+class AiAssistRequest(BaseModel):
+    context: str = ""
+    prompt:  str
+    studio:  str = "general"
+
+    @field_validator("prompt")
+    @classmethod
+    def prompt_not_empty(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("prompt must not be empty.")
+        return v.strip()
+
+
+@app.post(
+    "/ai/assistant",
+    summary="Universal AI OS Brain: context-aware suggestions for any studio",
+)
+def ai_assistant(request: AiAssistRequest):
+    """
+    Context-aware AI assistant across all KalaOS studios.
+
+    Returns an action, a response text, contextual suggestions, and
+    an optional cross-medium transform hint.
+    """
+    try:
+        result = ai_assist(
+            context=request.context,
+            prompt=request.prompt,
+            studio=request.studio,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Assistant error: {exc}")
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Phase 16 — Comments  POST/GET /posts/{post_id}/comments
+#                      DELETE /comments/{comment_id}
+# ---------------------------------------------------------------------------
+
+class CommentRequest(BaseModel):
+    token:   str
+    content: str
+
+    @field_validator("content")
+    @classmethod
+    def content_not_empty(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("content must not be empty.")
+        return v.strip()
+
+
+@app.post("/posts/{post_id}/comments", summary="Add a comment to a post")
+def add_comment(post_id: str, body: CommentRequest):
+    try:
+        comment = platform_service.add_comment(body.token, post_id, body.content)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return comment
+
+
+@app.get("/posts/{post_id}/comments", summary="Get comments for a post")
+def get_comments(post_id: str, limit: int = 50, offset: int = 0):
+    comments = platform_service.get_comments(post_id, limit, offset)
+    return {"post_id": post_id, "comments": comments, "count": len(comments)}
+
+
+class DeleteCommentRequest(BaseModel):
+    token: str
+
+
+@app.delete("/comments/{comment_id}", summary="Delete a comment")
+def delete_comment(comment_id: str, token: str):
+    try:
+        platform_service.delete_comment(token, comment_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"deleted": comment_id}
+
+
+# ---------------------------------------------------------------------------
+# Phase 16 — Follows  POST /users/{target_email}/follow
+#                     GET  /users/{email}/followers
+#                     GET  /users/{email}/following
+# ---------------------------------------------------------------------------
+
+class FollowRequest(BaseModel):
+    token: str
+
+
+@app.post("/users/{target_email}/follow", summary="Follow or unfollow a user")
+def follow_user(target_email: str, body: FollowRequest):
+    try:
+        result = platform_service.follow_user(body.token, target_email)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return result
+
+
+@app.get("/users/{email}/followers", summary="Get followers of a user")
+def get_followers(email: str):
+    followers = platform_service.get_followers(email)
+    return {"email": email, "followers": followers, "count": len(followers)}
+
+
+@app.get("/users/{email}/following", summary="Get who a user follows")
+def get_following(email: str):
+    following = platform_service.get_following(email)
+    return {"email": email, "following": following, "count": len(following)}
+
+
+# ---------------------------------------------------------------------------
+# Phase 16 — Notifications  GET /notifications
+#                            POST /notifications/{id}/read
+#                            POST /notifications/read-all
+# ---------------------------------------------------------------------------
+
+@app.get("/notifications", summary="Get notifications for the authenticated user")
+def get_notifications(token: str, limit: int = 30, offset: int = 0):
+    try:
+        notifs = platform_service.get_notifications(token, limit, offset)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"notifications": notifs, "count": len(notifs)}
+
+
+class NotifReadRequest(BaseModel):
+    token: str
+
+
+@app.post("/notifications/{notification_id}/read", summary="Mark a notification as read")
+def mark_notification_read(notification_id: str, body: NotifReadRequest):
+    try:
+        platform_service.mark_notification_read(body.token, notification_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"read": notification_id}
+
+
+@app.post("/notifications/read-all", summary="Mark all notifications as read")
+def mark_all_notifications_read(body: NotifReadRequest):
+    try:
+        platform_service.mark_all_notifications_read(body.token)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"status": "ok"}
