@@ -65,7 +65,7 @@ _PROJECT_SUGGESTIONS: dict[str, dict[str, Any]] = {
     "visual": {
         "suggestions": [
             "Divide the canvas into zones and assign each to a collaborator",
-            "Create a shared colour palette before starting",
+            "Create a shared color palette before starting",
             "Use layers so edits remain non-destructive",
             "Hold weekly design reviews with inline comments",
         ],
@@ -79,7 +79,7 @@ _PROJECT_SUGGESTIONS: dict[str, dict[str, Any]] = {
     "video": {
         "suggestions": [
             "Assign distinct scenes to different collaborators",
-            "Agree on colour-grading LUTs before post-production",
+            "Agree on color-grading LUTs before post-production",
             "Use a shared shot list accessible to all team members",
             "Review cuts together using the stream overlay feature",
         ],
