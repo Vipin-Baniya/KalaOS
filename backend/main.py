@@ -22,6 +22,7 @@ POST /visual-studio/generate-image – Phase 14 Design Canvas AI image concept g
 POST /visual-studio/animate        – Phase 14 Design Canvas AI animation mapper
 POST /visual-studio/export-gif     – Phase 14 Design Canvas GIF exporter
 POST /music-studio/ai-beat         – AI beat generator: text prompt → BPM + drum pattern + melody
+POST /video-studio/generate-script – Phase 15 AI Video Generator: text prompt → scene-based video script
 """
 
 import logging
@@ -50,6 +51,7 @@ from kalacore.temporal import analyze_temporal
 from kalacore.kalavisual import analyze_visual, generate_image_concept, animate_canvas_objects, export_canvas_gif
 from kalacore.kalaproducer import produce, generate_ai_beat
 from kalacore.kalaanimation import generate_animation_plan, parse_storyboard
+from kalacore.kalavideo import generate_video_script, build_scene, _VALID_STYLES as _VIDEO_STYLES
 from services.llm_service import (
     generate_explanation,
     generate_suggestions,
@@ -1694,4 +1696,65 @@ def ai_beat_endpoint(request: AiBeatRequest):
         genre=result["genre"],
         prompt=result["prompt"],
     )
+
+
+# ---------------------------------------------------------------------------
+# Video Studio — AI Video Generator (Phase 15)
+# ---------------------------------------------------------------------------
+
+class VideoScriptRequest(BaseModel):
+    prompt: str
+    style: str = "cinematic"
+    scene_count: int = 5
+
+    @field_validator("prompt")
+    @classmethod
+    def prompt_not_empty(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("prompt must not be empty")
+        return v.strip()
+
+    @field_validator("style")
+    @classmethod
+    def style_valid(cls, v: str) -> str:
+        if v not in _VIDEO_STYLES:
+            raise ValueError(f"Invalid style '{v}'. Valid: {sorted(_VIDEO_STYLES)}")
+        return v
+
+    @field_validator("scene_count")
+    @classmethod
+    def scene_count_valid(cls, v: int) -> int:
+        if v < 1 or v > 20:
+            raise ValueError("scene_count must be between 1 and 20")
+        return v
+
+
+@app.post(
+    "/video-studio/generate-script",
+    summary="Phase 15 AI Video Generator: text prompt → scene-based video script",
+)
+def video_generate_script(request: VideoScriptRequest):
+    """
+    Convert a text prompt into a structured scene-based video script.
+
+    The response includes a list of scenes, each with:
+    - ``text``          – on-screen caption
+    - ``image_concept`` – background image description for AI generation
+    - ``animation``     – transition animation type
+    - ``duration``      – scene duration in seconds
+    - ``voice_text``    – narration text for TTS
+    - ``bg_music``      – background music mood hint
+    """
+    try:
+        result = generate_video_script(
+            prompt=request.prompt,
+            style=request.style,
+            scene_count=request.scene_count,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Video script generation failed: {exc}")
+    return result
+
 
