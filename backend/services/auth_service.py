@@ -108,8 +108,15 @@ def _db_init() -> None:
                     expires_at INTEGER NOT NULL
                 )
             """)
+            # Migration: add new user columns.
+            # _MIGRATION_COLS values are hardcoded source constants (not user input).
+            # Column names are validated against an alphanumeric+underscore whitelist
+            # before being interpolated into the ALTER TABLE statement.
             _MIGRATION_COLS = {"avatar_url": "''", "bio": "''"}
+            _ALLOWED_DEFAULT = frozenset(_MIGRATION_COLS.values())
             for col, default in _MIGRATION_COLS.items():
+                if not col.replace("_", "").isalnum() or default not in _ALLOWED_DEFAULT:
+                    raise RuntimeError(f"Unsafe migration column definition: {col!r}")
                 try:
                     conn.execute(
                         f"ALTER TABLE users ADD COLUMN {col} TEXT NOT NULL DEFAULT {default}"

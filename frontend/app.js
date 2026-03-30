@@ -1135,7 +1135,8 @@ function esc(str) {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function fmt2(v) {
@@ -4116,10 +4117,14 @@ async function loadFeed() {
           <h4 class="feed-card-title">${esc(p.title)}</h4>
           ${preview ? `<p class="feed-card-preview">${esc(preview)}</p>` : ""}
           <div class="feed-card-footer">
-            <button class="feed-like-btn${p.liked_by_me ? ' liked' : ''}" onclick="toggleFeedLike('${esc(p.id)}',this)" data-post-id="${esc(p.id)}">❤ <span class="feed-like-count">${p.like_count || 0}</span></button>
+            <button class="feed-like-btn${p.liked_by_me ? ' liked' : ''}" data-post-id="${esc(p.id)}">❤ <span class="feed-like-count">${p.like_count || 0}</span></button>
           </div>
         </article>`;
     }).join("");
+    // Attach like-button handlers via event delegation on the list
+    list.querySelectorAll(".feed-like-btn").forEach(btn => {
+      btn.addEventListener("click", () => toggleFeedLike(btn.dataset.postId, btn));
+    });
   } catch (err) {
     list.innerHTML = `<p class="feed-empty-msg">Failed to load feed: ${esc(err.message)}</p>`;
   }
@@ -4598,11 +4603,16 @@ async function toggleDmSharePanel() {
     const projects = d.projects || [];
     if (!projects.length) { list.innerHTML = '<span class="conv-empty" style="padding:.5rem">No projects yet.</span>'; return; }
     list.innerHTML = projects.map(p =>
-      `<div class="dm-share-item" onclick="shareProjectInDm('${esc(p.id)}','${esc(p.title)}','${esc(p.type)}')">
+      `<div class="dm-share-item" data-pid="${esc(p.id)}" data-ptitle="${esc(p.title)}" data-ptype="${esc(p.type)}">
         <span class="feed-card-type">${esc(p.type)}</span>
         <span class="dm-share-item-title">${esc(p.title)}</span>
        </div>`
     ).join('');
+    list.querySelectorAll('.dm-share-item').forEach(item => {
+      item.addEventListener('click', () => {
+        shareProjectInDm(item.dataset.pid, item.dataset.ptitle, item.dataset.ptype);
+      });
+    });
   } catch { list.innerHTML = '<span class="conv-empty" style="padding:.5rem">Error loading projects.</span>'; }
 }
 
