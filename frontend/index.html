@@ -269,6 +269,10 @@
           <span class="sidebar-icon" aria-hidden="true">🎬</span>
           <span class="sidebar-label">Animation</span>
         </button>
+        <button class="sidebar-btn" id="videoStudioBtn" onclick="switchStudio('video')" role="tab" aria-selected="false">
+          <span class="sidebar-icon" aria-hidden="true">🎥</span>
+          <span class="sidebar-label">Video Studio</span>
+        </button>
         <button class="sidebar-btn" id="feedStudioBtn" onclick="switchStudio('feed')" role="tab" aria-selected="false">
           <span class="sidebar-icon" aria-hidden="true">🏠</span>
           <span class="sidebar-label">Home</span>
@@ -1718,6 +1722,92 @@
       </section>
 
     </div><!-- /animationStudio -->
+
+    <!-- ═══════════════════════════════════════════
+         VIDEO STUDIO  🎥
+         ═══════════════════════════════════════════ -->
+    <div id="videoStudio" class="input-panel hidden">
+
+      <!-- ── AI Generator Panel ── -->
+      <section class="section-card" id="vsAiPanel">
+        <h2 class="section-heading">🤖 AI Video Generator</h2>
+        <p class="section-desc">Describe your idea — a poem, a story, a concept — and KalaOS will build a scene-by-scene video script.</p>
+        <div class="vs-ai-row">
+          <textarea id="vsAiPrompt" class="vs-ai-textarea" rows="3"
+            placeholder="e.g. &quot;A motivational poem about rising after failure&quot; or &quot;A short documentary about ocean conservation&quot;…"></textarea>
+        </div>
+        <div class="vs-ai-controls">
+          <div class="vs-ctrl-group">
+            <label class="vs-label" for="vsStyle">Style</label>
+            <select id="vsStyle" class="vs-select">
+              <option value="cinematic">🎬 Cinematic</option>
+              <option value="motivational">🔥 Motivational</option>
+              <option value="documentary">📽 Documentary</option>
+              <option value="cartoon">🎨 Cartoon</option>
+              <option value="lofi">🎧 Lo-fi</option>
+              <option value="corporate">💼 Corporate</option>
+              <option value="abstract">✨ Abstract</option>
+            </select>
+          </div>
+          <div class="vs-ctrl-group">
+            <label class="vs-label" for="vsSceneCount">Scenes</label>
+            <select id="vsSceneCount" class="vs-select">
+              <option value="3">3</option>
+              <option value="5" selected>5</option>
+              <option value="7">7</option>
+              <option value="10">10</option>
+            </select>
+          </div>
+          <button class="btn-primary" id="vsGenerateBtn" onclick="vsGenerateScript()">✦ Generate Script</button>
+        </div>
+        <p id="vsAiStatus" class="vs-status" aria-live="polite"></p>
+      </section>
+
+      <!-- ── Scene List + Editor ── -->
+      <section class="section-card" id="vsSceneSection">
+        <div class="vs-scene-header">
+          <h2 class="section-heading" style="margin:0">🎞 Scenes</h2>
+          <div class="vs-scene-actions">
+            <button class="btn-secondary btn-sm" onclick="vsAddScene()">+ Add Scene</button>
+            <button class="btn-secondary btn-sm" onclick="vsClearScenes()">🗑 Clear</button>
+          </div>
+        </div>
+        <div id="vsSceneList" class="vs-scene-list" aria-label="Scene list"></div>
+      </section>
+
+      <!-- ── Preview Player ── -->
+      <section class="section-card" id="vsPreviewSection">
+        <h2 class="section-heading">▶ Preview</h2>
+        <div class="vs-preview-wrap">
+          <div class="vs-preview-canvas" id="vsPreviewCanvas" aria-live="polite">
+            <div class="vs-preview-placeholder" id="vsPreviewPlaceholder">
+              <span style="font-size:2rem">🎥</span>
+              <p>Generate or add scenes to preview your video</p>
+            </div>
+            <div class="vs-preview-scene hidden" id="vsPreviewScene">
+              <div class="vs-preview-bg" id="vsPreviewBg"></div>
+              <div class="vs-preview-text" id="vsPreviewText"></div>
+              <div class="vs-preview-badge" id="vsPreviewBadge"></div>
+            </div>
+          </div>
+          <div class="vs-preview-controls">
+            <button class="tool-btn" id="vsPlayBtn" onclick="vsPlayPreview()">▶ Play Preview</button>
+            <button class="tool-btn" id="vsStopBtn" onclick="vsStopPreview()">■ Stop</button>
+            <span id="vsPreviewInfo" class="vs-preview-info"></span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Export Panel ── -->
+      <section class="section-card" id="vsExportSection">
+        <h2 class="section-heading">📦 Export</h2>
+        <p class="section-desc">Download your video script as JSON to use with FFmpeg or other rendering pipelines.</p>
+        <div style="display:flex;gap:.6rem;flex-wrap:wrap">
+          <button class="btn-secondary" onclick="vsExportJson()">⬇ Export Script (JSON)</button>
+        </div>
+      </section>
+
+    </div><!-- /videoStudio -->
 
     <!-- ═══════════════════════════════════════════
          KALA CHAT  💬

@@ -4145,11 +4145,11 @@ function escHtml(str) {
 
     if (mode === "animation") {
       // Hide all other studios
-      ["textStudio", "musicStudio", "visualStudio", "chatStudio"].forEach(id => {
+      ["textStudio", "musicStudio", "visualStudio", "videoStudio", "chatStudio"].forEach(id => {
         const s = el(id);
         if (s) s.classList.add("hidden");
       });
-      ["textStudioBtn", "musicStudioBtn", "visualStudioBtn", "chatStudioBtn"].forEach(id => {
+      ["textStudioBtn", "musicStudioBtn", "visualStudioBtn", "videoStudioBtn", "chatStudioBtn"].forEach(id => {
         const b = el(id);
         if (b) b.classList.remove("active");
       });
@@ -4404,8 +4404,8 @@ function _renderAnimTimeline(plan) {
     _PLATFORM_BTNS.forEach(id => { const b = el(id); if (b) { b.classList.remove("active"); b.setAttribute("aria-selected", "false"); } });
 
     if (mode === "feed") {
-      ["textStudio", "musicStudio", "visualStudio", "animationStudio", "chatStudio", "dmsStudio", "profileStudio"].forEach(id => { const s = el(id); if (s) s.classList.add("hidden"); });
-      ["textStudioBtn", "musicStudioBtn", "visualStudioBtn", "animationStudioBtn", "chatStudioBtn", "dmsStudioBtn", "profileStudioBtn"].forEach(id => { const b = el(id); if (b) { b.classList.remove("active"); b.setAttribute("aria-selected", "false"); } });
+      ["textStudio", "musicStudio", "visualStudio", "animationStudio", "videoStudio", "chatStudio", "dmsStudio", "profileStudio"].forEach(id => { const s = el(id); if (s) s.classList.add("hidden"); });
+      ["textStudioBtn", "musicStudioBtn", "visualStudioBtn", "animationStudioBtn", "videoStudioBtn", "chatStudioBtn", "dmsStudioBtn", "profileStudioBtn"].forEach(id => { const b = el(id); if (b) { b.classList.remove("active"); b.setAttribute("aria-selected", "false"); } });
       const s = el("feedStudio"), btn = el("feedStudioBtn");
       if (s) s.classList.remove("hidden");
       if (btn) { btn.classList.add("active"); btn.setAttribute("aria-selected", "true"); }
@@ -4415,8 +4415,8 @@ function _renderAnimTimeline(plan) {
     }
 
     if (mode === "dms") {
-      ["textStudio", "musicStudio", "visualStudio", "animationStudio", "chatStudio", "feedStudio", "profileStudio"].forEach(id => { const s = el(id); if (s) s.classList.add("hidden"); });
-      ["textStudioBtn", "musicStudioBtn", "visualStudioBtn", "animationStudioBtn", "chatStudioBtn", "feedStudioBtn", "profileStudioBtn"].forEach(id => { const b = el(id); if (b) { b.classList.remove("active"); b.setAttribute("aria-selected", "false"); } });
+      ["textStudio", "musicStudio", "visualStudio", "animationStudio", "videoStudio", "chatStudio", "feedStudio", "profileStudio"].forEach(id => { const s = el(id); if (s) s.classList.add("hidden"); });
+      ["textStudioBtn", "musicStudioBtn", "visualStudioBtn", "animationStudioBtn", "videoStudioBtn", "chatStudioBtn", "feedStudioBtn", "profileStudioBtn"].forEach(id => { const b = el(id); if (b) { b.classList.remove("active"); b.setAttribute("aria-selected", "false"); } });
       const s = el("dmsStudio"), btn = el("dmsStudioBtn");
       if (s) s.classList.remove("hidden");
       if (btn) { btn.classList.add("active"); btn.setAttribute("aria-selected", "true"); }
@@ -4426,8 +4426,8 @@ function _renderAnimTimeline(plan) {
     }
 
     if (mode === "profile") {
-      ["textStudio", "musicStudio", "visualStudio", "animationStudio", "chatStudio", "feedStudio", "dmsStudio"].forEach(id => { const s = el(id); if (s) s.classList.add("hidden"); });
-      ["textStudioBtn", "musicStudioBtn", "visualStudioBtn", "animationStudioBtn", "chatStudioBtn", "feedStudioBtn", "dmsStudioBtn"].forEach(id => { const b = el(id); if (b) { b.classList.remove("active"); b.setAttribute("aria-selected", "false"); } });
+      ["textStudio", "musicStudio", "visualStudio", "animationStudio", "videoStudio", "chatStudio", "feedStudio", "dmsStudio"].forEach(id => { const s = el(id); if (s) s.classList.add("hidden"); });
+      ["textStudioBtn", "musicStudioBtn", "visualStudioBtn", "animationStudioBtn", "videoStudioBtn", "chatStudioBtn", "feedStudioBtn", "dmsStudioBtn"].forEach(id => { const b = el(id); if (b) { b.classList.remove("active"); b.setAttribute("aria-selected", "false"); } });
       const s = el("profileStudio"), btn = el("profileStudioBtn");
       if (s) s.classList.remove("hidden");
       if (btn) { btn.classList.add("active"); btn.setAttribute("aria-selected", "true"); }
@@ -4980,4 +4980,256 @@ function shareProjectInDm(projectId, title, type) {
   hide('dmSharePanel');
   const input = el('dmInput');
   if (input) input.value = `🔗 Project: ${title} [${type}] — /projects/${projectId}`;
+}
+
+
+/* ════════════════════════════════════════════════════════════════════
+   VIDEO STUDIO  🎥  (Phase 15 – AI Video Generator)
+════════════════════════════════════════════════════════════════════ */
+
+// ── Studio switcher: extend to handle video ───────────────────────────────
+(function () {
+  const _prevSwitch = switchStudio;
+  switchStudio = function (mode) {
+    const vs  = el("videoStudio");
+    const btn = el("videoStudioBtn");
+
+    // Always hide video studio first
+    if (vs)  vs.classList.add("hidden");
+    if (btn) { btn.classList.remove("active"); btn.setAttribute("aria-selected", "false"); }
+
+    if (mode === "video") {
+      ["textStudio", "musicStudio", "visualStudio", "animationStudio",
+       "chatStudio", "feedStudio", "dmsStudio", "profileStudio"].forEach(id => {
+        const s = el(id); if (s) s.classList.add("hidden");
+      });
+      ["textStudioBtn", "musicStudioBtn", "visualStudioBtn", "animationStudioBtn",
+       "chatStudioBtn", "feedStudioBtn", "dmsStudioBtn", "profileStudioBtn"].forEach(id => {
+        const b = el(id);
+        if (b) { b.classList.remove("active"); b.setAttribute("aria-selected", "false"); }
+      });
+      if (vs)  vs.classList.remove("hidden");
+      if (btn) { btn.classList.add("active"); btn.setAttribute("aria-selected", "true"); }
+      _hideAiPanel();
+      return;
+    }
+
+    _prevSwitch(mode);
+  };
+})();
+
+// ── State ─────────────────────────────────────────────────────────────────
+let _vsScenes       = [];   // array of scene objects
+let _vsPlayTimer    = null; // setTimeout handle for preview playback
+let _vsCurrentScene = -1;   // index of scene being previewed
+let _vsStyle        = "cinematic";
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+function _vsStatus(msg, isError) {
+  const el2 = el("vsAiStatus");
+  if (!el2) return;
+  el2.textContent = msg;
+  el2.style.color = isError ? "var(--negative)" : "var(--text-muted)";
+}
+
+function _vsRenderSceneList() {
+  const list = el("vsSceneList");
+  if (!list) return;
+  if (_vsScenes.length === 0) {
+    list.innerHTML = '<p style="color:var(--text-muted);font-size:.85rem;padding:.4rem 0">No scenes yet. Generate a script or add scenes manually.</p>';
+    return;
+  }
+  list.innerHTML = _vsScenes.map((s, i) => `
+    <div class="vs-scene-item${_vsCurrentScene === i ? " active" : ""}" id="vs-scene-item-${i}">
+      <span class="vs-scene-num">#${s.index}</span>
+      <div class="vs-scene-body">
+        <p class="vs-scene-text">${esc(s.text)}</p>
+        <div class="vs-scene-meta">
+          <span>⏱ ${s.duration}s</span>
+          <span>✨ ${esc(s.animation)}</span>
+          ${s.image_concept ? `<span title="${esc(s.image_concept)}">🖼 image</span>` : ""}
+          ${s.voice_text && s.voice_text !== s.text ? `<span>🎙 narration</span>` : ""}
+        </div>
+      </div>
+      <div class="vs-scene-controls">
+        <button class="vs-scene-btn" title="Move up" onclick="vsMoveScene(${i}, -1)">↑</button>
+        <button class="vs-scene-btn" title="Move down" onclick="vsMoveScene(${i}, 1)">↓</button>
+        <button class="vs-scene-btn" title="Delete" onclick="vsDeleteScene(${i})">🗑</button>
+      </div>
+    </div>
+  `).join("");
+}
+
+function _vsUpdatePreviewInfo() {
+  const info = el("vsPreviewInfo");
+  if (!info) return;
+  if (_vsScenes.length === 0) { info.textContent = ""; return; }
+  const total = _vsScenes.reduce((a, s) => a + s.duration, 0);
+  info.textContent = `${_vsScenes.length} scene${_vsScenes.length !== 1 ? "s" : ""} · ${total}s total`;
+}
+
+// ── AI Generator ──────────────────────────────────────────────────────────
+async function vsGenerateScript() {
+  const prompt = (el("vsAiPrompt")?.value || "").trim();
+  if (!prompt) { _vsStatus("Please enter a prompt first.", true); return; }
+
+  const style      = el("vsStyle")?.value     || "cinematic";
+  const sceneCount = parseInt(el("vsSceneCount")?.value || "5", 10);
+
+  _vsStyle = style;
+  _vsStatus("🤖 Generating video script…", false);
+  const btn = el("vsGenerateBtn");
+  if (btn) btn.disabled = true;
+
+  try {
+    const resp = await fetch(`${API_BASE}/video-studio/generate-script`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt, style, scene_count: sceneCount }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.detail || "Generation failed.");
+
+    _vsScenes = data.scenes || [];
+    _vsCurrentScene = -1;
+    _vsRenderSceneList();
+    _vsUpdatePreviewInfo();
+    _vsStatus(`✓ ${_vsScenes.length} scenes generated (${data.total_duration}s). Style: ${style}.`, false);
+  } catch (err) {
+    _vsStatus(`Error: ${esc(err.message)}`, true);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+// ── Scene management ──────────────────────────────────────────────────────
+function vsAddScene() {
+  const text = prompt("Scene text / caption:");
+  if (!text || !text.trim()) return;
+  const idx = _vsScenes.length + 1;
+  _vsScenes.push({
+    index:         idx,
+    text:          text.trim(),
+    image_concept: "",
+    animation:     "fade",
+    duration:      4,
+    voice_text:    text.trim(),
+    bg_music:      "",
+  });
+  _vsRenderSceneList();
+  _vsUpdatePreviewInfo();
+}
+
+function vsDeleteScene(i) {
+  _vsScenes.splice(i, 1);
+  // Re-index
+  _vsScenes.forEach((s, j) => { s.index = j + 1; });
+  if (_vsCurrentScene >= _vsScenes.length) _vsCurrentScene = -1;
+  _vsRenderSceneList();
+  _vsUpdatePreviewInfo();
+}
+
+function vsMoveScene(i, dir) {
+  const j = i + dir;
+  if (j < 0 || j >= _vsScenes.length) return;
+  [_vsScenes[i], _vsScenes[j]] = [_vsScenes[j], _vsScenes[i]];
+  _vsScenes.forEach((s, k) => { s.index = k + 1; });
+  _vsRenderSceneList();
+  _vsUpdatePreviewInfo();
+}
+
+function vsClearScenes() {
+  if (_vsScenes.length && !confirm("Clear all scenes?")) return;
+  vsStopPreview();
+  _vsScenes = [];
+  _vsCurrentScene = -1;
+  _vsRenderSceneList();
+  _vsUpdatePreviewInfo();
+}
+
+// ── Preview Player ────────────────────────────────────────────────────────
+const _VS_BG_CLASSES = [
+  "vs-bg-cinematic", "vs-bg-motivational", "vs-bg-documentary",
+  "vs-bg-cartoon", "vs-bg-lofi", "vs-bg-corporate", "vs-bg-abstract",
+];
+
+function _vsShowScene(i) {
+  if (i < 0 || i >= _vsScenes.length) { vsStopPreview(); return; }
+  const scene = _vsScenes[i];
+  _vsCurrentScene = i;
+
+  const placeholder = el("vsPreviewPlaceholder");
+  const sceneEl     = el("vsPreviewScene");
+  const bgEl        = el("vsPreviewBg");
+  const textEl      = el("vsPreviewText");
+  const badgeEl     = el("vsPreviewBadge");
+
+  if (placeholder) placeholder.classList.add("hidden");
+  if (sceneEl)     sceneEl.classList.remove("hidden");
+
+  // Background colour by style
+  if (bgEl) {
+    _VS_BG_CLASSES.forEach(c => bgEl.classList.remove(c));
+    bgEl.classList.add(`vs-bg-${_vsStyle || "cinematic"}`);
+    // Unique hue offset per scene for variety
+    bgEl.style.filter = `hue-rotate(${(i * 37) % 180}deg)`;
+  }
+
+  // Text with re-trigger animation
+  if (textEl) {
+    textEl.style.animation = "none";
+    textEl.textContent = scene.text;
+    // Force reflow to restart animation
+    void textEl.offsetWidth;
+    textEl.style.animation = "";
+  }
+
+  if (badgeEl) badgeEl.textContent = `${i + 1} / ${_vsScenes.length}`;
+
+  // Highlight active scene in list
+  _vsRenderSceneList();
+
+  // Schedule next scene
+  if (_vsPlayTimer) clearTimeout(_vsPlayTimer);
+  _vsPlayTimer = setTimeout(() => _vsShowScene(i + 1), scene.duration * 1000);
+}
+
+function vsPlayPreview() {
+  if (_vsScenes.length === 0) {
+    _vsStatus("Add or generate scenes first.", true);
+    return;
+  }
+  vsStopPreview();
+  _vsShowScene(0);
+}
+
+function vsStopPreview() {
+  if (_vsPlayTimer) { clearTimeout(_vsPlayTimer); _vsPlayTimer = null; }
+  _vsCurrentScene = -1;
+
+  const placeholder = el("vsPreviewPlaceholder");
+  const sceneEl     = el("vsPreviewScene");
+  if (placeholder) placeholder.classList.remove("hidden");
+  if (sceneEl)     sceneEl.classList.add("hidden");
+  _vsRenderSceneList();
+}
+
+// ── Export ────────────────────────────────────────────────────────────────
+function vsExportJson() {
+  if (_vsScenes.length === 0) {
+    _vsStatus("No scenes to export.", true);
+    return;
+  }
+  const payload = {
+    style:          _vsStyle,
+    total_duration: _vsScenes.reduce((a, s) => a + s.duration, 0),
+    scenes:         _vsScenes,
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href     = url;
+  a.download = "kala-video-script.json";
+  a.click();
+  URL.revokeObjectURL(url);
 }
