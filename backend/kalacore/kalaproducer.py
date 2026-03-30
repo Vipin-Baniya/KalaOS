@@ -20,10 +20,12 @@ generate_melody_contour     – melodic shape and scale degree suggestions
 suggest_distribution_channels – platform-by-platform release strategy
 generate_streaming_metadata – streaming-optimised tags, ISRC, loudness targets
 generate_sample_palette     – sample/loop/texture suggestions
+generate_ai_beat            – AI beat generator: prompt → BPM + drums + melody
 
 Public API
 ----------
 produce(text, pattern_analysis, art_genome_dict) → full producer dict
+generate_ai_beat(prompt) → {bpm, drums, melody}
 """
 
 import math
@@ -792,4 +794,303 @@ def produce(
         "distribution":       distribution,
         "streaming_metadata": streaming_meta,
         "sample_palette":     sample_palette,
+    }
+
+
+# ---------------------------------------------------------------------------
+# AI Beat Generator
+# ---------------------------------------------------------------------------
+
+# Keyword → beat profile mapping.  Keys are lowercased prompt keywords.
+_AI_BEAT_PROFILES: Dict[str, Dict[str, Any]] = {
+    "lofi": {
+        "bpm": 80,
+        "drums": {
+            "kick":    [1,0,0,0, 0,0,1,0, 1,0,0,0, 0,0,0,0],
+            "snare":   [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0],
+            "hihat":   [1,0,1,0, 1,0,1,0, 1,0,1,0, 1,0,1,0],
+            "openhat": [0,0,0,0, 0,0,1,0, 0,0,0,0, 0,0,1,0],
+            "clap":    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0],
+            "perc":    [0,1,0,0, 0,0,0,1, 0,1,0,0, 0,0,0,1],
+        },
+        "melody": ["C4", "Eb4", "F4", "G4", "Bb4", "C5"],
+    },
+    "trap": {
+        "bpm": 140,
+        "drums": {
+            "kick":    [1,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,1,0],
+            "snare":   [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0],
+            "hihat":   [1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1],
+            "openhat": [0,0,0,0, 0,0,1,0, 0,0,0,0, 0,0,1,0],
+            "clap":    [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0],
+            "perc":    [0,0,1,0, 0,0,0,0, 0,0,1,0, 0,0,0,1],
+        },
+        "melody": ["C3", "Eb3", "F3", "G3", "Ab3", "C4"],
+    },
+    "hip-hop": {
+        "bpm": 90,
+        "drums": {
+            "kick":    [1,0,0,0, 0,0,1,0, 1,0,0,0, 0,0,0,0],
+            "snare":   [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0],
+            "hihat":   [1,0,1,0, 1,0,1,0, 1,0,1,0, 1,0,1,0],
+            "openhat": [0,0,0,0, 0,0,1,0, 0,0,0,0, 0,0,1,0],
+            "clap":    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0],
+            "perc":    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0],
+        },
+        "melody": ["C4", "D4", "F4", "G4", "A4", "C5"],
+    },
+    "house": {
+        "bpm": 128,
+        "drums": {
+            "kick":    [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0],
+            "snare":   [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0],
+            "hihat":   [0,0,1,0, 0,0,1,0, 0,0,1,0, 0,0,1,0],
+            "openhat": [0,1,0,1, 0,1,0,1, 0,1,0,1, 0,1,0,1],
+            "clap":    [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0],
+            "perc":    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0],
+        },
+        "melody": ["G4", "A4", "B4", "D5", "E5", "G5"],
+    },
+    "techno": {
+        "bpm": 138,
+        "drums": {
+            "kick":    [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0],
+            "snare":   [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0],
+            "hihat":   [1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1],
+            "openhat": [0,0,1,0, 0,0,1,0, 0,0,1,0, 0,0,1,0],
+            "clap":    [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0],
+            "perc":    [0,1,0,1, 0,1,0,1, 0,1,0,1, 0,1,0,1],
+        },
+        "melody": ["A2", "A3", "E3", "D3", "F3", "A3"],
+    },
+    "reggaeton": {
+        "bpm": 96,
+        "drums": {
+            "kick":    [1,0,0,1, 0,0,1,0, 1,0,0,1, 0,0,1,0],
+            "snare":   [0,0,1,0, 0,0,0,0, 0,0,1,0, 0,0,0,0],
+            "hihat":   [1,0,1,0, 1,0,1,0, 1,0,1,0, 1,0,1,1],
+            "openhat": [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0],
+            "clap":    [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0],
+            "perc":    [0,1,0,0, 0,1,0,0, 0,1,0,0, 0,1,0,0],
+        },
+        "melody": ["A4", "G4", "F4", "E4", "D4", "C4"],
+    },
+    "dnb": {
+        "bpm": 174,
+        "drums": {
+            "kick":    [1,0,0,0, 0,0,0,0, 0,0,1,0, 0,0,0,0],
+            "snare":   [0,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,1,0],
+            "hihat":   [1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1],
+            "openhat": [0,0,1,0, 0,0,1,0, 0,0,1,0, 0,0,1,0],
+            "clap":    [0,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0],
+            "perc":    [0,1,0,0, 1,0,0,0, 0,1,0,0, 1,0,0,0],
+        },
+        "melody": ["C4", "D4", "Eb4", "G4", "Ab4", "Bb4"],
+    },
+    "jazz": {
+        "bpm": 120,
+        "drums": {
+            "kick":    [1,0,0,0, 0,0,1,0, 0,0,0,0, 1,0,0,0],
+            "snare":   [0,0,1,0, 0,0,0,0, 0,0,1,0, 0,0,0,1],
+            "hihat":   [1,0,1,0, 1,0,1,0, 1,0,1,0, 1,0,1,0],
+            "openhat": [0,1,0,0, 0,1,0,0, 0,1,0,0, 0,1,0,0],
+            "clap":    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0],
+            "perc":    [0,0,0,1, 0,0,0,0, 0,0,0,1, 0,0,0,0],
+        },
+        "melody": ["C4", "E4", "G4", "B4", "D5", "F5"],
+    },
+    "pop": {
+        "bpm": 120,
+        "drums": {
+            "kick":    [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0],
+            "snare":   [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0],
+            "hihat":   [1,0,1,0, 1,0,1,0, 1,0,1,0, 1,0,1,0],
+            "openhat": [0,0,0,0, 0,1,0,0, 0,0,0,0, 0,1,0,0],
+            "clap":    [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0],
+            "perc":    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0],
+        },
+        "melody": ["C4", "E4", "G4", "A4", "F4", "G4"],
+    },
+    "afrobeats": {
+        "bpm": 102,
+        "drums": {
+            "kick":    [1,0,0,0, 0,1,0,0, 1,0,0,0, 0,1,0,0],
+            "snare":   [0,0,1,0, 0,0,0,0, 0,0,1,0, 0,0,0,0],
+            "hihat":   [1,1,0,1, 1,0,1,1, 1,1,0,1, 1,0,1,1],
+            "openhat": [0,0,0,1, 0,0,0,0, 0,0,0,1, 0,0,0,0],
+            "clap":    [0,0,1,0, 0,0,1,0, 0,0,1,0, 0,0,1,0],
+            "perc":    [1,0,0,1, 0,1,0,0, 1,0,0,1, 0,1,0,0],
+        },
+        "melody": ["D4", "E4", "F#4", "A4", "B4", "D5"],
+    },
+    "ambient": {
+        "bpm": 70,
+        "drums": {
+            "kick":    [1,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0],
+            "snare":   [0,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0],
+            "hihat":   [0,0,1,0, 0,0,0,0, 0,0,1,0, 0,0,0,0],
+            "openhat": [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0],
+            "clap":    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0],
+            "perc":    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0],
+        },
+        "melody": ["C4", "E4", "G4", "B4", "D5", "E5"],
+    },
+    "drill": {
+        "bpm": 145,
+        "drums": {
+            "kick":    [1,0,0,1, 0,0,0,0, 1,0,0,1, 0,0,0,0],
+            "snare":   [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0],
+            "hihat":   [1,1,1,0, 1,1,1,0, 1,1,1,0, 1,1,1,1],
+            "openhat": [0,0,0,1, 0,0,0,1, 0,0,0,1, 0,0,0,1],
+            "clap":    [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0],
+            "perc":    [0,1,0,0, 0,0,0,1, 0,1,0,0, 0,0,0,1],
+        },
+        "melody": ["C3", "D3", "Eb3", "F3", "Ab3", "Bb3"],
+    },
+    "funk": {
+        "bpm": 108,
+        "drums": {
+            "kick":    [1,0,1,0, 0,0,1,0, 1,0,1,0, 0,0,1,0],
+            "snare":   [0,0,0,0, 1,0,0,1, 0,0,0,0, 1,0,0,1],
+            "hihat":   [1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1],
+            "openhat": [0,0,0,1, 0,0,0,1, 0,0,0,1, 0,0,0,1],
+            "clap":    [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0],
+            "perc":    [0,1,0,0, 0,1,0,0, 0,1,0,0, 0,1,0,0],
+        },
+        "melody": ["G4", "Bb4", "C5", "D5", "F5", "G5"],
+    },
+    "soul": {
+        "bpm": 85,
+        "drums": {
+            "kick":    [1,0,0,0, 0,0,1,0, 1,0,0,0, 0,1,0,0],
+            "snare":   [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0],
+            "hihat":   [1,0,1,0, 1,0,1,0, 1,0,1,0, 1,0,1,0],
+            "openhat": [0,1,0,0, 0,1,0,0, 0,1,0,0, 0,1,0,0],
+            "clap":    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0],
+            "perc":    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0],
+        },
+        "melody": ["F4", "G4", "A4", "C5", "D5", "F5"],
+    },
+    "chill": {
+        "bpm": 85,
+        "drums": {
+            "kick":    [1,0,0,0, 0,0,1,0, 1,0,0,0, 0,0,0,0],
+            "snare":   [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0],
+            "hihat":   [1,0,1,0, 1,0,1,0, 1,0,1,0, 1,0,1,0],
+            "openhat": [0,0,0,0, 0,0,1,0, 0,0,0,0, 0,0,1,0],
+            "clap":    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0],
+            "perc":    [0,1,0,0, 0,0,0,1, 0,1,0,0, 0,0,0,1],
+        },
+        "melody": ["C4", "E4", "G4", "A4", "B4", "C5"],
+    },
+}
+
+# Default fallback profile (boom-bap)
+_AI_BEAT_DEFAULT: Dict[str, Any] = {
+    "bpm": 90,
+    "drums": {
+        "kick":    [1,0,0,0, 0,0,1,0, 1,0,0,0, 0,0,0,0],
+        "snare":   [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0],
+        "hihat":   [1,0,1,0, 1,0,1,0, 1,0,1,0, 1,0,1,0],
+        "openhat": [0,0,0,0, 0,0,1,0, 0,0,0,0, 0,0,1,0],
+        "clap":    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0],
+        "perc":    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0],
+    },
+    "melody": ["C4", "D4", "F4", "G4", "A4", "C5"],
+}
+
+# Mood keywords → BPM adjustments (applied after genre selection)
+_MOOD_BPM_DELTA: Dict[str, int] = {
+    "slow":   -20,
+    "fast":    20,
+    "hard":    15,
+    "dark":    -5,
+    "happy":    5,
+    "sad":    -10,
+    "energetic": 15,
+    "relaxed": -15,
+    "aggressive": 20,
+    "melancholic": -10,
+    "uplifting":   10,
+}
+
+# Mood keywords → melody root shift (semitones, clamped to available notes)
+_MOOD_TO_SCALE: Dict[str, List[str]] = {
+    "dark":       ["C3", "Eb3", "F3", "G3", "Ab3", "C4"],
+    "happy":      ["C4", "E4", "G4", "A4", "B4", "C5"],
+    "sad":        ["A3", "C4", "D4", "E4", "G4", "A4"],
+    "aggressive": ["C3", "D3", "Eb3", "F#3", "G3", "Bb3"],
+    "romantic":   ["E4", "F#4", "G#4", "B4", "C#5", "E5"],
+    "dreamy":     ["D4", "F4", "G4", "A4", "C5", "D5"],
+}
+
+
+def generate_ai_beat(prompt: str) -> Dict[str, Any]:
+    """
+    AI Beat Generator: converts a text prompt into a beat recipe.
+
+    The function detects genre/mood keywords in the prompt and returns a
+    concrete beat specification that can be rendered directly in the drum
+    machine and piano-roll.
+
+    Parameters
+    ----------
+    prompt : str
+        Free-text description, e.g. "lofi chill beat", "dark trap 140bpm",
+        "house party", "afrobeats summer".
+
+    Returns
+    -------
+    dict with keys:
+        bpm     – integer beats per minute
+        drums   – {kick, snare, hihat, openhat, clap, perc}: List[int] (16 steps, 0/1)
+        melody  – List[str] note names, e.g. ["C4", "E4", "G4"]
+        genre   – detected genre keyword (str)
+        prompt  – echoed prompt (str)
+    """
+    lower = prompt.lower()
+
+    # 1. Pick the best-matching genre profile
+    profile = None
+    matched_genre = "default"
+    for keyword, prof in _AI_BEAT_PROFILES.items():
+        if keyword in lower:
+            profile = prof
+            matched_genre = keyword
+            break
+
+    if profile is None:
+        profile = _AI_BEAT_DEFAULT
+
+    # Deep-copy so we don't mutate the originals
+    bpm: int = profile["bpm"]
+    drums: Dict[str, List[int]] = {row: list(pat) for row, pat in profile["drums"].items()}
+    melody: List[str] = list(profile["melody"])
+
+    # 2. Apply mood-based BPM tweaks
+    for mood, delta in _MOOD_BPM_DELTA.items():
+        if mood in lower:
+            bpm = max(40, min(300, bpm + delta))
+            break  # apply at most one mood modifier
+
+    # 3. Override melody scale for strong mood descriptors
+    for mood, scale in _MOOD_TO_SCALE.items():
+        if mood in lower:
+            melody = scale
+            break
+
+    # 4. Handle explicit BPM overrides like "120bpm" or "120 bpm"
+    import re
+    bpm_match = re.search(r"\b(\d{2,3})\s*bpm\b", lower)
+    if bpm_match:
+        explicit_bpm = int(bpm_match.group(1))
+        if 40 <= explicit_bpm <= 300:
+            bpm = explicit_bpm
+
+    return {
+        "bpm":    bpm,
+        "drums":  drums,
+        "melody": melody,
+        "genre":  matched_genre,
+        "prompt": prompt,
     }
