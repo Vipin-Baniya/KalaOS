@@ -58,6 +58,7 @@ from services.llm_service import (
     ART_DOMAINS,
 )
 import services.auth_service as auth_service
+import services.platform_service as platform_service
 
 # Build the domain Literal dynamically from ART_DOMAINS so there is
 # only one source of truth for the allowed values.
@@ -1355,6 +1356,8 @@ class AuthResetRequest(BaseModel):
 class AuthUpdateProfileRequest(BaseModel):
     token: str
     name: str
+    avatar_url: Optional[str] = None
+    bio: Optional[str] = None
 
 
 class AuthChangePasswordRequest(BaseModel):
@@ -1435,11 +1438,15 @@ def auth_me(token: str):
     return user
 
 
-@app.post("/auth/update-profile", summary="Update display name")
+@app.post("/auth/update-profile", summary="Update display name, avatar, and bio")
 def auth_update_profile(request: AuthUpdateProfileRequest):
-    """Update the display name for the authenticated user."""
+    """Update the display name, avatar, and bio for the authenticated user."""
     try:
-        user = auth_service.update_profile(request.token, request.name)
+        user = auth_service.update_profile(
+            request.token, request.name,
+            avatar_url=request.avatar_url,
+            bio=request.bio,
+        )
         return {"success": True, "user": user}
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -1472,3 +1479,150 @@ def auth_delete_account(request: AuthDeleteAccountRequest):
         return {"success": True}
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+
+
+# ---------------------------------------------------------------------------
+# User profiles
+# ---------------------------------------------------------------------------
+
+@app.get("/user/{user_id}", summary="Get public user profile")
+def get_user_profile(user_id: str):
+    """Return public profile for a user by email."""
+    user = auth_service._USERS.get(user_id.lower())
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+    return {
+        "email":      user["email"],
+        "name":       user["name"],
+        "avatar_url": user.get("avatar_url", ""),
+        "bio":        user.get("bio", ""),
+        "created_at": user["created_at"],
+    }
+
+
+# ---------------------------------------------------------------------------
+# Projects
+# ---------------------------------------------------------------------------
+
+class ProjectCreateRequest(BaseModel):
+    token: str
+    title: str
+    type: str
+    data: str = "{}"
+
+
+class ProjectUpdateRequest(BaseModel):
+    token: str
+    title: Optional[str] = None
+    data: Optional[str] = None
+
+
+class ProjectTokenRequest(BaseModel):
+    token: str
+
+
+@app.post("/projects", summary="Create a new project")
+def projects_create(body: ProjectCreateRequest):
+    try:
+        project = platform_service.create_project(body.token, body.title, body.type, body.data)
+        return {"success": True, "project": project}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.get("/projects", summary="List projects for the authenticated user")
+def projects_list(token: str):
+    try:
+        projects = platform_service.list_projects(token)
+        return {"projects": projects}
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail=str(exc))
+
+
+@app.get("/projects/{project_id}", summary="Get a specific project")
+def projects_get(project_id: str, token: str):
+    try:
+        project = platform_service.get_project(token, project_id)
+        return project
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@app.put("/projects/{project_id}", summary="Update a project")
+def projects_update(project_id: str, body: ProjectUpdateRequest):
+    try:
+        project = platform_service.update_project(body.token, project_id, body.title, body.data)
+        return {"success": True, "project": project}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.delete("/projects/{project_id}", summary="Delete a project")
+def projects_delete(project_id: str, token: str):
+    try:
+        platform_service.delete_project(token, project_id)
+        return {"success": True}
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+# ---------------------------------------------------------------------------
+# Feed / Posts
+# ---------------------------------------------------------------------------
+
+class PublishRequest(BaseModel):
+    token: str
+    project_id: str
+
+
+@app.post("/posts", summary="Publish a project to the feed")
+def posts_publish(body: PublishRequest):
+    try:
+        post = platform_service.publish_project(body.token, body.project_id)
+        return {"success": True, "post": post}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.get("/feed", summary="Get the public creation feed")
+def feed_get(limit: int = 20, offset: int = 0):
+    posts = platform_service.get_feed(limit, offset)
+    return {"posts": posts}
+
+
+# ---------------------------------------------------------------------------
+# Chat / Messages
+# ---------------------------------------------------------------------------
+
+class SendMessageRequest(BaseModel):
+    token: str
+    receiver_id: str
+    content: str
+
+
+@app.post("/messages", summary="Send a message to another user")
+def messages_send(body: SendMessageRequest):
+    try:
+        msg = platform_service.send_message(body.token, body.receiver_id, body.content)
+        return {"success": True, "message": msg}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.get("/messages/{peer_id}", summary="Get conversation with a user")
+def messages_get(peer_id: str, token: str, limit: int = 50, offset: int = 0):
+    try:
+        msgs = platform_service.get_conversation(token, peer_id, limit, offset)
+        return {"messages": msgs}
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail=str(exc))
+
+
+@app.get("/conversations", summary="List all conversations for the authenticated user")
+def conversations_list(token: str):
+    try:
+        convs = platform_service.list_conversations(token)
+        return {"conversations": convs}
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail=str(exc))
+
