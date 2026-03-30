@@ -264,7 +264,7 @@ class TestProjectsCRUD:
 
     def test_all_project_types_valid(self, client):
         token = _register_and_login(client)
-        for ptype in ("text", "visual", "music", "video"):
+        for ptype in ("text", "visual", "music", "video", "animation"):
             resp = client.post("/projects", json={"token": token, "title": ptype, "type": ptype})
             assert resp.status_code == 200, f"type {ptype!r} should be valid"
 

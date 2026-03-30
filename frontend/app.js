@@ -4454,7 +4454,7 @@ async function studioPublish(type) {
 async function studioShowProjects(type) {
   if (!_authToken) { alert('Please log in to view your projects.'); return; }
   _studioModalMode = type;
-  const typeLabels = { text: 'Text', visual: 'Visual', animation: 'Animation' };
+  const typeLabels = { text: 'Text', visual: 'Visual', animation: 'Animation', music: 'Music', video: 'Video' };
   const titleEl = el('projectsModalTitle');
   if (titleEl) titleEl.textContent = `My ${typeLabels[type] || ''} Projects`;
   const listEl = el('projectsModalList');
