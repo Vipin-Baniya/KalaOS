@@ -267,9 +267,21 @@
           <span class="sidebar-icon" aria-hidden="true">🎬</span>
           <span class="sidebar-label">Animation</span>
         </button>
+        <button class="sidebar-btn" id="feedStudioBtn" onclick="switchStudio('feed')" role="tab" aria-selected="false">
+          <span class="sidebar-icon" aria-hidden="true">🏠</span>
+          <span class="sidebar-label">Home</span>
+        </button>
         <button class="sidebar-btn" id="chatStudioBtn" onclick="switchStudio('chat')" role="tab" aria-selected="false">
           <span class="sidebar-icon" aria-hidden="true">💬</span>
           <span class="sidebar-label">Kala Chat</span>
+        </button>
+        <button class="sidebar-btn" id="dmsStudioBtn" onclick="switchStudio('dms')" role="tab" aria-selected="false">
+          <span class="sidebar-icon" aria-hidden="true">✉️</span>
+          <span class="sidebar-label">Messages</span>
+        </button>
+        <button class="sidebar-btn" id="profileStudioBtn" onclick="switchStudio('profile')" role="tab" aria-selected="false">
+          <span class="sidebar-icon" aria-hidden="true">👤</span>
+          <span class="sidebar-label">Profile</span>
         </button>
       </nav>
       <div class="sidebar-footer">
@@ -287,6 +299,15 @@
 
     <!-- ── Text Studio ── -->
     <div id="textStudio">
+
+    <div class="studio-projects-bar" id="textProjectsBar">
+      <span class="studio-projects-label" id="textProjectTitle">Untitled</span>
+      <div class="studio-projects-actions">
+        <button class="btn-secondary btn-sm" onclick="studioSave('text')" id="textSaveBtn" title="Save project">💾 Save</button>
+        <button class="btn-secondary btn-sm" onclick="studioShowProjects('text')" title="Load a project">📂 Projects</button>
+        <button class="btn-secondary btn-sm" onclick="studioPublish('text')" id="textPublishBtn" title="Publish to feed" disabled>📤 Publish</button>
+      </div>
+    </div>
 
     <!-- ── Writing Mode Bar ── -->
     <div class="writing-mode-bar" role="tablist" aria-label="Writing mode">
@@ -1114,6 +1135,14 @@
 
     </div><!-- /musicStudio -->
     <div id="visualStudio" class="input-panel hidden">
+      <div class="studio-projects-bar" id="visualProjectsBar">
+        <span class="studio-projects-label" id="visualProjectTitle">Untitled</span>
+        <div class="studio-projects-actions">
+          <button class="btn-secondary btn-sm" onclick="studioSave('visual')" id="visualSaveBtn" title="Save project">💾 Save</button>
+          <button class="btn-secondary btn-sm" onclick="studioShowProjects('visual')" title="Load a project">📂 Projects</button>
+          <button class="btn-secondary btn-sm" onclick="studioPublish('visual')" id="visualPublishBtn" title="Publish to feed" disabled>📤 Publish</button>
+        </div>
+      </div>
       <div class="input-card" style="padding:.8rem 1.2rem .3rem">
         <div class="visual-tab-bar" role="tablist" aria-label="Visual tools">
           <button class="visual-tab active" data-vtab="paint" onclick="switchVisualTab('paint')" role="tab">🖌️ Paint &amp; Sketch</button>
@@ -1434,6 +1463,15 @@
          ═══════════════════════════════════════════ -->
     <div id="animationStudio" class="input-panel hidden">
 
+      <div class="studio-projects-bar" id="animProjectsBar">
+        <span class="studio-projects-label" id="animProjectTitle">Untitled</span>
+        <div class="studio-projects-actions">
+          <button class="btn-secondary btn-sm" onclick="studioSave('animation')" id="animSaveBtn" title="Save project">💾 Save</button>
+          <button class="btn-secondary btn-sm" onclick="studioShowProjects('animation')" title="Load a project">📂 Projects</button>
+          <button class="btn-secondary btn-sm" onclick="studioPublish('animation')" id="animPublishBtn" title="Publish to feed" disabled>📤 Publish</button>
+        </div>
+      </div>
+
       <!-- Animation tool tab bar -->
       <div class="anim-tools-bar" role="tablist" aria-label="Animation studio tools">
         <button class="anim-tool-btn active" data-atool="text2anim" onclick="switchAnimTool('text2anim')" role="tab" aria-selected="true">✍️ Text → Anim</button>
@@ -1629,6 +1667,118 @@
       </div>
     </div><!-- /chatStudio -->
 
+    <!-- ── Home Feed ── -->
+    <div id="feedStudio" class="input-panel hidden" aria-label="Home Feed">
+      <div class="studio-header">
+        <h2 class="studio-title">🏠 Home Feed</h2>
+        <p class="studio-subtitle">See what creators are sharing on KalaOS</p>
+      </div>
+      <div class="feed-toolbar">
+        <button class="btn-secondary" onclick="loadFeed()" id="feedRefreshBtn">↻ Refresh</button>
+      </div>
+      <div id="feedList" class="feed-list" aria-live="polite">
+        <p class="feed-empty-msg">Loading…</p>
+      </div>
+    </div><!-- /feedStudio -->
+
+    <!-- ── Messages (1:1 DMs) ── -->
+    <div id="dmsStudio" class="input-panel hidden" aria-label="Direct Messages">
+      <div class="studio-header">
+        <h2 class="studio-title">✉️ Messages</h2>
+        <p class="studio-subtitle">1:1 conversations with other creators</p>
+      </div>
+      <div class="dms-layout">
+        <!-- Conversations list -->
+        <aside class="dms-sidebar" aria-label="Conversations">
+          <div class="dms-sidebar-header">
+            <span class="dms-sidebar-title">Conversations</span>
+            <button class="btn-icon-round" onclick="showNewDmPanel()" title="New conversation" aria-label="Start new conversation">＋</button>
+          </div>
+          <div id="convList" class="conv-list" aria-live="polite">
+            <p class="conv-empty">No conversations yet</p>
+          </div>
+          <!-- New DM panel -->
+          <div id="newDmPanel" class="new-dm-panel hidden">
+            <div class="form-group">
+              <label for="dmRecipientInput">Recipient email</label>
+              <input type="email" id="dmRecipientInput" placeholder="artist@example.com" autocomplete="off" />
+            </div>
+            <button class="btn-primary btn-full" onclick="startConversation()">Start Chat</button>
+            <button class="btn-secondary btn-full" style="margin-top:.4rem" onclick="hide('newDmPanel')">Cancel</button>
+          </div>
+        </aside>
+        <!-- Chat window -->
+        <section class="dms-window" aria-label="Chat window">
+          <div id="dmWindowEmpty" class="dms-window-empty">
+            <span aria-hidden="true">💬</span>
+            <p>Select a conversation or start a new one</p>
+          </div>
+          <div id="dmWindowActive" class="hidden" style="display:flex;flex-direction:column;height:100%">
+            <header class="dm-window-header">
+              <span id="dmWindowPeerName" class="dm-peer-name"></span>
+              <span id="dmWindowPeerId" class="dm-peer-id"></span>
+            </header>
+            <div id="dmMessages" class="dm-messages" role="log" aria-live="polite" aria-label="Messages"></div>
+            <div id="dmSharePanel" class="dm-share-panel hidden">
+              <span style="font-size:.8rem;color:var(--text-dim);padding:.3rem .5rem">Share a project:</span>
+              <div id="dmShareProjectsList" class="dm-share-list">
+                <span class="conv-empty" style="padding:.5rem">Loading…</span>
+              </div>
+            </div>
+            <div class="dm-compose">
+              <textarea id="dmInput" class="dm-input" placeholder="Type a message…" rows="2" aria-label="Message input"></textarea>
+              <button class="btn-secondary btn-sm" onclick="toggleDmSharePanel()" title="Share a project" style="white-space:nowrap">📎 Share</button>
+              <button class="btn-primary" id="dmSendBtn" onclick="sendDm()">Send</button>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div><!-- /dmsStudio -->
+
+    <!-- ── Profile Page ── -->
+    <div id="profileStudio" class="input-panel hidden" aria-label="Your Profile">
+      <div class="studio-header">
+        <h2 class="studio-title">👤 Profile</h2>
+        <p class="studio-subtitle">Your creator profile on KalaOS</p>
+      </div>
+      <div class="profile-page">
+        <div class="profile-avatar-wrap">
+          <div class="profile-avatar-large" id="profilePageAvatar">?</div>
+        </div>
+        <div class="profile-page-info">
+          <h3 id="profilePageName" class="profile-page-name"></h3>
+          <p id="profilePageEmail" class="profile-page-email"></p>
+          <p id="profilePageBio" class="profile-page-bio"></p>
+        </div>
+
+        <div id="profilePageMsg" class="auth-alert hidden" role="alert" style="margin-bottom:1rem"></div>
+
+        <fieldset class="profile-edit-section">
+          <legend>Edit Profile</legend>
+          <div class="form-group">
+            <label for="profilePageName2">Display name</label>
+            <input type="text" id="profilePageName2" placeholder="Your display name" autocomplete="name" />
+          </div>
+          <div class="form-group">
+            <label for="profilePageAvatarUrl">Avatar URL <span class="field-hint">(optional image link)</span></label>
+            <input type="url" id="profilePageAvatarUrl" placeholder="https://example.com/avatar.png" autocomplete="off" />
+          </div>
+          <div class="form-group">
+            <label for="profilePageBio2">Bio <span class="field-hint">(a few words about yourself)</span></label>
+            <textarea id="profilePageBio2" placeholder="Artist, creator, dreamer…" rows="3" style="width:100%;resize:vertical;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:.6rem .8rem;font-size:.9rem"></textarea>
+          </div>
+          <button class="btn-primary" id="profilePageSaveBtn" onclick="saveProfilePage()">Save Changes</button>
+        </fieldset>
+
+        <section class="profile-creations-section" id="profileCreationsSection">
+          <h4 class="profile-creations-title">🎨 My Creations</h4>
+          <div id="profileCreationsList" class="profile-creations-list">
+            <p class="feed-empty-msg">Loading…</p>
+          </div>
+        </section>
+      </div>
+    </div><!-- /profileStudio -->
+
     </main><!-- /app-workspace -->
 
     <!-- ── Right Panel: AI Writing Assistant + Pattern Intelligence ── -->
@@ -1691,6 +1841,22 @@
     </aside><!-- /appAiPanel -->
 
   </div><!-- /app-body -->
+
+  <div id="projectsModal" class="projects-modal-overlay hidden" role="dialog" aria-modal="true" aria-label="My Projects">
+    <div class="projects-modal-card">
+      <div class="projects-modal-header">
+        <span id="projectsModalTitle" class="projects-modal-title">My Projects</span>
+        <button class="btn-icon-round" onclick="hide('projectsModal')" aria-label="Close">✕</button>
+      </div>
+      <div id="projectsModalList" class="projects-modal-list">
+        <p class="projects-modal-empty">No projects yet.</p>
+      </div>
+      <div class="projects-modal-new">
+        <input type="text" id="projectsModalNewTitle" placeholder="New project title…" autocomplete="off" />
+        <button class="btn-primary" id="projectsModalCreateBtn" onclick="studioCreateNew()">Create New</button>
+      </div>
+    </div>
+  </div>
 
   <footer class="app-footer" role="contentinfo">
     <p>KalaOS &#8212; AI-native art platform. Art understanding without judgment. Artist dignity by design.</p>

@@ -96,7 +96,9 @@ def _db_init() -> None:
                     name       TEXT NOT NULL,
                     pw_hash    TEXT NOT NULL,
                     pw_salt    TEXT NOT NULL,
-                    created_at INTEGER NOT NULL
+                    created_at INTEGER NOT NULL,
+                    avatar_url TEXT NOT NULL DEFAULT '',
+                    bio        TEXT NOT NULL DEFAULT ''
                 )
             """)
             conn.execute("""
@@ -106,6 +108,22 @@ def _db_init() -> None:
                     expires_at INTEGER NOT NULL
                 )
             """)
+            # Migration: add new user columns.
+            # _MIGRATION_COLS values are hardcoded source constants (not user input).
+            # Column names are validated against an alphanumeric+underscore whitelist
+            # before being interpolated into the ALTER TABLE statement.
+            _MIGRATION_COLS = {"avatar_url": "''", "bio": "''"}
+            _ALLOWED_DEFAULT = frozenset(_MIGRATION_COLS.values())
+            for col, default in _MIGRATION_COLS.items():
+                if not col.replace("_", "").isalnum() or default not in _ALLOWED_DEFAULT:
+                    raise RuntimeError(f"Unsafe migration column definition: {col!r}")
+                try:
+                    conn.execute(
+                        f"ALTER TABLE users ADD COLUMN {col} TEXT NOT NULL DEFAULT {default}"
+                    )
+                except sqlite3.OperationalError as exc:
+                    if "duplicate column name" not in str(exc).lower():
+                        raise  # unexpected error — re-raise
 
 
 def _db_upsert_user(email: str, user: dict) -> None:
@@ -113,9 +131,10 @@ def _db_upsert_user(email: str, user: dict) -> None:
         with _get_db() as conn:
             conn.execute(
                 "INSERT OR REPLACE INTO users "
-                "(email, name, pw_hash, pw_salt, created_at) VALUES (?,?,?,?,?)",
+                "(email, name, pw_hash, pw_salt, created_at, avatar_url, bio) VALUES (?,?,?,?,?,?,?)",
                 (user["email"], user["name"], user["pw_hash"],
-                 user["pw_salt"], user["created_at"]),
+                 user["pw_salt"], user["created_at"],
+                 user.get("avatar_url", ""), user.get("bio", "")),
             )
 
 
@@ -226,7 +245,7 @@ def _bootstrap() -> None:
     with _db_lock:
         with _get_db() as conn:
             for row in conn.execute(
-                "SELECT email, name, pw_hash, pw_salt, created_at FROM users"
+                "SELECT email, name, pw_hash, pw_salt, created_at, avatar_url, bio FROM users"
             ):
                 dict.__setitem__(_USERS, row["email"], dict(row))
             for row in conn.execute(
@@ -334,7 +353,8 @@ def _verify_session_token(token: str) -> Optional[str]:
 # Public API
 # ---------------------------------------------------------------------------
 
-def register(email: str, password: str, name: str) -> dict:
+def register(email: str, password: str, name: str,
+             avatar_url: str = "", bio: str = "") -> dict:
     """Create a new user account.  Returns user info dict on success."""
     email = email.strip().lower()
     if not email or "@" not in email:
@@ -351,6 +371,8 @@ def register(email: str, password: str, name: str) -> dict:
         "pw_hash":    pw_hash,
         "pw_salt":    pw_salt,
         "created_at": int(time.time()),
+        "avatar_url": avatar_url,
+        "bio":        bio,
     }
     return {"email": email, "name": _USERS[email]["name"]}
 
@@ -414,11 +436,28 @@ def get_user(token: str) -> Optional[dict]:
     user = _USERS.get(email)
     if not user:
         return None
-    return {"email": user["email"], "name": user["name"]}
+    return {"email": user["email"], "name": user["name"],
+            "avatar_url": user.get("avatar_url", ""), "bio": user.get("bio", ""),
+            "created_at": user["created_at"]}
 
 
-def update_profile(token: str, name: str) -> dict:
-    """Update the display name for the authenticated user."""
+def get_user_by_email(email: str) -> Optional[dict]:
+    """Return public profile for a user by email, or None if not found."""
+    user = _USERS.get(email.strip().lower())
+    if not user:
+        return None
+    return {
+        "email":      user["email"],
+        "name":       user["name"],
+        "avatar_url": user.get("avatar_url", ""),
+        "bio":        user.get("bio", ""),
+        "created_at": user["created_at"],
+    }
+
+
+def update_profile(token: str, name: str,
+                   avatar_url: Optional[str] = None, bio: Optional[str] = None) -> dict:
+    """Update the display name, avatar_url, and bio for the authenticated user."""
     email = _verify_session_token(token)
     if not email:
         raise ValueError("Invalid or expired session token.")
@@ -427,8 +466,13 @@ def update_profile(token: str, name: str) -> dict:
         raise ValueError("Name must not be empty.")
     user = dict(_USERS[email])
     user["name"] = name
+    if avatar_url is not None:
+        user["avatar_url"] = avatar_url
+    if bio is not None:
+        user["bio"] = bio
     _USERS[email] = user       # triggers SQLite sync
-    return {"email": email, "name": name}
+    return {"email": email, "name": name,
+            "avatar_url": user.get("avatar_url", ""), "bio": user.get("bio", "")}
 
 
 def change_password(token: str, old_password: str, new_password: str) -> None:
