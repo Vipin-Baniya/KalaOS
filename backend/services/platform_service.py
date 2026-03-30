@@ -1,10 +1,13 @@
 """
-Platform Service — Projects, Feed, and Chat
----------------------------------------------
+Platform Service — Projects, Feed, Chat, Social Layer
+------------------------------------------------------
 Manages:
   - Projects: user-owned creative work (text/visual/music/video)
   - Posts: published projects (public feed)
   - Messages: 1:1 chat between users
+  - Comments: threaded comments on posts
+  - Follows: user follow/unfollow graph
+  - Notifications: activity inbox
 
 All data is persisted in the same SQLite database as auth_service (KALA_DB_PATH).
 
@@ -25,6 +28,21 @@ Chat:
   send_message(token, receiver_id, content)          → message dict or raises ValueError
   get_conversation(token, peer_id, limit, offset)    → list of message dicts
   list_conversations(token)                          → list of conversation summaries
+
+Comments:
+  add_comment(token, post_id, content)               → comment dict or raises ValueError
+  get_comments(post_id, limit, offset)               → list of comment dicts
+  delete_comment(token, comment_id)                  → None or raises ValueError
+
+Follows:
+  follow_user(token, target_email)                   → {following, follower_count} or raises ValueError
+  get_followers(email)                               → list of follower emails
+  get_following(email)                               → list of following emails
+
+Notifications:
+  get_notifications(token, limit, offset)            → list of notification dicts
+  mark_notification_read(token, notification_id)     → None or raises ValueError
+  mark_all_notifications_read(token)                 → None
 """
 
 import os
@@ -91,6 +109,40 @@ def _db_init() -> None:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_projects_user ON projects(user_email)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_posts_created ON posts(created_at)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_messages_conv ON messages(sender_id, receiver_id)")
+            # Phase 16: Comments, Follows, Notifications
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS comments (
+                    id         TEXT PRIMARY KEY,
+                    post_id    TEXT NOT NULL,
+                    user_email TEXT NOT NULL,
+                    content    TEXT NOT NULL,
+                    created_at INTEGER NOT NULL
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS follows (
+                    id             TEXT PRIMARY KEY,
+                    follower_email TEXT NOT NULL,
+                    target_email   TEXT NOT NULL,
+                    created_at     INTEGER NOT NULL,
+                    UNIQUE (follower_email, target_email)
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS notifications (
+                    id         TEXT PRIMARY KEY,
+                    user_email TEXT NOT NULL,
+                    type       TEXT NOT NULL,
+                    actor      TEXT NOT NULL,
+                    post_id    TEXT,
+                    content    TEXT NOT NULL,
+                    read       INTEGER NOT NULL DEFAULT 0,
+                    created_at INTEGER NOT NULL
+                )
+            """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_comments_post ON comments(post_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_follows_target ON follows(target_email)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_notifs_user ON notifications(user_email)")
 
 
 _db_init()
@@ -427,3 +479,198 @@ def get_user_posts(email: str) -> List[dict]:
         }
         for r in rows
     ]
+
+
+# ---------------------------------------------------------------------------
+# Phase 16: Comments
+# ---------------------------------------------------------------------------
+
+def add_comment(token: str, post_id: str, content: str) -> dict:
+    """Add a comment to a post. Returns the new comment dict."""
+    if not content or not content.strip():
+        raise ValueError("Comment content must not be empty.")
+    email = _require_auth(token)
+    with _db_lock:
+        with _get_db() as conn:
+            post = conn.execute("SELECT id, user_email FROM posts WHERE id = ?", (post_id,)).fetchone()
+            if not post:
+                raise ValueError("Post not found.")
+            comment_id = str(uuid.uuid4())
+            now = int(time.time())
+            conn.execute(
+                "INSERT INTO comments (id, post_id, user_email, content, created_at) VALUES (?,?,?,?,?)",
+                (comment_id, post_id, email, content.strip(), now),
+            )
+            # Notify the post author (if different user)
+            if post["user_email"] != email:
+                _push_notification(
+                    conn,
+                    user_email=post["user_email"],
+                    type_="comment",
+                    actor=email,
+                    post_id=post_id,
+                    content=f"{email} commented on your post.",
+                )
+    return {"id": comment_id, "post_id": post_id, "user_email": email,
+            "content": content.strip(), "created_at": now}
+
+
+def get_comments(post_id: str, limit: int = 50, offset: int = 0) -> List[dict]:
+    """Return comments for a post, ordered oldest-first."""
+    limit  = max(1, min(200, limit))
+    offset = max(0, offset)
+    with _db_lock:
+        with _get_db() as conn:
+            rows = conn.execute(
+                "SELECT * FROM comments WHERE post_id = ? ORDER BY created_at ASC LIMIT ? OFFSET ?",
+                (post_id, limit, offset),
+            ).fetchall()
+    return [
+        {"id": r["id"], "post_id": r["post_id"], "user_email": r["user_email"],
+         "content": r["content"], "created_at": r["created_at"]}
+        for r in rows
+    ]
+
+
+def delete_comment(token: str, comment_id: str) -> None:
+    """Delete a comment (only owner may delete)."""
+    email = _require_auth(token)
+    with _db_lock:
+        with _get_db() as conn:
+            row = conn.execute("SELECT id, user_email FROM comments WHERE id = ?", (comment_id,)).fetchone()
+            if not row:
+                raise ValueError("Comment not found.")
+            if row["user_email"] != email:
+                raise ValueError("Not authorised to delete this comment.")
+            conn.execute("DELETE FROM comments WHERE id = ?", (comment_id,))
+
+
+# ---------------------------------------------------------------------------
+# Phase 16: Follows
+# ---------------------------------------------------------------------------
+
+def follow_user(token: str, target_email: str) -> dict:
+    """Follow or unfollow target_email. Returns {following: bool, follower_count: int}."""
+    email = _require_auth(token)
+    if email == target_email:
+        raise ValueError("You cannot follow yourself.")
+    with _db_lock:
+        with _get_db() as conn:
+            existing = conn.execute(
+                "SELECT id FROM follows WHERE follower_email = ? AND target_email = ?",
+                (email, target_email),
+            ).fetchone()
+            if existing:
+                conn.execute(
+                    "DELETE FROM follows WHERE follower_email = ? AND target_email = ?",
+                    (email, target_email),
+                )
+                following = False
+            else:
+                conn.execute(
+                    "INSERT INTO follows (id, follower_email, target_email, created_at) VALUES (?,?,?,?)",
+                    (str(uuid.uuid4()), email, target_email, int(time.time())),
+                )
+                following = True
+                # Notify the target
+                _push_notification(
+                    conn,
+                    user_email=target_email,
+                    type_="follow",
+                    actor=email,
+                    post_id=None,
+                    content=f"{email} started following you.",
+                )
+            count = conn.execute(
+                "SELECT COUNT(*) FROM follows WHERE target_email = ?", (target_email,)
+            ).fetchone()[0]
+    return {"following": following, "follower_count": count}
+
+
+def get_followers(email: str) -> List[str]:
+    """Return list of emails that follow *email*."""
+    with _db_lock:
+        with _get_db() as conn:
+            rows = conn.execute(
+                "SELECT follower_email FROM follows WHERE target_email = ? ORDER BY created_at DESC",
+                (email,),
+            ).fetchall()
+    return [r["follower_email"] for r in rows]
+
+
+def get_following(email: str) -> List[str]:
+    """Return list of emails that *email* follows."""
+    with _db_lock:
+        with _get_db() as conn:
+            rows = conn.execute(
+                "SELECT target_email FROM follows WHERE follower_email = ? ORDER BY created_at DESC",
+                (email,),
+            ).fetchall()
+    return [r["target_email"] for r in rows]
+
+
+# ---------------------------------------------------------------------------
+# Phase 16: Notifications
+# ---------------------------------------------------------------------------
+
+def _push_notification(
+    conn: "sqlite3.Connection",
+    user_email: str,
+    type_: str,
+    actor: str,
+    post_id: Optional[str],
+    content: str,
+) -> None:
+    """Insert a notification row (must be called inside _db_lock)."""
+    conn.execute(
+        "INSERT INTO notifications (id, user_email, type, actor, post_id, content, read, created_at) "
+        "VALUES (?,?,?,?,?,?,0,?)",
+        (str(uuid.uuid4()), user_email, type_, actor, post_id, content, int(time.time())),
+    )
+
+
+def get_notifications(token: str, limit: int = 30, offset: int = 0) -> List[dict]:
+    """Return notifications for the authenticated user, newest-first."""
+    email  = _require_auth(token)
+    limit  = max(1, min(100, limit))
+    offset = max(0, offset)
+    with _db_lock:
+        with _get_db() as conn:
+            rows = conn.execute(
+                "SELECT * FROM notifications WHERE user_email = ? ORDER BY created_at DESC LIMIT ? OFFSET ?",
+                (email, limit, offset),
+            ).fetchall()
+    return [
+        {
+            "id":         r["id"],
+            "type":       r["type"],
+            "actor":      r["actor"],
+            "post_id":    r["post_id"],
+            "content":    r["content"],
+            "read":       bool(r["read"]),
+            "created_at": r["created_at"],
+        }
+        for r in rows
+    ]
+
+
+def mark_notification_read(token: str, notification_id: str) -> None:
+    """Mark a single notification as read."""
+    email = _require_auth(token)
+    with _db_lock:
+        with _get_db() as conn:
+            row = conn.execute(
+                "SELECT id FROM notifications WHERE id = ? AND user_email = ?",
+                (notification_id, email),
+            ).fetchone()
+            if not row:
+                raise ValueError("Notification not found.")
+            conn.execute("UPDATE notifications SET read = 1 WHERE id = ?", (notification_id,))
+
+
+def mark_all_notifications_read(token: str) -> None:
+    """Mark all notifications as read for the authenticated user."""
+    email = _require_auth(token)
+    with _db_lock:
+        with _get_db() as conn:
+            conn.execute("UPDATE notifications SET read = 1 WHERE user_email = ?", (email,))

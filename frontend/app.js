@@ -5233,3 +5233,459 @@ function vsExportJson() {
   a.click();
   URL.revokeObjectURL(url);
 }
+
+/* ════════════════════════════════════════════════════════════════
+   PHASE 16 — Notifications Bell
+════════════════════════════════════════════════════════════════ */
+
+let _notifOpen   = false;
+let _notifCount  = 0;
+
+function toggleNotifDropdown() {
+  _notifOpen = !_notifOpen;
+  const drop = el("notifDropdown");
+  const btn  = el("notifBellBtn");
+  if (!drop) return;
+  if (_notifOpen) {
+    drop.classList.remove("hidden");
+    btn.setAttribute("aria-expanded", "true");
+    loadNotifications();
+  } else {
+    drop.classList.add("hidden");
+    btn.setAttribute("aria-expanded", "false");
+  }
+}
+
+// Close dropdown when clicking outside
+document.addEventListener("click", (e) => {
+  if (_notifOpen && !el("notifBellWrap")?.contains(e.target)) {
+    el("notifDropdown")?.classList.add("hidden");
+    el("notifBellBtn")?.setAttribute("aria-expanded", "false");
+    _notifOpen = false;
+  }
+});
+
+async function loadNotifications() {
+  if (!_authToken) return;
+  const list = el("notifList");
+  if (!list) return;
+  list.innerHTML = '<p class="notif-empty">Loading…</p>';
+  try {
+    const resp = await fetch(`${API_BASE}/notifications?token=${encodeURIComponent(_authToken)}&limit=20`);
+    if (!resp.ok) { list.innerHTML = '<p class="notif-empty">Unable to load</p>'; return; }
+    const data = await resp.json();
+    const notifs = data.notifications || [];
+    const unread = notifs.filter(n => !n.read).length;
+    _updateNotifBadge(unread);
+    if (!notifs.length) {
+      list.innerHTML = '<p class="notif-empty">No notifications yet</p>';
+      return;
+    }
+    const icons = { comment: "💬", follow: "👥", like: "❤️" };
+    list.innerHTML = notifs.map(n => {
+      const icon = icons[n.type] || "🔔";
+      const ts   = new Date(n.created_at * 1000).toLocaleDateString();
+      return `<div class="notif-item${n.read ? '' : ' unread'}" onclick="markNotifRead('${esc(n.id)}', this)">
+        <span class="notif-item-icon">${icon}</span>
+        <div class="notif-item-body">
+          <p class="notif-item-text">${esc(n.content)}</p>
+          <p class="notif-item-time">${ts}</p>
+        </div>
+      </div>`;
+    }).join("");
+  } catch (err) {
+    list.innerHTML = `<p class="notif-empty">Error: ${esc(err.message)}</p>`;
+  }
+}
+
+function _updateNotifBadge(count) {
+  _notifCount = count;
+  const badge = el("notifBadge");
+  if (!badge) return;
+  if (count > 0) {
+    badge.textContent = count > 9 ? "9+" : String(count);
+    badge.classList.remove("hidden");
+  } else {
+    badge.classList.add("hidden");
+  }
+}
+
+async function markNotifRead(notifId, itemEl) {
+  if (!_authToken) return;
+  itemEl?.classList.remove("unread");
+  try {
+    await fetch(`${API_BASE}/notifications/${encodeURIComponent(notifId)}/read`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: _authToken }),
+    });
+    _updateNotifBadge(Math.max(0, _notifCount - 1));
+  } catch { /* ignore */ }
+}
+
+async function markAllNotifsRead() {
+  if (!_authToken) return;
+  try {
+    await fetch(`${API_BASE}/notifications/read-all`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: _authToken }),
+    });
+    _updateNotifBadge(0);
+    el("notifList")?.querySelectorAll(".notif-item.unread").forEach(i => i.classList.remove("unread"));
+  } catch { /* ignore */ }
+}
+
+// Poll for new notifications every 60s when logged in
+setInterval(() => {
+  if (_authToken) _pollNotifCount();
+}, 60000);
+
+async function _pollNotifCount() {
+  if (!_authToken) return;
+  try {
+    const resp = await fetch(`${API_BASE}/notifications?token=${encodeURIComponent(_authToken)}&limit=50`);
+    if (!resp.ok) return;
+    const data = await resp.json();
+    const unread = (data.notifications || []).filter(n => !n.read).length;
+    _updateNotifBadge(unread);
+  } catch { /* ignore */ }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   PHASE 16 — Feed Comments & Follow
+════════════════════════════════════════════════════════════════ */
+
+// Extend loadFeed to include comment + follow buttons
+const _origLoadFeed = loadFeed;
+loadFeed = async function () {
+  const list = el("feedList");
+  if (!list) return;
+  list.innerHTML = '<p class="feed-empty-msg">Loading…</p>';
+  try {
+    const resp = await fetch(`${API_BASE}/feed?limit=30`);
+    const data = await resp.json();
+    const posts = data.posts || [];
+    if (!posts.length) {
+      list.innerHTML = '<p class="feed-empty-msg">No posts yet — publish a project to appear here!</p>';
+      return;
+    }
+    list.innerHTML = posts.map(p => {
+      const initial = (p.author_name || p.user_email || "?").charAt(0).toUpperCase();
+      const avatarHtml = p.avatar_url
+        ? `<img src="${esc(p.avatar_url)}" alt="${esc(p.author_name || p.user_email)}" />`
+        : initial;
+      const ts = new Date(p.created_at * 1000).toLocaleDateString();
+      let preview = "";
+      try { preview = JSON.parse(p.data)?.content || JSON.parse(p.data)?.text || ""; } catch { preview = ""; }
+      const authorEmail = esc(p.user_email || "");
+      return `
+        <article class="feed-card" data-post-id="${esc(p.id)}" data-author="${authorEmail}">
+          <div class="feed-card-header">
+            <div class="feed-avatar">${avatarHtml}</div>
+            <div>
+              <div class="feed-author">${esc(p.author_name || p.user_email)}</div>
+              <div class="feed-meta">${ts}</div>
+            </div>
+            <span class="feed-card-type">${esc(p.type)}</span>
+          </div>
+          <h4 class="feed-card-title">${esc(p.title)}</h4>
+          ${preview ? `<p class="feed-card-preview">${esc(preview)}</p>` : ""}
+          <div class="feed-card-footer">
+            <button class="feed-like-btn${p.liked_by_me ? ' liked' : ''}" data-post-id="${esc(p.id)}">❤ <span class="feed-like-count">${p.like_count || 0}</span></button>
+            <button class="feed-comment-btn" data-post-id="${esc(p.id)}" onclick="toggleComments(this, '${esc(p.id)}')">💬 <span class="feed-comment-count">${p.comment_count || 0}</span></button>
+            ${authorEmail ? `<button class="feed-follow-btn" data-email="${authorEmail}" onclick="toggleFollow(this, '${authorEmail}')">＋ Follow</button>` : ""}
+          </div>
+          <div class="feed-comments-section hidden" id="comments-${esc(p.id)}">
+            <div class="feed-comments-list" id="comment-list-${esc(p.id)}"></div>
+            ${_authToken ? `
+            <div class="feed-comment-compose">
+              <input class="feed-comment-input" id="comment-input-${esc(p.id)}" placeholder="Add a comment…" onkeydown="if(event.key==='Enter')submitComment('${esc(p.id)}')" />
+              <button class="btn-primary btn-sm" onclick="submitComment('${esc(p.id)}')">Post</button>
+            </div>` : '<p style="font-size:.8rem;color:var(--text-dim);margin:.3rem 0">Sign in to comment</p>'}
+          </div>
+        </article>`;
+    }).join("");
+    list.querySelectorAll(".feed-like-btn").forEach(btn => {
+      btn.addEventListener("click", () => toggleFeedLike(btn.dataset.postId, btn));
+    });
+  } catch (err) {
+    list.innerHTML = `<p class="feed-empty-msg">Failed to load feed: ${esc(err.message)}</p>`;
+  }
+};
+
+async function toggleComments(btn, postId) {
+  const section = el(`comments-${postId}`);
+  if (!section) return;
+  const isOpen = !section.classList.contains("hidden");
+  if (isOpen) { section.classList.add("hidden"); return; }
+  section.classList.remove("hidden");
+  await loadPostComments(postId);
+}
+
+async function loadPostComments(postId) {
+  const listEl = el(`comment-list-${postId}`);
+  if (!listEl) return;
+  listEl.innerHTML = '<p style="font-size:.8rem;color:var(--text-dim)">Loading…</p>';
+  try {
+    const resp = await fetch(`${API_BASE}/posts/${encodeURIComponent(postId)}/comments`);
+    const data = await resp.json();
+    const comments = data.comments || [];
+    if (!comments.length) { listEl.innerHTML = '<p style="font-size:.8rem;color:var(--text-dim)">No comments yet. Be first!</p>'; return; }
+    listEl.innerHTML = comments.map(c => `
+      <div class="feed-comment-item">
+        <span class="feed-comment-author">${esc(c.user_email.split("@")[0])}</span>
+        ${esc(c.content)}
+      </div>`).join("");
+  } catch { listEl.innerHTML = '<p style="font-size:.8rem;color:var(--text-dim)">Could not load comments</p>'; }
+}
+
+async function submitComment(postId) {
+  if (!_authToken) return;
+  const input = el(`comment-input-${postId}`);
+  const content = input?.value?.trim();
+  if (!content) return;
+  input.value = "";
+  try {
+    const resp = await fetch(`${API_BASE}/posts/${encodeURIComponent(postId)}/comments`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: _authToken, content }),
+    });
+    if (resp.ok) {
+      await loadPostComments(postId);
+      // Update count
+      const btn = document.querySelector(`.feed-comment-btn[data-post-id="${postId}"] .feed-comment-count`);
+      if (btn) btn.textContent = parseInt(btn.textContent || "0") + 1;
+    }
+  } catch { /* ignore */ }
+}
+
+async function toggleFollow(btn, targetEmail) {
+  if (!_authToken) { alert("Sign in to follow creators."); return; }
+  const isFollowing = btn.classList.contains("following");
+  try {
+    const resp = await fetch(`${API_BASE}/users/${encodeURIComponent(targetEmail)}/follow`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: _authToken }),
+    });
+    if (resp.ok) {
+      const data = await resp.json();
+      if (data.following) {
+        btn.classList.add("following");
+        btn.textContent = "✓ Following";
+      } else {
+        btn.classList.remove("following");
+        btn.textContent = "＋ Follow";
+      }
+    }
+  } catch { /* ignore */ }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   PHASE 16 — Floating AI Assistant
+════════════════════════════════════════════════════════════════ */
+
+let _assistOpen   = false;
+let _currentStudio = "general";
+
+function toggleKalaAssist() {
+  _assistOpen = !_assistOpen;
+  const panel = el("kalaAssistPanel");
+  if (!panel) return;
+  if (_assistOpen) {
+    panel.classList.remove("hidden");
+    // Update context label
+    const ctxEl = el("kalaAssistContext");
+    if (ctxEl) ctxEl.textContent = `Studio: ${_currentStudio}`;
+    el("kalaAssistInput")?.focus();
+  } else {
+    panel.classList.add("hidden");
+  }
+}
+
+// Track current studio for context
+(function () {
+  const _prevSS = switchStudio;
+  switchStudio = function (mode) {
+    _currentStudio = mode;
+    _prevSS(mode);
+  };
+})();
+
+async function sendKalaAssist() {
+  const input = el("kalaAssistInput");
+  const prompt = input?.value?.trim();
+  if (!prompt) return;
+  input.value = "";
+
+  const msgs = el("kalaAssistMessages");
+  if (!msgs) return;
+
+  // User message bubble
+  const userBubble = document.createElement("div");
+  userBubble.className = "assist-msg user";
+  userBubble.textContent = prompt;
+  msgs.appendChild(userBubble);
+  msgs.scrollTop = msgs.scrollHeight;
+
+  // AI response
+  const aiBubble = document.createElement("div");
+  aiBubble.className = "assist-msg ai";
+  aiBubble.textContent = "Thinking…";
+  msgs.appendChild(aiBubble);
+  msgs.scrollTop = msgs.scrollHeight;
+
+  // Clear old suggestions
+  const suggWrap = el("kalaAssistSuggestions");
+  if (suggWrap) suggWrap.innerHTML = "";
+
+  try {
+    // Gather context from active studio
+    let context = "";
+    if (_currentStudio === "text") {
+      context = el("mainTextarea")?.value?.slice(0, 300) || "";
+    }
+
+    const resp = await fetch(`${API_BASE}/ai/assistant`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt, studio: _currentStudio, context }),
+    });
+    const data = await resp.json();
+    aiBubble.textContent = data.response || "Here are some ideas:";
+
+    // Show suggestions
+    if (data.suggestions?.length && suggWrap) {
+      suggWrap.innerHTML = data.suggestions.map(s =>
+        `<button class="assist-suggestion-chip" onclick="el('kalaAssistInput').value='${esc(s)}'" title="${esc(s)}">${esc(s)}</button>`
+      ).join("");
+    }
+
+    // If transform hint, offer quick-launch
+    if (data.transform && suggWrap) {
+      const { input_type, output_type } = data.transform;
+      const chip = document.createElement("button");
+      chip.className = "assist-suggestion-chip";
+      chip.style.borderColor = "var(--accent)";
+      chip.style.color = "var(--accent)";
+      chip.textContent = `🔀 Transform → ${output_type}`;
+      chip.onclick = () => {
+        hide("kalaAssistPanel");
+        _assistOpen = false;
+        openTransformModal(input_type, output_type);
+      };
+      suggWrap.appendChild(chip);
+    }
+  } catch (err) {
+    aiBubble.textContent = `Error: ${esc(err.message)}`;
+  }
+
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   PHASE 16 — Cross-Medium Transform Modal
+════════════════════════════════════════════════════════════════ */
+
+function openTransformModal(inputType, outputType) {
+  const inSel  = el("transformInputType");
+  const outSel = el("transformOutputType");
+  if (inSel && inputType)  inSel.value  = inputType;
+  if (outSel && outputType) outSel.value = outputType;
+  updateTransformOptions();
+  show("transformModal");
+}
+
+function updateTransformOptions() {
+  const outType = el("transformOutputType")?.value;
+  const optDiv  = el("transformOptions");
+  if (!optDiv) return;
+  if (outType === "video") {
+    optDiv.innerHTML = `
+      <label style="font-size:.82rem;color:var(--text-dim)">Video Style</label>
+      <select id="transformStyleOpt" class="vs-select" style="width:100%;margin-top:.3rem">
+        <option value="cinematic">Cinematic</option>
+        <option value="motivational">Motivational</option>
+        <option value="lofi">Lofi</option>
+        <option value="documentary">Documentary</option>
+        <option value="cartoon">Cartoon</option>
+        <option value="abstract">Abstract</option>
+      </select>`;
+  } else if (outType === "song") {
+    optDiv.innerHTML = `
+      <label style="font-size:.82rem;color:var(--text-dim)">Genre Hint (optional)</label>
+      <input id="transformGenreOpt" class="vs-ai-textarea" style="min-height:unset;padding:.35rem .6rem;margin-top:.3rem" placeholder="e.g. lofi, trap, classical…" />`;
+  } else {
+    optDiv.innerHTML = "";
+  }
+}
+
+async function runTransform() {
+  const inputType  = el("transformInputType")?.value;
+  const outputType = el("transformOutputType")?.value;
+  const data       = el("transformData")?.value?.trim();
+  const statusEl   = el("transformStatus");
+  const resultEl   = el("transformResult");
+  const btn        = el("transformRunBtn");
+
+  if (!data) { if (statusEl) statusEl.textContent = "Please enter content to transform."; return; }
+  if (statusEl) statusEl.textContent = "Transforming…";
+  if (resultEl) resultEl.classList.add("hidden");
+  if (btn) btn.disabled = true;
+
+  const options = {};
+  if (outputType === "video") {
+    const styleSel = el("transformStyleOpt");
+    if (styleSel) options.style = styleSel.value;
+    options.scene_count = 5;
+  } else if (outputType === "song") {
+    const genreIn = el("transformGenreOpt");
+    if (genreIn?.value?.trim()) options.genre = genreIn.value.trim();
+  }
+
+  try {
+    const resp = await fetch(`${API_BASE}/ai/transform`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ input_type: inputType, output_type: outputType, data, options }),
+    });
+    const result = await resp.json();
+    if (!resp.ok) {
+      if (statusEl) statusEl.textContent = `Error: ${result.detail || "Transform failed"}`;
+      if (btn) btn.disabled = false;
+      return;
+    }
+    if (statusEl) statusEl.textContent = `✓ Transform complete (${outputType})`;
+    if (resultEl) {
+      resultEl.textContent = JSON.stringify(result, null, 2);
+      resultEl.classList.remove("hidden");
+    }
+  } catch (err) {
+    if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`;
+  }
+  if (btn) btn.disabled = false;
+}
+
+// Add Transform button to sidebar nav (inject once DOM is ready)
+document.addEventListener("DOMContentLoaded", () => {
+  // Add a "🔀 Transform" item to the sidebar
+  const sidebarNav = document.querySelector(".sidebar-nav");
+  if (sidebarNav) {
+    const divider = document.createElement("hr");
+    divider.style.cssText = "border:none;border-top:1px solid var(--border);margin:.4rem .5rem";
+    sidebarNav.appendChild(divider);
+
+    const btn = document.createElement("button");
+    btn.className = "sidebar-btn";
+    btn.title = "Cross-Medium AI Transform";
+    btn.setAttribute("aria-label", "Cross-Medium AI Transform");
+    btn.innerHTML = `<span class="sidebar-icon" aria-hidden="true">🔀</span><span class="sidebar-label">Transform</span>`;
+    btn.addEventListener("click", () => openTransformModal());
+    sidebarNav.appendChild(btn);
+  }
+
+  // Kick off initial notif count poll after login
+  setTimeout(() => { if (_authToken) _pollNotifCount(); }, 3000);
+});
