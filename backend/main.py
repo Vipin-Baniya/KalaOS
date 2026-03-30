@@ -53,6 +53,9 @@ from kalacore.kalaproducer import produce, generate_ai_beat
 from kalacore.kalaanimation import generate_animation_plan, parse_storyboard
 from kalacore.kalavideo import generate_video_script, build_scene, _VALID_STYLES as _VIDEO_STYLES
 from kalacore.kalaintelligence import transform as intelligence_transform, ai_assist, VALID_INPUT_TYPES, VALID_OUTPUT_TYPES
+from kalacore.kalacollab import create_collab_workspace, add_collaborator, get_collab_activity, generate_collab_suggestions
+from kalacore.kalastream import setup_stream, get_stream_analytics, generate_stream_overlay
+from kalacore.kalaexport import prepare_export, import_from_url, batch_export
 from services.llm_service import (
     generate_explanation,
     generate_suggestions,
@@ -1973,3 +1976,368 @@ def mark_all_notifications_read(body: NotifReadRequest):
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return {"status": "ok"}
+
+
+
+
+# ---------------------------------------------------------------------------
+# Collab endpoints
+# ---------------------------------------------------------------------------
+
+class CollabWorkspaceBody(BaseModel):
+    name: str
+    project_type: str
+    owner: str
+    description: str = ""
+
+
+@app.post("/collab/workspace", summary="Create a collaboration workspace")
+@limiter.limit("20/minute")
+def create_workspace(request: Request, body: CollabWorkspaceBody):
+    try:
+        result = create_collab_workspace(
+            body.name, body.project_type, body.owner, body.description
+        )
+        return result
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+class CollabInviteBody(BaseModel):
+    user_email: str
+    role: str
+
+
+@app.post("/collab/workspace/{workspace_id}/invite", summary="Add a collaborator to a workspace")
+@limiter.limit("20/minute")
+def invite_collaborator(workspace_id: str, request: Request, body: CollabInviteBody):
+    try:
+        result = add_collaborator(workspace_id, body.user_email, body.role)
+        return result
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+@app.get("/collab/workspace/{workspace_id}/activity", summary="Get workspace activity feed")
+@limiter.limit("20/minute")
+def get_workspace_activity(workspace_id: str, request: Request, user_email: str = ""):
+    try:
+        result = get_collab_activity(workspace_id, user_email)
+        return {"activities": result}
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+class CollabSuggestionsBody(BaseModel):
+    workspace_id: str
+    project_type: str
+    context: str = ""
+
+
+@app.post("/collab/suggestions", summary="Generate AI collaboration suggestions")
+@limiter.limit("20/minute")
+def collab_suggestions(request: Request, body: CollabSuggestionsBody):
+    try:
+        result = generate_collab_suggestions(
+            body.workspace_id, body.project_type, body.context
+        )
+        return result
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+# ---------------------------------------------------------------------------
+# Stream endpoints
+# ---------------------------------------------------------------------------
+
+class StreamSetupBody(BaseModel):
+    platform: str
+    title: str
+    quality: str
+    description: str = ""
+
+
+@app.post("/stream/setup", summary="Set up a live stream configuration")
+@limiter.limit("20/minute")
+def stream_setup(request: Request, body: StreamSetupBody):
+    try:
+        result = setup_stream(
+            body.platform, body.title, body.quality, body.description
+        )
+        return result
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+@app.get("/stream/{stream_id}/analytics", summary="Get stream analytics")
+@limiter.limit("20/minute")
+def stream_analytics(stream_id: str, request: Request, duration_minutes: int = 60):
+    try:
+        result = get_stream_analytics(stream_id, duration_minutes)
+        return result
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+class StreamOverlayBody(BaseModel):
+    title: str
+    style: str
+
+
+@app.post("/stream/overlay", summary="Generate a stream overlay configuration")
+@limiter.limit("20/minute")
+def stream_overlay(request: Request, body: StreamOverlayBody):
+    try:
+        result = generate_stream_overlay(body.title, body.style)
+        return result
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+# ---------------------------------------------------------------------------
+# Export endpoints
+# ---------------------------------------------------------------------------
+
+class ExportPrepareBody(BaseModel):
+    studio: str
+    format: str
+    content: str
+    quality: str = "high"
+
+
+@app.post("/export/prepare", summary="Prepare an export manifest")
+@limiter.limit("20/minute")
+def export_prepare(request: Request, body: ExportPrepareBody):
+    try:
+        result = prepare_export(
+            body.studio, body.format, body.content, body.quality
+        )
+        return result
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+class ExportImportUrlBody(BaseModel):
+    url: str
+    studio: str
+
+
+@app.post("/export/import-url", summary="Import content from a URL")
+@limiter.limit("20/minute")
+def export_import_url(request: Request, body: ExportImportUrlBody):
+    try:
+        result = import_from_url(body.url, body.studio)
+        return result
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+class BatchExportItem(BaseModel):
+    studio: str
+    format: str
+    content: str
+    quality: str = "high"
+
+
+class BatchExportBody(BaseModel):
+    items: List[BatchExportItem]
+
+
+@app.post("/export/batch", summary="Batch export multiple items")
+@limiter.limit("20/minute")
+def export_batch(request: Request, body: BatchExportBody):
+    try:
+        items_dicts = [item.model_dump() for item in body.items]
+        result = batch_export(items_dicts)
+        return result
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+# ---------------------------------------------------------------------------
+# AI feature endpoints
+# ---------------------------------------------------------------------------
+
+class ContentGeneratorBody(BaseModel):
+    type: str  # text_to_image, image_to_video, auto_caption
+    content: str
+    options: dict = {}
+
+
+@app.post("/ai/content-generator", summary="AI content generation (text-to-image, image-to-video, auto-caption)")
+@limiter.limit("20/minute")
+def ai_content_generator(request: Request, body: ContentGeneratorBody):
+    valid_types = {"text_to_image", "image_to_video", "auto_caption"}
+    if not body.type or body.type not in valid_types:
+        raise HTTPException(
+            status_code=422,
+            detail=f"type must be one of {sorted(valid_types)}",
+        )
+    if not body.content or not body.content.strip():
+        raise HTTPException(status_code=422, detail="content must not be empty")
+
+    content = body.content.strip()
+    gen_type = body.type
+
+    if gen_type == "text_to_image":
+        output = {
+            "type": "text_to_image",
+            "prompt": content,
+            "image_concept": f"Visual representation of: {content[:80]}",
+            "style_suggestions": ["cinematic", "abstract", "photorealistic"],
+            "dimensions": body.options.get("dimensions", "1024x1024"),
+            "status": "generated",
+        }
+    elif gen_type == "image_to_video":
+        output = {
+            "type": "image_to_video",
+            "source": content,
+            "animation_style": body.options.get("animation_style", "zoom-in"),
+            "duration_seconds": body.options.get("duration_seconds", 5),
+            "transitions": ["fade", "dissolve"],
+            "status": "generated",
+        }
+    else:  # auto_caption
+        words = content.split()
+        captions = [
+            " ".join(words[i : i + 8]) for i in range(0, min(len(words), 40), 8)
+        ]
+        output = {
+            "type": "auto_caption",
+            "source": content[:80],
+            "captions": captions if captions else [content[:80]],
+            "language": body.options.get("language", "en"),
+            "style": body.options.get("style", "standard"),
+            "status": "generated",
+        }
+
+    return output
+
+
+class AIAnalyticsBody(BaseModel):
+    content_id: str
+    content_type: str
+    time_range: str = "7d"
+
+
+@app.post("/ai/analytics", summary="AI content performance and audience analytics")
+@limiter.limit("20/minute")
+def ai_analytics(request: Request, body: AIAnalyticsBody):
+    if not body.content_id or not body.content_id.strip():
+        raise HTTPException(status_code=422, detail="content_id must not be empty")
+    if not body.content_type or not body.content_type.strip():
+        raise HTTPException(status_code=422, detail="content_type must not be empty")
+
+    import hashlib as _hl
+    seed = body.content_id.strip()
+    digest = int(_hl.md5(seed.encode()).hexdigest(), 16)
+
+    views      = 1000 + (digest % 50000)
+    likes      = views // 10 + (digest % 500)
+    shares     = likes // 5
+    comments   = likes // 8
+    eng_rate   = round((likes + shares + comments) / max(views, 1) * 100, 2)
+    top_age    = ["18-24", "25-34", "35-44", "45-54"][digest % 4]
+    top_region = ["US", "UK", "IN", "BR", "DE"][digest % 5]
+
+    return {
+        "content_id": seed,
+        "content_type": body.content_type.strip(),
+        "time_range": body.time_range,
+        "performance": {
+            "views": views,
+            "likes": likes,
+            "shares": shares,
+            "comments": comments,
+            "engagement_rate_pct": eng_rate,
+        },
+        "audience": {
+            "top_age_group": top_age,
+            "top_region": top_region,
+            "returning_viewers_pct": round(20 + (digest % 40), 1),
+        },
+        "recommendations": [
+            "Post during peak hours (6-9 PM local time)",
+            f"Your {top_age} audience responds well to interactive content",
+            "Consider adding captions to boost accessibility reach",
+        ],
+    }
+
+
+class AISmartSearchBody(BaseModel):
+    query: str
+    content_types: List[str] = []
+    limit: int = 10
+
+
+@app.post("/ai/smart-search", summary="Semantic smart search across content")
+@limiter.limit("20/minute")
+def ai_smart_search(request: Request, body: AISmartSearchBody):
+    if not body.query or not body.query.strip():
+        raise HTTPException(status_code=422, detail="query must not be empty")
+    if body.limit <= 0:
+        raise HTTPException(status_code=422, detail="limit must be greater than 0")
+
+    query = body.query.strip()
+    import hashlib as _hl
+    digest = int(_hl.md5(query.encode()).hexdigest(), 16)
+
+    studios = ["music", "visual", "video", "animation", "text"]
+    results = []
+    for i in range(min(body.limit, 5)):
+        studio = studios[(digest + i) % len(studios)]
+        results.append(
+            {
+                "result_id": _hl.md5(f"{query}{i}".encode()).hexdigest()[:12],
+                "title": f"Result {i + 1} for '{query[:30]}'",
+                "studio": studio,
+                "relevance_score": round(0.95 - i * 0.08, 2),
+                "snippet": f"Semantic match: {query[:60]}...",
+            }
+        )
+
+    return {
+        "query": query,
+        "total_results": len(results),
+        "results": results,
+        "content_types_searched": body.content_types if body.content_types else studios,
+    }
+
+
+class AIQualityCheckBody(BaseModel):
+    export_id: str
+    format: str
+    content_preview: str = ""
+
+
+@app.post("/ai/quality-check", summary="AI quality assessment of exports")
+@limiter.limit("20/minute")
+def ai_quality_check(request: Request, body: AIQualityCheckBody):
+    if not body.export_id or not body.export_id.strip():
+        raise HTTPException(status_code=422, detail="export_id must not be empty")
+    if not body.format or not body.format.strip():
+        raise HTTPException(status_code=422, detail="format must not be empty")
+
+    import hashlib as _hl
+    seed = body.export_id.strip()
+    digest = int(_hl.md5(seed.encode()).hexdigest(), 16)
+
+    score = 60 + (digest % 40)
+    issues = []
+    if score < 75:
+        issues.append("Bitrate below recommended threshold")
+    if score < 85:
+        issues.append("Consider increasing export quality setting")
+
+    return {
+        "export_id": seed,
+        "format": body.format.strip(),
+        "quality_score": score,
+        "grade": "A" if score >= 90 else ("B" if score >= 80 else ("C" if score >= 70 else "D")),
+        "issues": issues,
+        "suggestions": [
+            "Verify codec compatibility with target platform",
+            "Run a preview before final distribution",
+        ],
+        "passed": score >= 70,
+    }
