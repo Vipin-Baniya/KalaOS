@@ -1494,6 +1494,13 @@ def get_user_profile(user_id: str):
     return user
 
 
+@app.get("/user/{user_id}/posts", summary="Get published posts for a user")
+def get_user_posts(user_id: str):
+    """Return published posts (creations) for a given user."""
+    posts = platform_service.get_user_posts(user_id.lower())
+    return {"posts": posts}
+
+
 # ---------------------------------------------------------------------------
 # Projects
 # ---------------------------------------------------------------------------
@@ -1582,6 +1589,19 @@ def posts_publish(body: PublishRequest):
 def feed_get(limit: int = 20, offset: int = 0):
     posts = platform_service.get_feed(limit, offset)
     return {"posts": posts}
+
+
+class LikeRequest(BaseModel):
+    token: str
+
+
+@app.post("/posts/{post_id}/like", summary="Toggle like on a post")
+def toggle_like(post_id: str, body: LikeRequest):
+    try:
+        result = platform_service.toggle_like(body.token, post_id)
+        return {"success": True, **result}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 # ---------------------------------------------------------------------------

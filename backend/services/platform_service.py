@@ -78,6 +78,16 @@ def _db_init() -> None:
                     created_at  INTEGER NOT NULL
                 )
             """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS likes (
+                    id         TEXT PRIMARY KEY,
+                    post_id    TEXT NOT NULL,
+                    user_email TEXT NOT NULL,
+                    created_at INTEGER NOT NULL,
+                    UNIQUE (post_id, user_email)
+                )
+            """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_likes_post ON likes(post_id)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_projects_user ON projects(user_email)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_posts_created ON posts(created_at)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_messages_conv ON messages(sender_id, receiver_id)")
@@ -134,7 +144,7 @@ def _row_to_message(row) -> dict:
 # Projects
 # ---------------------------------------------------------------------------
 
-VALID_PROJECT_TYPES = {"text", "visual", "music", "video"}
+VALID_PROJECT_TYPES = {"text", "visual", "music", "video", "animation"}
 
 
 def create_project(token: str, title: str, type_: str, data: str = "{}") -> dict:
@@ -258,7 +268,8 @@ def get_feed(limit: int = 20, offset: int = 0) -> List[dict]:
                 """
                 SELECT p.id, p.user_email, p.project_id, p.type, p.created_at,
                        pr.title, pr.data,
-                       u.name AS author_name, u.avatar_url
+                       u.name AS author_name, u.avatar_url,
+                       (SELECT COUNT(*) FROM likes l WHERE l.post_id = p.id) AS like_count
                 FROM posts p
                 JOIN projects pr ON pr.id = p.project_id
                 JOIN users u     ON u.email = p.user_email
@@ -279,6 +290,7 @@ def get_feed(limit: int = 20, offset: int = 0) -> List[dict]:
             "title":       r["title"],
             "data":        r["data"],
             "created_at":  r["created_at"],
+            "like_count":  r["like_count"],
         })
     return result
 
@@ -359,5 +371,59 @@ def list_conversations(token: str) -> List[dict]:
             ).fetchall()
     return [
         {"peer_id": r["peer_id"], "last_message": r["last_content"], "last_ts": r["last_ts"]}
+        for r in rows
+    ]
+
+
+def toggle_like(token: str, post_id: str) -> dict:
+    """Toggle a like on a post. Returns {liked: bool, like_count: int}."""
+    email = _require_auth(token)
+    with _db_lock:
+        with _get_db() as conn:
+            post = conn.execute("SELECT id FROM posts WHERE id = ?", (post_id,)).fetchone()
+            if not post:
+                raise ValueError("Post not found.")
+            existing = conn.execute(
+                "SELECT id FROM likes WHERE post_id = ? AND user_email = ?",
+                (post_id, email),
+            ).fetchone()
+            if existing:
+                conn.execute("DELETE FROM likes WHERE post_id = ? AND user_email = ?", (post_id, email))
+                liked = False
+            else:
+                conn.execute(
+                    "INSERT INTO likes (id, post_id, user_email, created_at) VALUES (?,?,?,?)",
+                    (str(uuid.uuid4()), post_id, email, int(time.time())),
+                )
+                liked = True
+            count = conn.execute("SELECT COUNT(*) FROM likes WHERE post_id = ?", (post_id,)).fetchone()[0]
+    return {"liked": liked, "like_count": count}
+
+
+def get_user_posts(email: str) -> List[dict]:
+    """Return published posts for a given user email (public, no token required)."""
+    with _db_lock:
+        with _get_db() as conn:
+            rows = conn.execute(
+                """
+                SELECT po.id, po.project_id, po.type, po.created_at,
+                       pr.title,
+                       (SELECT COUNT(*) FROM likes l WHERE l.post_id = po.id) AS like_count
+                FROM posts po
+                JOIN projects pr ON pr.id = po.project_id
+                WHERE po.user_email = ?
+                ORDER BY po.created_at DESC
+                """,
+                (email,),
+            ).fetchall()
+    return [
+        {
+            "id":         r["id"],
+            "project_id": r["project_id"],
+            "type":       r["type"],
+            "title":      r["title"],
+            "like_count": r["like_count"],
+            "created_at": r["created_at"],
+        }
         for r in rows
     ]

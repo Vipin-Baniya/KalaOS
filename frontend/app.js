@@ -4115,6 +4115,9 @@ async function loadFeed() {
           </div>
           <h4 class="feed-card-title">${esc(p.title)}</h4>
           ${preview ? `<p class="feed-card-preview">${esc(preview)}</p>` : ""}
+          <div class="feed-card-footer">
+            <button class="feed-like-btn${p.liked_by_me ? ' liked' : ''}" onclick="toggleFeedLike('${esc(p.id)}',this)" data-post-id="${esc(p.id)}">❤ <span class="feed-like-count">${p.like_count || 0}</span></button>
+          </div>
         </article>`;
     }).join("");
   } catch (err) {
@@ -4249,16 +4252,17 @@ async function loadProfilePage() {
   if (!_currentUser) return;
   const name  = _currentUser.name  || "";
   const email = _currentUser.email || "";
-  // Try to refresh from server for latest bio/avatar
   try {
     const resp = await fetch(`${API_BASE}/user/${encodeURIComponent(email)}`);
     if (resp.ok) {
       const u = await resp.json();
       _renderProfilePage(u);
+      loadProfileCreations(email);
       return;
     }
   } catch { /* fall through */ }
   _renderProfilePage({ name, email, avatar_url: "", bio: "" });
+  loadProfileCreations(email);
 }
 
 function _renderProfilePage(user) {
@@ -4322,4 +4326,288 @@ async function saveProfilePage() {
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = "Save Changes"; }
   }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   STUDIO ↔ PROJECT INTEGRATION
+════════════════════════════════════════════════════════════════════ */
+
+// State
+let _studioCurrentProject = {}; // {text: {id,title}, visual: {id,title}, animation: {id,title}}
+let _studioModalMode = null;     // which studio is the modal for
+let _studioProjectsCache = {};   // store projects indexed by id
+
+function _studioGetContent(type) {
+  if (type === 'text') {
+    return JSON.stringify({
+      content: el('artText')?.value || '',
+      domain:  el('artDomain')?.value || 'general',
+    });
+  }
+  if (type === 'visual') {
+    try {
+      return JSON.stringify({ canvas: window._dcCanvas ? JSON.stringify(window._dcCanvas.toJSON()) : '{}' });
+    } catch { return '{}'; }
+  }
+  if (type === 'animation') {
+    return JSON.stringify({
+      prompt:   el('animTextPrompt')?.value || el('animImgPrompt')?.value || '',
+      storyboard: el('animStoryInput')?.value || '',
+    });
+  }
+  return '{}';
+}
+
+function _studioLoadContent(type, data) {
+  let d;
+  try { d = typeof data === 'string' ? JSON.parse(data) : data; } catch { return; }
+  if (type === 'text') {
+    if (el('artText') && d.content !== undefined) el('artText').value = d.content;
+    if (el('artDomain') && d.domain) el('artDomain').value = d.domain;
+  }
+  if (type === 'visual') {
+    if (d.canvas && window._dcCanvas) {
+      try { window._dcCanvas.loadFromJSON(JSON.parse(d.canvas), () => window._dcCanvas.renderAll()); } catch {}
+    }
+  }
+  if (type === 'animation') {
+    if (d.prompt) {
+      if (el('animTextPrompt')) el('animTextPrompt').value = d.prompt;
+      if (el('animImgPrompt'))  el('animImgPrompt').value  = d.prompt;
+    }
+    if (d.storyboard && el('animStoryInput')) el('animStoryInput').value = d.storyboard;
+  }
+}
+
+function _studioSetTitle(type, title) {
+  const labelMap = { text: 'textProjectTitle', visual: 'visualProjectTitle', animation: 'animProjectTitle' };
+  const labelEl = el(labelMap[type]);
+  if (labelEl) labelEl.textContent = title || 'Untitled';
+  if (!_studioCurrentProject[type]) _studioCurrentProject[type] = {};
+  _studioCurrentProject[type].title = title;
+}
+
+function _studioEnablePublish(type, enabled) {
+  const btnMap = { text: 'textPublishBtn', visual: 'visualPublishBtn', animation: 'animPublishBtn' };
+  const btn = el(btnMap[type]);
+  if (btn) btn.disabled = !enabled;
+}
+
+async function studioSave(type) {
+  if (!_authToken) { alert('Please log in to save projects.'); return; }
+  const cur = _studioCurrentProject[type];
+  const data = _studioGetContent(type);
+  const title = cur?.title || '';
+  const newTitle = prompt('Project title:', title || 'Untitled');
+  if (newTitle === null) return;
+  const finalTitle = newTitle.trim() || 'Untitled';
+
+  try {
+    let project;
+    if (cur?.id) {
+      const resp = await fetch(`${API_BASE}/projects/${cur.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: _authToken, title: finalTitle, data }),
+      });
+      const d = await resp.json();
+      if (!resp.ok) throw new Error(d.detail || 'Update failed.');
+      project = d.project;
+    } else {
+      const resp = await fetch(`${API_BASE}/projects`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: _authToken, title: finalTitle, type, data }),
+      });
+      const d = await resp.json();
+      if (!resp.ok) throw new Error(d.detail || 'Save failed.');
+      project = d.project;
+    }
+    _studioCurrentProject[type] = { id: project.id, title: project.title };
+    _studioSetTitle(type, project.title);
+    _studioEnablePublish(type, true);
+  } catch (err) {
+    alert('Save failed: ' + err.message);
+  }
+}
+
+async function studioPublish(type) {
+  if (!_authToken) { alert('Please log in to publish.'); return; }
+  const cur = _studioCurrentProject[type];
+  if (!cur?.id) { alert('Save your project first before publishing.'); return; }
+  if (!confirm(`Publish "${cur.title}" to the feed?`)) return;
+  try {
+    const resp = await fetch(`${API_BASE}/posts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: _authToken, project_id: cur.id }),
+    });
+    const d = await resp.json();
+    if (!resp.ok) throw new Error(d.detail || 'Publish failed.');
+    alert(`"${cur.title}" published to the feed! 🎉`);
+    _studioEnablePublish(type, false);
+  } catch (err) {
+    alert('Publish failed: ' + err.message);
+  }
+}
+
+async function studioShowProjects(type) {
+  if (!_authToken) { alert('Please log in to view your projects.'); return; }
+  _studioModalMode = type;
+  const typeLabels = { text: 'Text', visual: 'Visual', animation: 'Animation' };
+  const titleEl = el('projectsModalTitle');
+  if (titleEl) titleEl.textContent = `My ${typeLabels[type] || ''} Projects`;
+  const listEl = el('projectsModalList');
+  if (listEl) listEl.innerHTML = '<p class="projects-modal-empty">Loading…</p>';
+  show('projectsModal');
+
+  try {
+    const resp = await fetch(`${API_BASE}/projects?token=${encodeURIComponent(_authToken)}`);
+    const d    = await resp.json();
+    if (!resp.ok) throw new Error(d.detail || 'Load failed.');
+    const projects = (d.projects || []).filter(p => p.type === type);
+    if (!projects.length) {
+      listEl.innerHTML = '<p class="projects-modal-empty">No ' + (typeLabels[type] || '') + ' projects yet.</p>';
+      return;
+    }
+    projects.forEach(p => { _studioProjectsCache[p.id] = p; });
+    listEl.innerHTML = projects.map(p => `
+      <div class="projects-modal-item" data-pid="${esc(p.id)}" data-ptype="${esc(p.type)}" data-ptitle="${esc(p.title)}">
+        <span class="projects-modal-item-title">${esc(p.title)}</span>
+        <span class="feed-card-type">${esc(p.type)}</span>
+        <button class="btn-danger btn-xs" data-delete-id="${esc(p.id)}" title="Delete">🗑</button>
+      </div>`).join('');
+    listEl.querySelectorAll('.projects-modal-item').forEach(item => {
+      item.addEventListener('click', e => {
+        if (e.target.closest('[data-delete-id]')) return;
+        const p = _studioProjectsCache[item.dataset.pid];
+        if (p) studioLoadProject(p.id, p.title, p.type, p.data);
+      });
+      const deleteBtn = item.querySelector('[data-delete-id]');
+      if (deleteBtn) {
+        deleteBtn.addEventListener('click', e => {
+          e.stopPropagation();
+          studioDeleteProject(deleteBtn.dataset.deleteId, item.dataset.ptype);
+        });
+      }
+    });
+  } catch (err) {
+    if (listEl) listEl.innerHTML = `<p class="projects-modal-empty">Error: ${esc(err.message)}</p>`;
+  }
+}
+
+function studioLoadProject(id, title, type, data) {
+  hide('projectsModal');
+  if (type === 'visual') { switchStudio('visual'); switchVisualTab('canvas'); }
+  else if (type === 'animation') switchStudio('animation');
+  else if (type === 'text') switchStudio('text');
+  _studioCurrentProject[type] = { id, title };
+  _studioSetTitle(type, title);
+  _studioEnablePublish(type, true);
+  _studioLoadContent(type, data);
+}
+
+async function studioCreateNew() {
+  const titleInput = el('projectsModalNewTitle');
+  const title = (titleInput?.value || '').trim() || 'Untitled';
+  const type = _studioModalMode;
+  if (!type) return;
+  if (titleInput) titleInput.value = '';
+  hide('projectsModal');
+  _studioCurrentProject[type] = { id: null, title };
+  _studioSetTitle(type, title);
+  _studioEnablePublish(type, false);
+  if (type === 'text' && el('artText')) el('artText').value = '';
+  if (type === 'visual' && window._dcCanvas) window._dcCanvas.clear();
+}
+
+async function studioDeleteProject(id, type) {
+  if (!confirm('Delete this project? This cannot be undone.')) return;
+  try {
+    const resp = await fetch(`${API_BASE}/projects/${id}?token=${encodeURIComponent(_authToken)}`, {
+      method: 'DELETE',
+    });
+    if (!resp.ok) throw new Error((await resp.json()).detail || 'Delete failed.');
+    studioShowProjects(type);
+  } catch (err) {
+    alert('Delete failed: ' + err.message);
+  }
+}
+
+async function toggleFeedLike(postId, btnEl) {
+  if (!_authToken) { alert('Please log in to like posts.'); return; }
+  try {
+    const resp = await fetch(`${API_BASE}/posts/${postId}/like`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: _authToken }),
+    });
+    const d = await resp.json();
+    if (!resp.ok) throw new Error(d.detail || 'Like failed.');
+    const countEl = btnEl?.querySelector('.feed-like-count');
+    if (countEl) countEl.textContent = d.like_count;
+    btnEl?.classList.toggle('liked', d.liked);
+  } catch (err) {
+    console.error('Like error:', err.message);
+  }
+}
+
+async function loadProfileCreations(email) {
+  const list = el('profileCreationsList');
+  if (!list || !email) return;
+  list.innerHTML = '<p class="feed-empty-msg">Loading…</p>';
+  try {
+    const resp = await fetch(`${API_BASE}/user/${encodeURIComponent(email)}/posts`);
+    const data = await resp.json();
+    const posts = data.posts || [];
+    if (!posts.length) {
+      list.innerHTML = '<p class="feed-empty-msg">No published creations yet.</p>';
+      return;
+    }
+    list.innerHTML = posts.map(p => {
+      const ts = new Date(p.created_at * 1000).toLocaleDateString();
+      return `
+        <div class="feed-card" style="margin-bottom:.6rem">
+          <div class="feed-card-header" style="gap:.5rem">
+            <span class="feed-card-type">${esc(p.type)}</span>
+            <h4 class="feed-card-title" style="margin:0;flex:1">${esc(p.title)}</h4>
+            <span style="font-size:.75rem;color:var(--text-dim)">❤ ${p.like_count || 0}</span>
+            <span style="font-size:.75rem;color:var(--text-dim)">${ts}</span>
+          </div>
+        </div>`;
+    }).join('');
+  } catch (err) {
+    list.innerHTML = `<p class="feed-empty-msg">Error: ${esc(err.message)}</p>`;
+  }
+}
+
+async function toggleDmSharePanel() {
+  const panel = el('dmSharePanel');
+  if (!panel) return;
+  if (!panel.classList.contains('hidden')) {
+    panel.classList.add('hidden');
+    return;
+  }
+  panel.classList.remove('hidden');
+  const list = el('dmShareProjectsList');
+  if (!list || !_authToken) return;
+  list.innerHTML = '<span class="conv-empty" style="padding:.5rem">Loading…</span>';
+  try {
+    const resp = await fetch(`${API_BASE}/projects?token=${encodeURIComponent(_authToken)}`);
+    const d = await resp.json();
+    const projects = d.projects || [];
+    if (!projects.length) { list.innerHTML = '<span class="conv-empty" style="padding:.5rem">No projects yet.</span>'; return; }
+    list.innerHTML = projects.map(p =>
+      `<div class="dm-share-item" onclick="shareProjectInDm('${esc(p.id)}','${esc(p.title)}','${esc(p.type)}')">
+        <span class="feed-card-type">${esc(p.type)}</span>
+        <span class="dm-share-item-title">${esc(p.title)}</span>
+       </div>`
+    ).join('');
+  } catch { list.innerHTML = '<span class="conv-empty" style="padding:.5rem">Error loading projects.</span>'; }
+}
+
+function shareProjectInDm(projectId, title, type) {
+  hide('dmSharePanel');
+  const input = el('dmInput');
+  if (input) input.value = `🔗 Project: ${title} [${type}] — /projects/${projectId}`;
 }

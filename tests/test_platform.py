@@ -30,6 +30,7 @@ def fresh_state():
             conn.execute("DELETE FROM projects")
             conn.execute("DELETE FROM posts")
             conn.execute("DELETE FROM messages")
+            conn.execute("DELETE FROM likes")
 
     yield
 
@@ -41,6 +42,7 @@ def fresh_state():
             conn.execute("DELETE FROM projects")
             conn.execute("DELETE FROM posts")
             conn.execute("DELETE FROM messages")
+            conn.execute("DELETE FROM likes")
 
 
 @pytest.fixture
@@ -464,3 +466,97 @@ class TestChat:
     def test_list_conversations_unauthenticated(self, client):
         resp = client.get("/conversations?token=bogus")
         assert resp.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# Like System
+# ---------------------------------------------------------------------------
+
+class TestLikeSystem:
+    def test_toggle_like(self, client):
+        token = _register_and_login(client)
+        p = client.post("/projects", json={"token": token, "title": "Song", "type": "music"})
+        pid = p.json()["project"]["id"]
+        post_resp = client.post("/posts", json={"token": token, "project_id": pid})
+        post_id = post_resp.json()["post"]["id"]
+
+        resp = client.post(f"/posts/{post_id}/like", json={"token": token})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["success"] is True
+        assert data["liked"] is True
+        assert data["like_count"] == 1
+
+    def test_toggle_like_twice(self, client):
+        token = _register_and_login(client)
+        p = client.post("/projects", json={"token": token, "title": "Song", "type": "music"})
+        pid = p.json()["project"]["id"]
+        post_resp = client.post("/posts", json={"token": token, "project_id": pid})
+        post_id = post_resp.json()["post"]["id"]
+
+        client.post(f"/posts/{post_id}/like", json={"token": token})
+        resp = client.post(f"/posts/{post_id}/like", json={"token": token})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["liked"] is False
+        assert data["like_count"] == 0
+
+    def test_like_count_in_feed(self, client):
+        token = _register_and_login(client)
+        p = client.post("/projects", json={"token": token, "title": "Track", "type": "music"})
+        pid = p.json()["project"]["id"]
+        post_resp = client.post("/posts", json={"token": token, "project_id": pid})
+        post_id = post_resp.json()["post"]["id"]
+
+        client.post(f"/posts/{post_id}/like", json={"token": token})
+        feed = client.get("/feed").json()["posts"]
+        assert len(feed) == 1
+        assert feed[0]["like_count"] == 1
+
+    def test_like_nonexistent_post(self, client):
+        token = _register_and_login(client)
+        resp = client.post("/posts/nonexistent/like", json={"token": token})
+        assert resp.status_code == 400
+        assert "not found" in resp.json()["detail"].lower()
+
+    def test_like_unauthenticated(self, client):
+        resp = client.post("/posts/any-id/like", json={"token": "bogus"})
+        assert resp.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# User Posts (Creations)
+# ---------------------------------------------------------------------------
+
+class TestGetUserPosts:
+    def test_get_user_posts_empty(self, client):
+        _register_and_login(client)
+        resp = client.get("/user/user@example.com/posts")
+        assert resp.status_code == 200
+        assert resp.json()["posts"] == []
+
+    def test_get_user_posts(self, client):
+        token = _register_and_login(client)
+        p = client.post("/projects", json={"token": token, "title": "My Poem", "type": "text"})
+        pid = p.json()["project"]["id"]
+        client.post("/posts", json={"token": token, "project_id": pid})
+
+        resp = client.get("/user/user@example.com/posts")
+        assert resp.status_code == 200
+        posts = resp.json()["posts"]
+        assert len(posts) == 1
+        assert posts[0]["title"] == "My Poem"
+        assert posts[0]["type"] == "text"
+        assert "like_count" in posts[0]
+
+    def test_get_user_posts_with_likes(self, client):
+        token = _register_and_login(client)
+        p = client.post("/projects", json={"token": token, "title": "Track", "type": "music"})
+        pid = p.json()["project"]["id"]
+        post_resp = client.post("/posts", json={"token": token, "project_id": pid})
+        post_id = post_resp.json()["post"]["id"]
+        client.post(f"/posts/{post_id}/like", json={"token": token})
+
+        resp = client.get("/user/user@example.com/posts")
+        posts = resp.json()["posts"]
+        assert posts[0]["like_count"] == 1

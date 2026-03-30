@@ -4158,3 +4158,213 @@ body.focus-mode #artText {
   .dms-layout { flex-direction: column; height: auto; }
   .dms-sidebar { width: 100%; border-right: none; border-bottom: 1.5px solid var(--border); max-height: 200px; }
 }
+
+/* ── Studio Projects Bar ── */
+.studio-projects-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .8rem;
+  padding: .5rem .9rem;
+  background: var(--surface);
+  border-bottom: 1.5px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.studio-projects-label {
+  font-weight: 600;
+  font-size: .88rem;
+  color: var(--text);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.studio-projects-actions {
+  display: flex;
+  gap: .4rem;
+  align-items: center;
+}
+
+.btn-sm {
+  padding: .25rem .6rem;
+  font-size: .78rem;
+  border-radius: var(--radius-sm);
+}
+
+.btn-xs {
+  padding: .15rem .35rem;
+  font-size: .72rem;
+  border-radius: var(--radius-sm);
+}
+
+.btn-danger {
+  background: var(--error, #e23270);
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+.btn-danger:hover { opacity: .85; }
+
+/* ── Projects Modal ── */
+.projects-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.65);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.projects-modal-card {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  width: 100%;
+  max-width: 480px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0,0,0,.4);
+}
+
+.projects-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: .9rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.projects-modal-title {
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.projects-modal-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: .5rem;
+}
+
+.projects-modal-empty {
+  text-align: center;
+  color: var(--text-dim);
+  padding: 2rem;
+  font-size: .9rem;
+}
+
+.projects-modal-item {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  padding: .6rem .8rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background .12s;
+  border-bottom: 1px solid var(--border);
+}
+.projects-modal-item:hover { background: var(--bg-alt); }
+.projects-modal-item-title {
+  flex: 1;
+  font-weight: 500;
+  font-size: .88rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.projects-modal-new {
+  display: flex;
+  gap: .5rem;
+  padding: .7rem .9rem;
+  border-top: 1px solid var(--border);
+  background: var(--bg-alt);
+}
+.projects-modal-new input {
+  flex: 1;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: .4rem .6rem;
+  color: var(--text);
+  font-size: .88rem;
+}
+
+/* ── Feed Like Button ── */
+.feed-card-footer {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  padding-top: .3rem;
+  border-top: 1px solid var(--border);
+  margin-top: .2rem;
+}
+
+.feed-like-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  background: none;
+  border: 1.5px solid var(--border);
+  border-radius: 20px;
+  padding: .2rem .65rem;
+  font-size: .82rem;
+  cursor: pointer;
+  color: var(--text-dim);
+  transition: all .15s;
+}
+.feed-like-btn:hover { border-color: #e23270; color: #e23270; }
+.feed-like-btn.liked { background: rgba(226,50,112,.12); border-color: #e23270; color: #e23270; font-weight: 600; }
+
+/* ── Profile Creations ── */
+.profile-creations-section {
+  margin-top: 1.5rem;
+}
+.profile-creations-title {
+  font-size: 1rem;
+  font-weight: 700;
+  margin-bottom: .8rem;
+}
+.profile-creations-list {
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+}
+
+/* ── DM Share Panel ── */
+.dm-share-panel {
+  padding: .4rem .6rem;
+  border-top: 1px solid var(--border);
+  background: var(--bg-alt);
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  flex-wrap: wrap;
+}
+.dm-share-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem;
+  flex: 1;
+}
+.dm-share-item {
+  display: flex;
+  align-items: center;
+  gap: .3rem;
+  padding: .25rem .55rem;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  cursor: pointer;
+  font-size: .8rem;
+  transition: background .12s;
+}
+.dm-share-item:hover { background: var(--bg); border-color: var(--accent); }
+.dm-share-item-title { font-weight: 500; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

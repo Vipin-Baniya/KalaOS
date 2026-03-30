@@ -300,6 +300,15 @@
     <!-- ── Text Studio ── -->
     <div id="textStudio">
 
+    <div class="studio-projects-bar" id="textProjectsBar">
+      <span class="studio-projects-label" id="textProjectTitle">Untitled</span>
+      <div class="studio-projects-actions">
+        <button class="btn-secondary btn-sm" onclick="studioSave('text')" id="textSaveBtn" title="Save project">💾 Save</button>
+        <button class="btn-secondary btn-sm" onclick="studioShowProjects('text')" title="Load a project">📂 Projects</button>
+        <button class="btn-secondary btn-sm" onclick="studioPublish('text')" id="textPublishBtn" title="Publish to feed" disabled>📤 Publish</button>
+      </div>
+    </div>
+
     <!-- ── Writing Mode Bar ── -->
     <div class="writing-mode-bar" role="tablist" aria-label="Writing mode">
       <button class="writing-mode-btn active" data-mode="free" onclick="setWritingMode('free')" role="tab" aria-selected="true">✍️ Free Write</button>
@@ -1126,6 +1135,14 @@
 
     </div><!-- /musicStudio -->
     <div id="visualStudio" class="input-panel hidden">
+      <div class="studio-projects-bar" id="visualProjectsBar">
+        <span class="studio-projects-label" id="visualProjectTitle">Untitled</span>
+        <div class="studio-projects-actions">
+          <button class="btn-secondary btn-sm" onclick="studioSave('visual')" id="visualSaveBtn" title="Save project">💾 Save</button>
+          <button class="btn-secondary btn-sm" onclick="studioShowProjects('visual')" title="Load a project">📂 Projects</button>
+          <button class="btn-secondary btn-sm" onclick="studioPublish('visual')" id="visualPublishBtn" title="Publish to feed" disabled>📤 Publish</button>
+        </div>
+      </div>
       <div class="input-card" style="padding:.8rem 1.2rem .3rem">
         <div class="visual-tab-bar" role="tablist" aria-label="Visual tools">
           <button class="visual-tab active" data-vtab="paint" onclick="switchVisualTab('paint')" role="tab">🖌️ Paint &amp; Sketch</button>
@@ -1446,6 +1463,15 @@
          ═══════════════════════════════════════════ -->
     <div id="animationStudio" class="input-panel hidden">
 
+      <div class="studio-projects-bar" id="animProjectsBar">
+        <span class="studio-projects-label" id="animProjectTitle">Untitled</span>
+        <div class="studio-projects-actions">
+          <button class="btn-secondary btn-sm" onclick="studioSave('animation')" id="animSaveBtn" title="Save project">💾 Save</button>
+          <button class="btn-secondary btn-sm" onclick="studioShowProjects('animation')" title="Load a project">📂 Projects</button>
+          <button class="btn-secondary btn-sm" onclick="studioPublish('animation')" id="animPublishBtn" title="Publish to feed" disabled>📤 Publish</button>
+        </div>
+      </div>
+
       <!-- Animation tool tab bar -->
       <div class="anim-tools-bar" role="tablist" aria-label="Animation studio tools">
         <button class="anim-tool-btn active" data-atool="text2anim" onclick="switchAnimTool('text2anim')" role="tab" aria-selected="true">✍️ Text → Anim</button>
@@ -1693,8 +1719,15 @@
               <span id="dmWindowPeerId" class="dm-peer-id"></span>
             </header>
             <div id="dmMessages" class="dm-messages" role="log" aria-live="polite" aria-label="Messages"></div>
+            <div id="dmSharePanel" class="dm-share-panel hidden">
+              <span style="font-size:.8rem;color:var(--text-dim);padding:.3rem .5rem">Share a project:</span>
+              <div id="dmShareProjectsList" class="dm-share-list">
+                <span class="conv-empty" style="padding:.5rem">Loading…</span>
+              </div>
+            </div>
             <div class="dm-compose">
               <textarea id="dmInput" class="dm-input" placeholder="Type a message…" rows="2" aria-label="Message input"></textarea>
+              <button class="btn-secondary btn-sm" onclick="toggleDmSharePanel()" title="Share a project" style="white-space:nowrap">📎 Share</button>
               <button class="btn-primary" id="dmSendBtn" onclick="sendDm()">Send</button>
             </div>
           </div>
@@ -1736,6 +1769,13 @@
           </div>
           <button class="btn-primary" id="profilePageSaveBtn" onclick="saveProfilePage()">Save Changes</button>
         </fieldset>
+
+        <section class="profile-creations-section" id="profileCreationsSection">
+          <h4 class="profile-creations-title">🎨 My Creations</h4>
+          <div id="profileCreationsList" class="profile-creations-list">
+            <p class="feed-empty-msg">Loading…</p>
+          </div>
+        </section>
       </div>
     </div><!-- /profileStudio -->
 
@@ -1801,6 +1841,22 @@
     </aside><!-- /appAiPanel -->
 
   </div><!-- /app-body -->
+
+  <div id="projectsModal" class="projects-modal-overlay hidden" role="dialog" aria-modal="true" aria-label="My Projects">
+    <div class="projects-modal-card">
+      <div class="projects-modal-header">
+        <span id="projectsModalTitle" class="projects-modal-title">My Projects</span>
+        <button class="btn-icon-round" onclick="hide('projectsModal')" aria-label="Close">✕</button>
+      </div>
+      <div id="projectsModalList" class="projects-modal-list">
+        <p class="projects-modal-empty">No projects yet.</p>
+      </div>
+      <div class="projects-modal-new">
+        <input type="text" id="projectsModalNewTitle" placeholder="New project title…" autocomplete="off" />
+        <button class="btn-primary" id="projectsModalCreateBtn" onclick="studioCreateNew()">Create New</button>
+      </div>
+    </div>
+  </div>
 
   <footer class="app-footer" role="contentinfo">
     <p>KalaOS &#8212; AI-native art platform. Art understanding without judgment. Artist dignity by design.</p>
