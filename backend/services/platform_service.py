@@ -331,29 +331,33 @@ def list_conversations(token: str) -> List[dict]:
     me = _require_auth(token)
     with _db_lock:
         with _get_db() as conn:
-            # Order by created_at DESC, then rowid DESC as a stable tiebreaker
-            # for messages inserted within the same second (rowid reflects insertion order).
             rows = conn.execute(
                 """
-                SELECT
-                    CASE WHEN sender_id = ? THEN receiver_id ELSE sender_id END AS peer_id,
-                    created_at,
-                    content AS last_content
-                FROM messages
-                WHERE sender_id = ? OR receiver_id = ?
-                ORDER BY created_at DESC, rowid DESC
+                SELECT m.peer_id,
+                       m.created_at  AS last_ts,
+                       m.last_content
+                FROM (
+                    SELECT
+                        CASE WHEN sender_id = ? THEN receiver_id ELSE sender_id END AS peer_id,
+                        created_at,
+                        content AS last_content,
+                        rowid
+                    FROM messages
+                    WHERE sender_id = ? OR receiver_id = ?
+                ) m
+                INNER JOIN (
+                    SELECT
+                        CASE WHEN sender_id = ? THEN receiver_id ELSE sender_id END AS peer_id,
+                        MAX(rowid) AS max_rowid
+                    FROM messages
+                    WHERE sender_id = ? OR receiver_id = ?
+                    GROUP BY peer_id
+                ) latest ON m.peer_id = latest.peer_id AND m.rowid = latest.max_rowid
+                ORDER BY last_ts DESC
                 """,
-                (me, me, me),
+                (me, me, me, me, me, me),
             ).fetchall()
-    seen: dict = {}
-    result = []
-    for r in rows:
-        pid = r["peer_id"]
-        if pid not in seen:
-            seen[pid] = True
-            result.append({
-                "peer_id":      pid,
-                "last_message": r["last_content"],
-                "last_ts":      r["created_at"],
-            })
-    return result
+    return [
+        {"peer_id": r["peer_id"], "last_message": r["last_content"], "last_ts": r["last_ts"]}
+        for r in rows
+    ]

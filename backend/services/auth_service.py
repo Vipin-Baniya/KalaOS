@@ -109,9 +109,7 @@ def _db_init() -> None:
                 )
             """)
             _MIGRATION_COLS = {"avatar_url": "''", "bio": "''"}
-            for col, default in [("avatar_url", "''"), ("bio", "''")]:
-                if col not in _MIGRATION_COLS:
-                    continue  # safety: only known columns
+            for col, default in _MIGRATION_COLS.items():
                 try:
                     conn.execute(
                         f"ALTER TABLE users ADD COLUMN {col} TEXT NOT NULL DEFAULT {default}"

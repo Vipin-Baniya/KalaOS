@@ -4026,3 +4026,300 @@ function _renderAnimTimeline(plan) {
   timeline.classList.remove("hidden");
   if (empty) empty.classList.add("hidden");
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   PLATFORM LAYER — Feed, Messages (DMs), Profile Page
+════════════════════════════════════════════════════════════════════ */
+
+// ── Studio switcher: extend to handle feed / dms / profile ────────────────
+(function () {
+  const _prevSwitch = switchStudio;
+  const _PLATFORM_STUDIOS = ["feedStudio", "dmsStudio", "profileStudio"];
+  const _PLATFORM_BTNS    = ["feedStudioBtn", "dmsStudioBtn", "profileStudioBtn"];
+
+  switchStudio = function (mode) {
+    // Hide platform studios and deactivate their buttons
+    _PLATFORM_STUDIOS.forEach(id => { const s = el(id); if (s) s.classList.add("hidden"); });
+    _PLATFORM_BTNS.forEach(id => { const b = el(id); if (b) { b.classList.remove("active"); b.setAttribute("aria-selected", "false"); } });
+
+    if (mode === "feed") {
+      ["textStudio", "musicStudio", "visualStudio", "animationStudio", "chatStudio", "dmsStudio", "profileStudio"].forEach(id => { const s = el(id); if (s) s.classList.add("hidden"); });
+      ["textStudioBtn", "musicStudioBtn", "visualStudioBtn", "animationStudioBtn", "chatStudioBtn", "dmsStudioBtn", "profileStudioBtn"].forEach(id => { const b = el(id); if (b) { b.classList.remove("active"); b.setAttribute("aria-selected", "false"); } });
+      const s = el("feedStudio"), btn = el("feedStudioBtn");
+      if (s) s.classList.remove("hidden");
+      if (btn) { btn.classList.add("active"); btn.setAttribute("aria-selected", "true"); }
+      _hideAiPanel();
+      loadFeed();
+      return;
+    }
+
+    if (mode === "dms") {
+      ["textStudio", "musicStudio", "visualStudio", "animationStudio", "chatStudio", "feedStudio", "profileStudio"].forEach(id => { const s = el(id); if (s) s.classList.add("hidden"); });
+      ["textStudioBtn", "musicStudioBtn", "visualStudioBtn", "animationStudioBtn", "chatStudioBtn", "feedStudioBtn", "profileStudioBtn"].forEach(id => { const b = el(id); if (b) { b.classList.remove("active"); b.setAttribute("aria-selected", "false"); } });
+      const s = el("dmsStudio"), btn = el("dmsStudioBtn");
+      if (s) s.classList.remove("hidden");
+      if (btn) { btn.classList.add("active"); btn.setAttribute("aria-selected", "true"); }
+      _hideAiPanel();
+      loadConversations();
+      return;
+    }
+
+    if (mode === "profile") {
+      ["textStudio", "musicStudio", "visualStudio", "animationStudio", "chatStudio", "feedStudio", "dmsStudio"].forEach(id => { const s = el(id); if (s) s.classList.add("hidden"); });
+      ["textStudioBtn", "musicStudioBtn", "visualStudioBtn", "animationStudioBtn", "chatStudioBtn", "feedStudioBtn", "dmsStudioBtn"].forEach(id => { const b = el(id); if (b) { b.classList.remove("active"); b.setAttribute("aria-selected", "false"); } });
+      const s = el("profileStudio"), btn = el("profileStudioBtn");
+      if (s) s.classList.remove("hidden");
+      if (btn) { btn.classList.add("active"); btn.setAttribute("aria-selected", "true"); }
+      _hideAiPanel();
+      loadProfilePage();
+      return;
+    }
+
+    _prevSwitch(mode);
+  };
+})();
+
+// ──────────────────────────────────────────────────────────────────────────
+// Feed
+// ──────────────────────────────────────────────────────────────────────────
+
+async function loadFeed() {
+  const list = el("feedList");
+  if (!list) return;
+  list.innerHTML = '<p class="feed-empty-msg">Loading…</p>';
+  try {
+    const resp = await fetch(`${API_BASE}/feed?limit=30`);
+    const data = await resp.json();
+    const posts = data.posts || [];
+    if (!posts.length) {
+      list.innerHTML = '<p class="feed-empty-msg">No posts yet — publish a project to appear here!</p>';
+      return;
+    }
+    list.innerHTML = posts.map(p => {
+      const initial = (p.author_name || p.user_email || "?").charAt(0).toUpperCase();
+      const avatarHtml = p.avatar_url
+        ? `<img src="${esc(p.avatar_url)}" alt="${esc(p.author_name || p.user_email)}" />`
+        : initial;
+      const ts = new Date(p.created_at * 1000).toLocaleDateString();
+      let preview = "";
+      try { preview = JSON.parse(p.data)?.content || JSON.parse(p.data)?.text || ""; } catch { preview = ""; }
+      return `
+        <article class="feed-card">
+          <div class="feed-card-header">
+            <div class="feed-avatar">${avatarHtml}</div>
+            <div>
+              <div class="feed-author">${esc(p.author_name || p.user_email)}</div>
+              <div class="feed-meta">${ts}</div>
+            </div>
+            <span class="feed-card-type">${esc(p.type)}</span>
+          </div>
+          <h4 class="feed-card-title">${esc(p.title)}</h4>
+          ${preview ? `<p class="feed-card-preview">${esc(preview)}</p>` : ""}
+        </article>`;
+    }).join("");
+  } catch (err) {
+    list.innerHTML = `<p class="feed-empty-msg">Failed to load feed: ${esc(err.message)}</p>`;
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Messages (DMs)
+// ──────────────────────────────────────────────────────────────────────────
+
+let _dmCurrentPeer = null;
+
+async function loadConversations() {
+  if (!_authToken) return;
+  const list = el("convList");
+  if (!list) return;
+  try {
+    const resp = await fetch(`${API_BASE}/conversations?token=${encodeURIComponent(_authToken)}`);
+    const data = await resp.json();
+    const convs = data.conversations || [];
+    if (!convs.length) {
+      list.innerHTML = '<p class="conv-empty">No conversations yet</p>';
+      return;
+    }
+    list.innerHTML = convs.map(c => `
+      <div class="conv-item${_dmCurrentPeer === c.peer_id ? ' active' : ''}"
+           data-peer="${esc(c.peer_id)}"
+           onclick="openConversation('${esc(c.peer_id)}')"
+           role="button" tabindex="0"
+           onkeydown="if(event.key==='Enter')openConversation('${esc(c.peer_id)}')">
+        <div class="conv-peer-name">${esc(c.peer_id)}</div>
+        <div class="conv-last-msg">${esc(c.last_message || "")}</div>
+      </div>`).join("");
+  } catch (err) {
+    list.innerHTML = `<p class="conv-empty">Failed to load: ${esc(err.message)}</p>`;
+  }
+}
+
+function showNewDmPanel() {
+  const panel = el("newDmPanel");
+  if (panel) panel.classList.toggle("hidden");
+}
+
+async function startConversation() {
+  const input = el("dmRecipientInput");
+  const peerId = (input?.value || "").trim();
+  if (!peerId) return;
+  input.value = "";
+  hide("newDmPanel");
+  await openConversation(peerId);
+  await loadConversations();
+}
+
+async function openConversation(peerId) {
+  _dmCurrentPeer = peerId;
+  const empty  = el("dmWindowEmpty");
+  const active = el("dmWindowActive");
+  const peerName = el("dmWindowPeerName");
+  const peerId2  = el("dmWindowPeerId");
+  if (empty)  empty.classList.add("hidden");
+  if (active) { active.classList.remove("hidden"); active.style.display = "flex"; }
+  if (peerName) peerName.textContent = peerId;
+  if (peerId2)  peerId2.textContent  = "";
+  await refreshDmMessages();
+  // Highlight active conversation
+  document.querySelectorAll(".conv-item").forEach(item => {
+    item.classList.toggle("active", item.dataset.peer === peerId);
+  });
+}
+
+async function refreshDmMessages() {
+  if (!_dmCurrentPeer || !_authToken) return;
+  const msgArea = el("dmMessages");
+  if (!msgArea) return;
+  try {
+    const resp = await fetch(
+      `${API_BASE}/messages/${encodeURIComponent(_dmCurrentPeer)}?token=${encodeURIComponent(_authToken)}&limit=100`
+    );
+    const data = await resp.json();
+    const msgs = data.messages || [];
+    const myEmail = _currentUser?.email || "";
+    msgArea.innerHTML = msgs.map(m => {
+      const isMine = m.sender_id === myEmail;
+      const ts = new Date(m.created_at * 1000).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"});
+      return `<div class="dm-msg ${isMine ? 'sent' : 'recv'}">${esc(m.content)}<span class="dm-msg-time">${ts}</span></div>`;
+    }).join("");
+    msgArea.scrollTop = msgArea.scrollHeight;
+  } catch { /* silent */ }
+}
+
+async function sendDm() {
+  if (!_dmCurrentPeer || !_authToken) return;
+  const input = el("dmInput");
+  const content = (input?.value || "").trim();
+  if (!content) return;
+  const btn = el("dmSendBtn");
+  if (btn) btn.disabled = true;
+  input.value = "";
+  try {
+    const resp = await fetch(`${API_BASE}/messages`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: _authToken, receiver_id: _dmCurrentPeer, content }),
+    });
+    if (!resp.ok) throw new Error((await resp.json()).detail || "Send failed.");
+    await refreshDmMessages();
+    await loadConversations();
+  } catch (err) {
+    const msgArea = el("dmMessages");
+    if (msgArea) msgArea.innerHTML += `<div class="dm-msg recv" style="border-color:var(--error)">⚠ ${esc(err.message)}</div>`;
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+// Send DM on Enter (without Shift)
+document.addEventListener("DOMContentLoaded", function () {
+  const dmInput = el("dmInput");
+  if (dmInput) {
+    dmInput.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendDm(); }
+    });
+  }
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// Profile Page
+// ──────────────────────────────────────────────────────────────────────────
+
+async function loadProfilePage() {
+  if (!_currentUser) return;
+  const name  = _currentUser.name  || "";
+  const email = _currentUser.email || "";
+  // Try to refresh from server for latest bio/avatar
+  try {
+    const resp = await fetch(`${API_BASE}/user/${encodeURIComponent(email)}`);
+    if (resp.ok) {
+      const u = await resp.json();
+      _renderProfilePage(u);
+      return;
+    }
+  } catch { /* fall through */ }
+  _renderProfilePage({ name, email, avatar_url: "", bio: "" });
+}
+
+function _renderProfilePage(user) {
+  const name      = user.name  || user.email || "";
+  const email     = user.email || "";
+  const avatarUrl = user.avatar_url || "";
+  const bio       = user.bio || "";
+
+  const avatarEl = el("profilePageAvatar");
+  if (avatarEl) {
+    avatarEl.innerHTML = avatarUrl
+      ? `<img src="${esc(avatarUrl)}" alt="${esc(name)}" />`
+      : name.charAt(0).toUpperCase();
+  }
+  const nameEl = el("profilePageName");
+  if (nameEl) nameEl.textContent = name;
+  const emailEl = el("profilePageEmail");
+  if (emailEl) emailEl.textContent = email;
+  const bioEl = el("profilePageBio");
+  if (bioEl) bioEl.textContent = bio || "No bio yet.";
+
+  const name2 = el("profilePageName2");
+  if (name2) name2.value = name;
+  const avatarInput = el("profilePageAvatarUrl");
+  if (avatarInput) avatarInput.value = avatarUrl;
+  const bio2 = el("profilePageBio2");
+  if (bio2) bio2.value = bio;
+}
+
+function _setProfilePageMsg(msg, isError) {
+  const e = el("profilePageMsg");
+  if (!e) return;
+  e.textContent = msg;
+  e.className = "auth-alert " + (isError ? "auth-error" : "auth-success") + (msg ? "" : " hidden");
+}
+
+async function saveProfilePage() {
+  const btn       = el("profilePageSaveBtn");
+  const name      = (el("profilePageName2")?.value || "").trim();
+  const avatarUrl = (el("profilePageAvatarUrl")?.value || "").trim();
+  const bio       = (el("profilePageBio2")?.value || "").trim();
+
+  _setProfilePageMsg("", false);
+  if (!name) { _setProfilePageMsg("Name must not be empty.", true); return; }
+  if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
+  try {
+    const resp = await fetch(`${API_BASE}/auth/update-profile`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: _authToken, name, avatar_url: avatarUrl, bio }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.detail || "Update failed.");
+    _currentUser = { ..._currentUser, ...(data.user || {}), name };
+    _saveSession(_authToken, _currentUser);
+    _updateUserUI();
+    _renderProfilePage({ name, email: _currentUser.email, avatar_url: avatarUrl, bio });
+    _setProfilePageMsg("Profile saved successfully.", false);
+  } catch (err) {
+    _setProfilePageMsg(err.message, true);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "Save Changes"; }
+  }
+}
