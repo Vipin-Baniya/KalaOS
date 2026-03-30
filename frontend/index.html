@@ -305,6 +305,18 @@
           <span class="sidebar-icon" aria-hidden="true">👤</span>
           <span class="sidebar-label">Profile</span>
         </button>
+        <button class="sidebar-btn" id="collabStudioBtn" onclick="switchStudio('collab')" role="tab" aria-selected="false">
+          <span class="sidebar-icon" aria-hidden="true">🤝</span>
+          <span class="sidebar-label">Collab</span>
+        </button>
+        <button class="sidebar-btn" id="streamStudioBtn" onclick="switchStudio('stream')" role="tab" aria-selected="false">
+          <span class="sidebar-icon" aria-hidden="true">📡</span>
+          <span class="sidebar-label">Stream</span>
+        </button>
+        <button class="sidebar-btn" id="exportStudioBtn" onclick="switchStudio('export')" role="tab" aria-selected="false">
+          <span class="sidebar-icon" aria-hidden="true">📦</span>
+          <span class="sidebar-label">Export</span>
+        </button>
       </nav>
       <div class="sidebar-footer">
         <button class="sidebar-collapse-btn" id="sidebarToggle" onclick="toggleSidebar()" title="Collapse sidebar" aria-label="Toggle sidebar">
@@ -2110,6 +2122,339 @@
     </div>
   </div>
 
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     COLLABORATION STUDIO
+══════════════════════════════════════════════════════ -->
+<div id="collabStudio" class="input-panel hidden" aria-label="Collaboration Studio">
+  <div class="studio-header">
+    <h2 class="studio-title">🤝 Collaboration Studio</h2>
+    <p class="studio-subtitle">Create shared workspaces and invite artists to co-create</p>
+  </div>
+
+  <div class="collab-tool-bar" role="tablist" aria-label="Collaboration tools">
+    <button class="collab-tool-btn active" data-ctool="workspace" onclick="switchCollabTool('workspace')" role="tab" aria-selected="true">🏢 Workspace</button>
+    <button class="collab-tool-btn" data-ctool="invite" onclick="switchCollabTool('invite')" role="tab" aria-selected="false">➕ Invite</button>
+    <button class="collab-tool-btn" data-ctool="activity" onclick="switchCollabTool('activity')" role="tab" aria-selected="false">📋 Activity</button>
+    <button class="collab-tool-btn" data-ctool="ai-suggest" onclick="switchCollabTool('ai-suggest')" role="tab" aria-selected="false">✨ AI Suggest</button>
+  </div>
+
+  <!-- Workspace tab -->
+  <div class="collab-tool-pane" id="ctool-workspace" role="tabpanel">
+    <div class="input-card collab-tool-card">
+      <div class="form-group">
+        <label for="collabWorkspaceName">Workspace name</label>
+        <input type="text" id="collabWorkspaceName" placeholder="e.g. Album 'Neon Dreams' Collab" />
+      </div>
+      <div class="form-group">
+        <label for="collabProjectType">Project type</label>
+        <select id="collabProjectType" class="vs-select" style="width:100%">
+          <option value="music">🎵 Music</option>
+          <option value="visual">🎨 Visual Art</option>
+          <option value="animation">🎬 Animation</option>
+          <option value="video">🎥 Video</option>
+          <option value="text">✍️ Writing</option>
+          <option value="mixed">🌀 Mixed Media</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="collabDescription">Description <span class="optional">(optional)</span></label>
+        <textarea id="collabDescription" rows="3" placeholder="Describe the project goals and vision…"></textarea>
+      </div>
+      <button class="btn-primary" onclick="createCollabWorkspace()">🚀 Create Workspace</button>
+      <div id="collabWorkspaceStatus" class="vs-status" aria-live="polite"></div>
+      <div id="collabWorkspaceResult" class="collab-result hidden"></div>
+    </div>
+  </div>
+
+  <!-- Invite tab -->
+  <div class="collab-tool-pane hidden" id="ctool-invite" role="tabpanel">
+    <div class="input-card collab-tool-card">
+      <div class="form-group">
+        <label for="collabInviteWorkspaceId">Workspace ID</label>
+        <input type="text" id="collabInviteWorkspaceId" placeholder="e.g. ws_abc123" />
+      </div>
+      <div class="form-group">
+        <label for="collabInviteEmail">Collaborator email</label>
+        <input type="email" id="collabInviteEmail" placeholder="artist@example.com" />
+      </div>
+      <div class="form-group">
+        <label for="collabInviteRole">Role</label>
+        <select id="collabInviteRole" class="vs-select" style="width:100%">
+          <option value="editor">✏️ Editor</option>
+          <option value="viewer">👁️ Viewer</option>
+          <option value="commenter">💬 Commenter</option>
+          <option value="owner">👑 Owner</option>
+        </select>
+      </div>
+      <button class="btn-primary" onclick="inviteCollaborator()">📨 Send Invite</button>
+      <div id="collabInviteStatus" class="vs-status" aria-live="polite"></div>
+      <div id="collabInviteResult" class="collab-result hidden"></div>
+    </div>
+  </div>
+
+  <!-- Activity tab -->
+  <div class="collab-tool-pane hidden" id="ctool-activity" role="tabpanel">
+    <div class="input-card collab-tool-card">
+      <div class="form-group">
+        <label for="collabActivityWorkspaceId">Workspace ID</label>
+        <input type="text" id="collabActivityWorkspaceId" placeholder="e.g. ws_abc123" />
+      </div>
+      <div class="form-group">
+        <label for="collabActivityUser">Your email <span class="optional">(optional)</span></label>
+        <input type="email" id="collabActivityUser" placeholder="your@email.com" />
+      </div>
+      <button class="btn-primary" onclick="loadCollabActivity()">📋 Load Activity</button>
+      <div id="collabActivityStatus" class="vs-status" aria-live="polite"></div>
+      <div id="collabActivityList" class="collab-activity-list hidden"></div>
+    </div>
+  </div>
+
+  <!-- AI Suggest tab -->
+  <div class="collab-tool-pane hidden" id="ctool-ai-suggest" role="tabpanel">
+    <div class="input-card collab-tool-card">
+      <div class="form-group">
+        <label for="collabSuggestType">Project type</label>
+        <select id="collabSuggestType" class="vs-select" style="width:100%">
+          <option value="music">🎵 Music</option>
+          <option value="visual">🎨 Visual Art</option>
+          <option value="animation">🎬 Animation</option>
+          <option value="video">🎥 Video</option>
+          <option value="text">✍️ Writing</option>
+          <option value="mixed">🌀 Mixed Media</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="collabSuggestContext">Project context <span class="optional">(optional)</span></label>
+        <textarea id="collabSuggestContext" rows="3" placeholder="Describe what your collaboration is about…"></textarea>
+      </div>
+      <button class="btn-primary" onclick="getCollabSuggestions()">✨ Get AI Suggestions</button>
+      <div id="collabSuggestStatus" class="vs-status" aria-live="polite"></div>
+      <div id="collabSuggestResult" class="collab-result hidden"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     STREAMING STUDIO
+══════════════════════════════════════════════════════ -->
+<div id="streamStudio" class="input-panel hidden" aria-label="Streaming Studio">
+  <div class="studio-header">
+    <h2 class="studio-title">📡 Streaming Studio</h2>
+    <p class="studio-subtitle">Go live on multiple platforms and track your audience</p>
+  </div>
+
+  <div class="stream-tool-bar" role="tablist" aria-label="Streaming tools">
+    <button class="stream-tool-btn active" data-stool="setup" onclick="switchStreamTool('setup')" role="tab" aria-selected="true">⚙️ Setup</button>
+    <button class="stream-tool-btn" data-stool="analytics" onclick="switchStreamTool('analytics')" role="tab" aria-selected="false">📊 Analytics</button>
+    <button class="stream-tool-btn" data-stool="overlay" onclick="switchStreamTool('overlay')" role="tab" aria-selected="false">🎨 Overlay</button>
+  </div>
+
+  <!-- Setup tab -->
+  <div class="stream-tool-pane" id="stool-setup" role="tabpanel">
+    <div class="input-card stream-tool-card">
+      <div class="form-group">
+        <label for="streamPlatform">Platform</label>
+        <select id="streamPlatform" class="vs-select" style="width:100%">
+          <option value="youtube">▶️ YouTube</option>
+          <option value="twitch">🟣 Twitch</option>
+          <option value="facebook">🔵 Facebook</option>
+          <option value="instagram">📸 Instagram</option>
+          <option value="tiktok">🎵 TikTok</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="streamTitle">Stream title</label>
+        <input type="text" id="streamTitle" placeholder="e.g. Live Beat Session — Trap Vibes 🔥" />
+      </div>
+      <div class="form-group">
+        <label for="streamQuality">Quality</label>
+        <select id="streamQuality" class="vs-select" style="width:100%">
+          <option value="1080p">1080p HD</option>
+          <option value="720p">720p</option>
+          <option value="4k">4K Ultra HD</option>
+          <option value="480p">480p</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="streamDescription">Description <span class="optional">(optional)</span></label>
+        <textarea id="streamDescription" rows="3" placeholder="Tell viewers what your stream is about…"></textarea>
+      </div>
+      <button class="btn-primary" onclick="setupStream()">🚀 Configure Stream</button>
+      <div id="streamSetupStatus" class="vs-status" aria-live="polite"></div>
+      <div id="streamSetupResult" class="stream-result hidden"></div>
+    </div>
+  </div>
+
+  <!-- Analytics tab -->
+  <div class="stream-tool-pane hidden" id="stool-analytics" role="tabpanel">
+    <div class="input-card stream-tool-card">
+      <div class="form-group">
+        <label for="streamAnalyticsId">Stream ID</label>
+        <input type="text" id="streamAnalyticsId" placeholder="e.g. stream_abc123" />
+      </div>
+      <div class="form-group">
+        <label for="streamDuration">Duration (minutes)</label>
+        <input type="number" id="streamDuration" value="60" min="1" max="1440" />
+      </div>
+      <button class="btn-primary" onclick="loadStreamAnalytics()">📊 Load Analytics</button>
+      <div id="streamAnalyticsStatus" class="vs-status" aria-live="polite"></div>
+      <div id="streamAnalyticsResult" class="stream-result hidden"></div>
+    </div>
+  </div>
+
+  <!-- Overlay tab -->
+  <div class="stream-tool-pane hidden" id="stool-overlay" role="tabpanel">
+    <div class="input-card stream-tool-card">
+      <div class="form-group">
+        <label for="streamOverlayTitle">Stream title for overlay</label>
+        <input type="text" id="streamOverlayTitle" placeholder="e.g. KalaOS Live — Creating Art in Real Time" />
+      </div>
+      <div class="form-group">
+        <label for="streamOverlayStyle">Overlay style</label>
+        <select id="streamOverlayStyle" class="vs-select" style="width:100%">
+          <option value="minimal">Minimal</option>
+          <option value="gaming">Gaming</option>
+          <option value="podcast">Podcast</option>
+          <option value="creative">Creative</option>
+        </select>
+      </div>
+      <button class="btn-primary" onclick="generateStreamOverlay()">🎨 Generate Overlay</button>
+      <div id="streamOverlayStatus" class="vs-status" aria-live="polite"></div>
+      <div id="streamOverlayResult" class="stream-result hidden"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     EXPORT STUDIO
+══════════════════════════════════════════════════════ -->
+<div id="exportStudio" class="input-panel hidden" aria-label="Export &amp; Import Studio">
+  <div class="studio-header">
+    <h2 class="studio-title">📦 Export &amp; Import</h2>
+    <p class="studio-subtitle">Export your creations in any format, import from URLs, or batch export projects</p>
+  </div>
+
+  <div class="export-tool-bar" role="tablist" aria-label="Export tools">
+    <button class="export-tool-btn active" data-etool="prepare" onclick="switchExportTool('prepare')" role="tab" aria-selected="true">📤 Export</button>
+    <button class="export-tool-btn" data-etool="import" onclick="switchExportTool('import')" role="tab" aria-selected="false">📥 Import</button>
+    <button class="export-tool-btn" data-etool="batch" onclick="switchExportTool('batch')" role="tab" aria-selected="false">📦 Batch</button>
+    <button class="export-tool-btn" data-etool="quality" onclick="switchExportTool('quality')" role="tab" aria-selected="false">✅ Quality Check</button>
+  </div>
+
+  <!-- Export tab -->
+  <div class="export-tool-pane" id="etool-prepare" role="tabpanel">
+    <div class="input-card export-tool-card">
+      <div class="form-group">
+        <label for="exportStudioType">Studio</label>
+        <select id="exportStudioType" class="vs-select" style="width:100%" onchange="updateExportFormats()">
+          <option value="music">🎵 Music</option>
+          <option value="video">🎥 Video</option>
+          <option value="image">🖼️ Image</option>
+          <option value="text">✍️ Text / Document</option>
+          <option value="animation">🎬 Animation</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="exportFormat">Format</label>
+        <select id="exportFormat" class="vs-select" style="width:100%">
+          <option value="mp3">MP3</option>
+          <option value="wav">WAV</option>
+          <option value="flac">FLAC</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="exportQuality">Quality</label>
+        <select id="exportQuality" class="vs-select" style="width:100%">
+          <option value="high">High</option>
+          <option value="medium">Medium</option>
+          <option value="low">Low (smaller file)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="exportContent">Content / description</label>
+        <textarea id="exportContent" rows="3" placeholder="Describe or paste your content to export…"></textarea>
+      </div>
+      <button class="btn-primary" onclick="prepareExport()">📤 Prepare Export</button>
+      <div id="exportPrepareStatus" class="vs-status" aria-live="polite"></div>
+      <div id="exportPrepareResult" class="export-result hidden"></div>
+    </div>
+  </div>
+
+  <!-- Import tab -->
+  <div class="export-tool-pane hidden" id="etool-import" role="tabpanel">
+    <div class="input-card export-tool-card">
+      <div class="form-group">
+        <label for="importUrl">URL to import</label>
+        <input type="url" id="importUrl" placeholder="https://example.com/mytrack.mp3" />
+      </div>
+      <div class="form-group">
+        <label for="importStudio">Import to studio</label>
+        <select id="importStudio" class="vs-select" style="width:100%">
+          <option value="music">🎵 Music</option>
+          <option value="video">🎥 Video</option>
+          <option value="image">🖼️ Image</option>
+          <option value="text">✍️ Text</option>
+          <option value="animation">🎬 Animation</option>
+        </select>
+      </div>
+      <button class="btn-primary" onclick="importFromUrl()">📥 Import</button>
+      <div id="importStatus" class="vs-status" aria-live="polite"></div>
+      <div id="importResult" class="export-result hidden"></div>
+    </div>
+  </div>
+
+  <!-- Batch export tab -->
+  <div class="export-tool-pane hidden" id="etool-batch" role="tabpanel">
+    <div class="input-card export-tool-card">
+      <p style="font-size:.85rem;color:var(--text-dim);margin:0 0 1rem">Add multiple items to export together as a batch.</p>
+      <div id="batchItems">
+        <div class="batch-item-row">
+          <select class="vs-select batch-studio">
+            <option value="music">🎵 Music</option>
+            <option value="video">🎥 Video</option>
+            <option value="image">🖼️ Image</option>
+            <option value="text">✍️ Text</option>
+          </select>
+          <select class="vs-select batch-format">
+            <option value="mp3">MP3</option>
+            <option value="mp4">MP4</option>
+            <option value="png">PNG</option>
+            <option value="pdf">PDF</option>
+          </select>
+          <input type="text" class="batch-content" placeholder="Content description" />
+        </div>
+      </div>
+      <div style="display:flex;gap:.6rem;margin-top:.8rem">
+        <button class="btn-secondary" onclick="addBatchItem()">➕ Add Item</button>
+        <button class="btn-primary" onclick="runBatchExport()">📦 Batch Export</button>
+      </div>
+      <div id="batchExportStatus" class="vs-status" aria-live="polite"></div>
+      <div id="batchExportResult" class="export-result hidden"></div>
+    </div>
+  </div>
+
+  <!-- Quality check tab -->
+  <div class="export-tool-pane hidden" id="etool-quality" role="tabpanel">
+    <div class="input-card export-tool-card">
+      <div class="form-group">
+        <label for="qualityCheckExportId">Export ID</label>
+        <input type="text" id="qualityCheckExportId" placeholder="e.g. export_abc123 (from a prepared export)" />
+      </div>
+      <div class="form-group">
+        <label for="qualityCheckFormat">Format</label>
+        <input type="text" id="qualityCheckFormat" placeholder="e.g. mp3, mp4, png, pdf" value="mp3" />
+      </div>
+      <div class="form-group">
+        <label for="qualityCheckContent">Content preview <span class="optional">(optional)</span></label>
+        <textarea id="qualityCheckContent" rows="2" placeholder="Optional description of the content…"></textarea>
+      </div>
+      <button class="btn-primary" onclick="runQualityCheck()">✅ Run Quality Check</button>
+      <div id="qualityCheckStatus" class="vs-status" aria-live="polite"></div>
+      <div id="qualityCheckResult" class="export-result hidden"></div>
+    </div>
+  </div>
 </div>
 
 <!-- ══════════════════════════════════════════════════════
