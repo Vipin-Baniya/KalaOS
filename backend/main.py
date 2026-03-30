@@ -21,6 +21,7 @@ POST /animation/generate  – Phase 13 Animation Generator (text/image/story →
 POST /visual-studio/generate-image – Phase 14 Design Canvas AI image concept generator
 POST /visual-studio/animate        – Phase 14 Design Canvas AI animation mapper
 POST /visual-studio/export-gif     – Phase 14 Design Canvas GIF exporter
+POST /music-studio/ai-beat         – AI beat generator: text prompt → BPM + drum pattern + melody
 """
 
 import logging
@@ -47,7 +48,7 @@ from kalacore.kalaflow import flow
 from kalacore.kalacustody import custody, assess_artistic_lineage
 from kalacore.temporal import analyze_temporal
 from kalacore.kalavisual import analyze_visual, generate_image_concept, animate_canvas_objects, export_canvas_gif
-from kalacore.kalaproducer import produce
+from kalacore.kalaproducer import produce, generate_ai_beat
 from kalacore.kalaanimation import generate_animation_plan, parse_storyboard
 from services.llm_service import (
     generate_explanation,
@@ -1639,4 +1640,58 @@ def conversations_list(token: str):
         return {"conversations": convs}
     except ValueError as exc:
         raise HTTPException(status_code=401, detail=str(exc))
+
+
+# ---------------------------------------------------------------------------
+# Music Studio — AI Beat Generator
+# ---------------------------------------------------------------------------
+
+class AiBeatRequest(BaseModel):
+    prompt: str
+
+    @field_validator("prompt")
+    @classmethod
+    def prompt_not_empty(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("prompt must not be empty")
+        return v.strip()
+
+
+class AiBeatResponse(BaseModel):
+    bpm:    int
+    drums:  dict
+    melody: list
+    genre:  str
+    prompt: str
+
+
+@app.post(
+    "/music-studio/ai-beat",
+    response_model=AiBeatResponse,
+    summary="AI Beat Generator: text prompt → BPM + drum pattern + melody",
+)
+def ai_beat_endpoint(request: AiBeatRequest):
+    """
+    Convert a plain-text description into a playable beat recipe.
+
+    Examples
+    --------
+    ``{"prompt": "lofi chill beat"}``
+    → ``{"bpm": 80, "drums": {...}, "melody": ["C4","Eb4",...], "genre": "lofi"}``
+
+    ``{"prompt": "dark trap 140bpm aggressive"}``
+    → ``{"bpm": 140, "drums": {...}, "melody": ["C3","Eb3",...], "genre": "trap"}``
+    """
+    try:
+        result = generate_ai_beat(request.prompt)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Beat generation failed: {exc}")
+
+    return AiBeatResponse(
+        bpm=result["bpm"],
+        drums=result["drums"],
+        melody=result["melody"],
+        genre=result["genre"],
+        prompt=result["prompt"],
+    )
 

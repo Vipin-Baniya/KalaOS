@@ -2369,7 +2369,7 @@ function clearMusicStudio() {
   setMusicStatus("");
 }
 
-// ── Music Tool switcher (Beat/Mixer/Mastering/Chords/Produce) ────────────
+// ── Music Tool switcher (Beat/Mixer/Mastering/Chords/Produce/AI-Beat/Timeline) ────────────
 function switchMusicTool(toolId) {
   document.querySelectorAll(".music-tool-btn[data-mtool]").forEach(b => {
     const active = b.dataset.mtool === toolId;
@@ -2380,6 +2380,8 @@ function switchMusicTool(toolId) {
     const isActive = p.id === `mtool-${toolId}`;
     p.classList.toggle("hidden", !isActive);
   });
+  // Lazy-init timeline on first open
+  if (toolId === "timeline") initTimeline();
 }
 
 // ── Music AI results Tab switcher ───────────────────────────────────────────────
@@ -2667,7 +2669,7 @@ function toggleBeatCell(row, step, cellEl) {
   cellEl.classList.toggle("on", _beatState[row][step]);
 }
 
-function toggleBeat() {
+async function toggleBeat() {
   const btn = el("beatPlayBtn");
   if (_beatPlaying) {
     _beatPlaying = false;
@@ -2677,6 +2679,8 @@ function toggleBeat() {
     // Remove active step highlight
     document.querySelectorAll(".beat-cell.active-step").forEach(c => c.classList.remove("active-step"));
   } else {
+    // Initialise Tone.js on first user gesture
+    await _ensureToneReady();
     _beatPlaying = true;
     _beatStep = 0;
     if (btn) btn.textContent = "⏹ Stop";
@@ -2692,12 +2696,16 @@ function scheduleBeatStep() {
   // Clear previous active
   document.querySelectorAll(".beat-cell.active-step").forEach(c => c.classList.remove("active-step"));
 
-  // Highlight current step
+  // Highlight current step + trigger drum sounds
   BEAT_ROWS.forEach(row => {
     const container = el(`cells-${row}`);
     if (container) {
       const cell = container.children[_beatStep];
       if (cell) cell.classList.add("active-step");
+    }
+    // Trigger Tone.js audio for active cells
+    if (_beatState[row] && _beatState[row][_beatStep]) {
+      _triggerDrum(row);
     }
   });
 
@@ -3160,6 +3168,358 @@ function showChordInfo(name, notes, quality, degree) {
     <span style="margin-left:.5rem;color:var(--text-muted)">${esc(notes)}</span>
     <p style="margin-top:.4rem;font-size:.82rem;color:var(--text-muted)">${usage[quality] || ""}</p>
   `;
+}
+
+
+/* ════════════════════════════════════════════════════════════════════
+   TONE.JS AUDIO ENGINE  🔊
+════════════════════════════════════════════════════════════════════ */
+
+let _toneReady = false;
+let _toneSynths = {};
+
+// Lazily initialise Tone.js drum synths.
+// We must call Tone.start() inside a user-gesture handler.
+async function _ensureToneReady() {
+  if (_toneReady) return true;
+  if (typeof Tone === "undefined") return false;
+
+  try {
+    await Tone.start();
+
+    // Kick — low boomy membrane synth
+    _toneSynths.kick = new Tone.MembraneSynth({
+      pitchDecay:  0.05,
+      octaves:     6,
+      envelope:    { attack: 0.001, decay: 0.3, sustain: 0, release: 0.1 },
+    }).toDestination();
+    _toneSynths.kick.volume.value = 0;
+
+    // Snare — noise burst
+    _toneSynths.snare = new Tone.NoiseSynth({
+      noise:    { type: "white" },
+      envelope: { attack: 0.001, decay: 0.15, sustain: 0, release: 0.08 },
+    }).toDestination();
+    _toneSynths.snare.volume.value = -4;
+
+    // Hi-hat closed — short metallic hit
+    _toneSynths.hihat = new Tone.MetalSynth({
+      frequency:   400,
+      envelope:    { attack: 0.001, decay: 0.05, release: 0.01 },
+      harmonicity: 5.1,
+      modulationIndex: 32,
+      resonance:   4000,
+      octaves:     1.5,
+    }).toDestination();
+    _toneSynths.hihat.volume.value = -8;
+
+    // Open hi-hat — slightly longer metallic
+    _toneSynths.openhat = new Tone.MetalSynth({
+      frequency:   300,
+      envelope:    { attack: 0.001, decay: 0.25, release: 0.1 },
+      harmonicity: 5.1,
+      modulationIndex: 32,
+      resonance:   3000,
+      octaves:     1.5,
+    }).toDestination();
+    _toneSynths.openhat.volume.value = -10;
+
+    // Clap — noise with slightly longer decay
+    _toneSynths.clap = new Tone.NoiseSynth({
+      noise:    { type: "pink" },
+      envelope: { attack: 0.005, decay: 0.1, sustain: 0, release: 0.05 },
+    }).toDestination();
+    _toneSynths.clap.volume.value = -6;
+
+    // Percussion — mid-range membrane
+    _toneSynths.perc = new Tone.MembraneSynth({
+      pitchDecay:  0.03,
+      octaves:     4,
+      envelope:    { attack: 0.001, decay: 0.12, sustain: 0, release: 0.06 },
+    }).toDestination();
+    _toneSynths.perc.volume.value = -6;
+
+    _toneReady = true;
+    return true;
+  } catch (err) {
+    console.warn("Tone.js init failed:", err);
+    return false;
+  }
+}
+
+// Trigger a single drum hit
+function _triggerDrum(row) {
+  if (!_toneReady) return;
+  const now = Tone.now();
+  try {
+    switch (row) {
+      case "kick":    _toneSynths.kick.triggerAttackRelease("C1", "8n", now); break;
+      case "snare":   _toneSynths.snare.triggerAttackRelease("8n", now); break;
+      case "hihat":   _toneSynths.hihat.triggerAttackRelease("16n", now); break;
+      case "openhat": _toneSynths.openhat.triggerAttackRelease("8n", now); break;
+      case "clap":    _toneSynths.clap.triggerAttackRelease("8n", now); break;
+      case "perc":    _toneSynths.perc.triggerAttackRelease("G2", "16n", now); break;
+    }
+  } catch (_) { /* synth might still be initialising */ }
+}
+
+
+/* ════════════════════════════════════════════════════════════════════
+   AI BEAT GENERATOR  🤖
+════════════════════════════════════════════════════════════════════ */
+
+let _aiBeatData = null;  // last successful AI beat response
+
+function setAiBeatStatus(msg, isErr) {
+  const s = el("aiBeatStatus");
+  if (!s) return;
+  s.textContent = msg;
+  s.style.color = isErr ? "var(--negative, #e23270)" : "var(--text-muted)";
+}
+
+async function runAiBeat() {
+  const prompt = (el("aiBeatPrompt") && el("aiBeatPrompt").value.trim()) || "";
+  if (!prompt) { setAiBeatStatus("Please enter a beat description first.", true); return; }
+
+  setAiBeatStatus("Generating…");
+  const btn = el("aiBeatBtn");
+  if (btn) btn.disabled = true;
+
+  try {
+    const resp = await fetch(`${API_BASE}/music-studio/ai-beat`, {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ prompt }),
+    });
+
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ detail: resp.statusText }));
+      const msg = Array.isArray(err.detail)
+        ? err.detail.map(d => d.message || d.msg || JSON.stringify(d)).join("; ")
+        : (err.detail || "Unknown error");
+      throw new Error(msg);
+    }
+
+    _aiBeatData = await resp.json();
+    renderAiBeatResult(_aiBeatData);
+    setAiBeatStatus("");
+
+  } catch (err) {
+    setAiBeatStatus("Error: " + err.message, true);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+function renderAiBeatResult(data) {
+  // Show genre badge and BPM
+  const genreTag = el("aiBeatGenreTag");
+  const bpmVal   = el("aiBeatBpmVal");
+  if (genreTag) genreTag.textContent = data.genre || "default";
+  if (bpmVal)   bpmVal.textContent   = data.bpm || 90;
+
+  // Melody notes
+  const notesEl = el("aiBeatMelodyNotes");
+  if (notesEl && Array.isArray(data.melody)) {
+    notesEl.innerHTML = data.melody
+      .map(n => `<span class="ai-beat-note">${esc(n)}</span>`)
+      .join("");
+  }
+
+  // Mini drum grid preview
+  const preview = el("aiBeatGridPreview");
+  if (preview && data.drums) {
+    const ROWS = ["kick", "snare", "hihat", "openhat", "clap", "perc"];
+    const LABELS = { kick: "Kick", snare: "Snare", hihat: "Hat", openhat: "O.Hat", clap: "Clap", perc: "Perc" };
+    preview.innerHTML = ROWS.map(row => {
+      const pattern = data.drums[row] || new Array(16).fill(0);
+      const cells = pattern.map((v, i) =>
+        `<div class="ai-beat-mini-cell${v ? " on" : ""}" data-step="${i}"></div>`
+      ).join("");
+      return `
+        <div class="ai-beat-mini-row">
+          <span class="ai-beat-mini-label">${LABELS[row]}</span>
+          <div class="ai-beat-mini-cells ai-beat-mini-cells-${row}">${cells}</div>
+        </div>`;
+    }).join("");
+  }
+
+  show("aiBeatResult");
+}
+
+function applyAiBeatToSequencer() {
+  if (!_aiBeatData) return;
+
+  // Update BPM on the sequencer
+  const bpmInput = el("beatBpm");
+  if (bpmInput) bpmInput.value = _aiBeatData.bpm || 90;
+
+  // Load drum patterns
+  const ROWS = ["kick", "snare", "hihat", "openhat", "clap", "perc"];
+  ROWS.forEach(row => {
+    const pattern = (_aiBeatData.drums && _aiBeatData.drums[row]) || new Array(16).fill(0);
+    if (_beatState[row] === undefined) return;
+    for (let i = 0; i < 16; i++) {
+      _beatState[row][i] = !!pattern[i];
+      const container = el(`cells-${row}`);
+      if (container && container.children[i]) {
+        container.children[i].classList.toggle("on", _beatState[row][i]);
+      }
+    }
+  });
+
+  // Switch to Beat Maker tab to show the result
+  switchMusicTool("beat");
+}
+
+function clearAiBeat() {
+  _aiBeatData = null;
+  if (el("aiBeatPrompt")) el("aiBeatPrompt").value = "";
+  hide("aiBeatResult");
+  setAiBeatStatus("");
+}
+
+
+/* ════════════════════════════════════════════════════════════════════
+   TRACK TIMELINE  🎞️
+════════════════════════════════════════════════════════════════════ */
+
+let _tlTracks = [];    // [{id, label, color, blocks:[{id,bar,len,label}]}]
+let _tlNextTrackId = 1;
+let _tlNextBlockId = 1;
+let _tlSelectedTrack = null;  // track id for "add block" action
+
+const _TL_COLORS = [
+  "#7c5af1", "#e23270", "#22c55e", "#f59e0b",
+  "#06b6d4", "#a855f7", "#f97316", "#14b8a6",
+];
+
+const _TL_TRACK_NAMES = [
+  "Drums", "Bass", "Melody", "Chords", "Synth Lead", "FX / Pad", "Vox", "Perc"
+];
+
+const _TL_BLOCK_LABELS = {
+  audio: "Audio",
+  drum:  "Drum",
+  synth: "Synth",
+  bass:  "Bass",
+  fx:    "FX",
+};
+
+function _tlBars() {
+  return parseInt(el("tlBars") && el("tlBars").value || 16, 10);
+}
+
+function initTimeline() {
+  if (_tlTracks.length > 0) return;
+  // Start with 3 default tracks
+  _tlTracks = [
+    { id: _tlNextTrackId++, label: "Drums",  color: _TL_COLORS[0], blocks: [] },
+    { id: _tlNextTrackId++, label: "Bass",   color: _TL_COLORS[1], blocks: [] },
+    { id: _tlNextTrackId++, label: "Melody", color: _TL_COLORS[2], blocks: [] },
+  ];
+  renderTimeline();
+}
+
+function renderTimeline() {
+  const bars  = _tlBars();
+  const ruler = el("tlRuler");
+  const tracksEl = el("tlTracks");
+  if (!ruler || !tracksEl) return;
+
+  // Ruler bar numbers
+  ruler.innerHTML = Array.from({ length: bars }, (_, i) =>
+    `<span class="tl-ruler-bar">${i + 1}</span>`
+  ).join("");
+
+  // Tracks
+  tracksEl.innerHTML = _tlTracks.map(track => {
+    const blockMarkup = track.blocks.map(blk => {
+      const leftPct  = (blk.bar / bars) * 100;
+      const widthPct = (blk.len / bars) * 100;
+      return `
+        <div class="tl-block"
+             style="left:${leftPct.toFixed(2)}%;width:${widthPct.toFixed(2)}%;background:${track.color}"
+             title="${esc(blk.label)} (bar ${blk.bar + 1}, ${blk.len} bar${blk.len > 1 ? "s" : ""})"
+             data-track="${track.id}" data-block="${blk.id}">
+          <span class="tl-block-name">${esc(blk.label)}</span>
+          <button class="tl-block-del" onclick="deleteTimelineBlock(${track.id},${blk.id})" title="Delete block" aria-label="Delete block">✕</button>
+        </div>`;
+    }).join("");
+
+    return `
+      <div class="tl-track-row" id="tltrack-${track.id}">
+        <div class="tl-track-label" style="border-left-color:${track.color}">
+          <span class="tl-track-name" title="${esc(track.label)}">${esc(track.label)}</span>
+          <button class="tl-track-del" onclick="deleteTimelineTrack(${track.id})" title="Remove track" aria-label="Remove track">✕</button>
+        </div>
+        <div class="tl-strip" data-track="${track.id}" onclick="tlStripClick(event,${track.id})">
+          ${blockMarkup}
+        </div>
+      </div>`;
+  }).join("");
+}
+
+function addTimelineTrack() {
+  const idx   = _tlTracks.length % _TL_TRACK_NAMES.length;
+  const color = _TL_COLORS[_tlTracks.length % _TL_COLORS.length];
+  _tlTracks.push({ id: _tlNextTrackId++, label: _TL_TRACK_NAMES[idx], color, blocks: [] });
+  renderTimeline();
+}
+
+function deleteTimelineTrack(trackId) {
+  _tlTracks = _tlTracks.filter(t => t.id !== trackId);
+  renderTimeline();
+}
+
+function deleteTimelineBlock(trackId, blockId) {
+  const track = _tlTracks.find(t => t.id === trackId);
+  if (!track) return;
+  track.blocks = track.blocks.filter(b => b.id !== blockId);
+  renderTimeline();
+}
+
+// Click on a strip area to place a block at that position
+function tlStripClick(event, trackId) {
+  if (event.target.classList.contains("tl-block-del")) return;
+  if (event.target.closest(".tl-block")) return;
+
+  const strip = event.currentTarget;
+  const rect  = strip.getBoundingClientRect();
+  const bars  = _tlBars();
+  const ratio = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+  const bar   = Math.floor(ratio * bars);
+  const type  = _tlPendingBlockType || "audio";
+  _addBlockToTrack(trackId, bar, 2, _TL_BLOCK_LABELS[type] || "Block", type);
+}
+
+let _tlPendingBlockType = "audio";
+
+function addBlockPicker(type) {
+  _tlPendingBlockType = type || "audio";
+  // Visual feedback: brief highlight on strip hover
+  document.querySelectorAll(".tl-strip").forEach(s => {
+    s.classList.add("tl-strip-picking");
+  });
+  setTimeout(() => {
+    document.querySelectorAll(".tl-strip").forEach(s => s.classList.remove("tl-strip-picking"));
+    _tlPendingBlockType = "audio";
+  }, 3000);
+}
+
+function _addBlockToTrack(trackId, bar, len, label, type) {
+  const track = _tlTracks.find(t => t.id === trackId);
+  if (!track) return;
+  const bars = _tlBars();
+  if (bar >= bars) return;
+  const clampedLen = Math.min(len, bars - bar);
+  track.blocks.push({ id: _tlNextBlockId++, bar, len: clampedLen, label, type });
+  renderTimeline();
+}
+
+function clearTimeline() {
+  _tlTracks.forEach(t => { t.blocks = []; });
+  renderTimeline();
 }
 
 

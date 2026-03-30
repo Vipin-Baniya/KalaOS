@@ -24,8 +24,10 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,700;1,400&display=swap" rel="stylesheet" />
 
   <link rel="stylesheet" href="style.css" />
+
+  <!-- Tone.js audio engine (used by the Beat Sequencer) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js" crossorigin="anonymous"></script>
 </head>
-<body>
 
 <!-- PWA Install Banner -->
 <div id="installBanner" class="install-banner hidden" role="alert" aria-live="polite">
@@ -484,6 +486,8 @@
         <button class="music-tool-btn" data-mtool="mastering" onclick="switchMusicTool('mastering')" role="tab" aria-selected="false">🔊 Mastering</button>
         <button class="music-tool-btn" data-mtool="chords" onclick="switchMusicTool('chords')" role="tab" aria-selected="false">🎹 Chords</button>
         <button class="music-tool-btn" data-mtool="produce" onclick="switchMusicTool('produce')" role="tab" aria-selected="false">✦ AI Produce</button>
+        <button class="music-tool-btn" data-mtool="ai-beat" onclick="switchMusicTool('ai-beat')" role="tab" aria-selected="false">🤖 AI Beat</button>
+        <button class="music-tool-btn" data-mtool="timeline" onclick="switchMusicTool('timeline')" role="tab" aria-selected="false">🎞️ Timeline</button>
       </div>
 
       <!-- ── Beat Maker ── -->
@@ -1132,6 +1136,92 @@
         </section>
 
       </div><!-- /mtool-produce -->
+
+      <!-- ── AI Beat Generator ── -->
+      <div class="music-tool-pane hidden" id="mtool-ai-beat" role="tabpanel">
+        <div class="input-card music-tool-card">
+          <h2 class="section-heading">🤖 AI Beat Generator</h2>
+          <p class="beat-maker-hint">Describe the beat you want — AI will generate BPM, drum pattern &amp; melody.</p>
+          <div class="ai-beat-input-row">
+            <textarea
+              id="aiBeatPrompt"
+              class="ai-beat-textarea"
+              rows="2"
+              placeholder="e.g. lofi chill beat, dark trap 140bpm, afrobeats summer…"
+              spellcheck="false"
+              aria-label="Beat description"></textarea>
+            <button id="aiBeatBtn" class="btn-primary ai-beat-generate-btn" onclick="runAiBeat()">
+              <span class="btn-icon" aria-hidden="true">✨</span> Generate
+            </button>
+          </div>
+          <span id="aiBeatStatus" class="status-msg" aria-live="polite" role="status"></span>
+
+          <!-- Result preview (shown after generation) -->
+          <div id="aiBeatResult" class="ai-beat-result hidden">
+            <div class="ai-beat-meta-row">
+              <span class="ai-beat-badge" id="aiBeatGenreTag"></span>
+              <span class="ai-beat-bpm-display">BPM: <strong id="aiBeatBpmVal"></strong></span>
+            </div>
+            <!-- Melody notes -->
+            <div class="ai-beat-melody-row">
+              <span class="ai-beat-label">Melody:</span>
+              <div id="aiBeatMelodyNotes" class="ai-beat-notes"></div>
+            </div>
+            <!-- Mini drum grid preview -->
+            <div class="ai-beat-grid-preview" id="aiBeatGridPreview"></div>
+            <div class="ai-beat-actions">
+              <button class="btn-primary" onclick="applyAiBeatToSequencer()">▶ Load into Sequencer</button>
+              <button class="btn-ghost" onclick="clearAiBeat()">🗑 Clear</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Timeline ── -->
+      <div class="music-tool-pane hidden" id="mtool-timeline" role="tabpanel">
+        <div class="input-card music-tool-card">
+          <h2 class="section-heading">🎞️ Track Timeline</h2>
+          <p class="beat-maker-hint">Arrange audio blocks on tracks. Drag to reorder, click ✕ to delete.</p>
+          <div class="tl-controls">
+            <div class="tl-ctrl-group">
+              <label for="tlBpm">BPM</label>
+              <input type="number" id="tlBpm" class="beat-bpm-input" min="40" max="300" value="90" />
+            </div>
+            <div class="tl-ctrl-group">
+              <label for="tlBars">Bars</label>
+              <select id="tlBars" class="chord-select" onchange="renderTimeline()">
+                <option value="8">8</option>
+                <option value="16" selected>16</option>
+                <option value="32">32</option>
+                <option value="64">64</option>
+              </select>
+            </div>
+            <button class="btn-ghost" onclick="addTimelineTrack()">＋ Add Track</button>
+            <button class="btn-ghost" onclick="clearTimeline()">🗑 Clear</button>
+          </div>
+
+          <!-- Timeline ruler -->
+          <div class="tl-ruler-wrap">
+            <div class="tl-track-label-pad"></div>
+            <div class="tl-ruler" id="tlRuler"></div>
+          </div>
+
+          <!-- Tracks container -->
+          <div class="tl-tracks" id="tlTracks">
+            <!-- Populated by JS -->
+          </div>
+
+          <!-- Block palette -->
+          <div class="tl-palette">
+            <span class="tl-palette-label">Add block:</span>
+            <button class="tl-block-palette-btn" style="--blk-color:#7c5af1" onclick="addBlockPicker()">🎵 Audio</button>
+            <button class="tl-block-palette-btn" style="--blk-color:#e23270" onclick="addBlockPicker('drum')">🥁 Drum</button>
+            <button class="tl-block-palette-btn" style="--blk-color:#22c55e" onclick="addBlockPicker('synth')">🎹 Synth</button>
+            <button class="tl-block-palette-btn" style="--blk-color:#f59e0b" onclick="addBlockPicker('bass')">🎸 Bass</button>
+            <button class="tl-block-palette-btn" style="--blk-color:#06b6d4" onclick="addBlockPicker('fx')">✨ FX</button>
+          </div>
+        </div>
+      </div>
 
     </div><!-- /musicStudio -->
     <div id="visualStudio" class="input-panel hidden">
