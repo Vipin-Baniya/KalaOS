@@ -224,7 +224,10 @@
         <span class="logo-mark" aria-hidden="true">K</span>
         <span class="logo-text">KalaOS<span class="logo-sub"> Studio</span></span>
       </div>
-      <p class="tagline">Art understanding, artist dignity &#8212; structure without judgement.</p>
+      <div class="header-search" role="search">
+        <span class="header-search-icon" aria-hidden="true">🔍</span>
+        <input class="header-search-input" id="headerSearch" type="search" placeholder="Search studios, projects…" aria-label="Search" autocomplete="off" />
+      </div>
       <div class="header-actions">
         <button class="btn-icon-round" onclick="toggleThemePanel()" title="Customise theme" aria-label="Open theme customizer">&#127912;</button>
         <!-- Notifications Bell -->
@@ -268,8 +271,22 @@
 
     <!-- ── Left Sidebar: Studio Navigation ── -->
     <aside class="app-sidebar" id="appSidebar" aria-label="Studio navigation">
+      <!-- Sidebar Logo / Dashboard shortcut -->
+      <button class="sidebar-logo" onclick="switchStudio('dashboard')" title="Dashboard" aria-label="KalaOS Dashboard">
+        <span class="sidebar-logo-mark" aria-hidden="true">K</span>
+        <span class="sidebar-logo-text">KalaOS<span class="sidebar-logo-sub"> Studio</span></span>
+      </button>
+
       <nav class="sidebar-nav" role="tablist" aria-label="Studio mode">
-        <button class="sidebar-btn active" id="textStudioBtn" onclick="switchStudio('text')" role="tab" aria-selected="true">
+        <!-- Dashboard -->
+        <button class="sidebar-btn active" id="dashboardStudioBtn" onclick="switchStudio('dashboard')" role="tab" aria-selected="true">
+          <span class="sidebar-icon" aria-hidden="true">⚡</span>
+          <span class="sidebar-label">Dashboard</span>
+        </button>
+
+        <!-- Studios section -->
+        <div class="sidebar-section-label">Studios</div>
+        <button class="sidebar-btn" id="textStudioBtn" onclick="switchStudio('text')" role="tab" aria-selected="false">
           <span class="sidebar-icon" aria-hidden="true">✍️</span>
           <span class="sidebar-label">Text Studio</span>
         </button>
@@ -289,9 +306,13 @@
           <span class="sidebar-icon" aria-hidden="true">🎥</span>
           <span class="sidebar-label">Video Studio</span>
         </button>
+
+        <!-- Community section -->
+        <div class="sidebar-divider"></div>
+        <div class="sidebar-section-label">Community</div>
         <button class="sidebar-btn" id="feedStudioBtn" onclick="switchStudio('feed')" role="tab" aria-selected="false">
           <span class="sidebar-icon" aria-hidden="true">🏠</span>
-          <span class="sidebar-label">Home</span>
+          <span class="sidebar-label">Home Feed</span>
         </button>
         <button class="sidebar-btn" id="chatStudioBtn" onclick="switchStudio('chat')" role="tab" aria-selected="false">
           <span class="sidebar-icon" aria-hidden="true">💬</span>
@@ -305,6 +326,10 @@
           <span class="sidebar-icon" aria-hidden="true">👤</span>
           <span class="sidebar-label">Profile</span>
         </button>
+
+        <!-- Tools section -->
+        <div class="sidebar-divider"></div>
+        <div class="sidebar-section-label">Tools</div>
         <button class="sidebar-btn" id="collabStudioBtn" onclick="switchStudio('collab')" role="tab" aria-selected="false">
           <span class="sidebar-icon" aria-hidden="true">🤝</span>
           <span class="sidebar-label">Collab</span>
@@ -329,10 +354,125 @@
     <!-- ── Center Workspace ── -->
     <main class="app-workspace" id="appMain" role="main">
 
+    <!-- ── Dashboard ── -->
+    <div id="dashboardStudio">
+      <div class="dashboard-view">
+        <div class="dashboard-hero">
+          <p class="dashboard-greeting" id="dashboardGreeting">Good day, Artist</p>
+          <h1 class="dashboard-title">Welcome to KalaOS Studio</h1>
+          <p class="dashboard-subtitle">Your AI-native creative workspace. Pick a studio and start making something extraordinary.</p>
+        </div>
 
+        <div class="dashboard-stats" id="dashboardStats">
+          <div class="stat-card">
+            <div class="stat-value" id="statProjects">0</div>
+            <div class="stat-label">Projects</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="statPublished">0</div>
+            <div class="stat-label">Published</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">5</div>
+            <div class="stat-label">Studios</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">AI</div>
+            <div class="stat-label">Powered</div>
+          </div>
+        </div>
+
+        <p class="dashboard-section-title">Creative Studios</p>
+        <div class="studio-tiles">
+          <div class="studio-tile" style="--tile-accent:#7c5af1" onclick="switchStudio('text')" role="button" tabindex="0" aria-label="Open Text Studio">
+            <span class="tile-icon">✍️</span>
+            <div class="tile-name">Text Studio</div>
+            <div class="tile-desc">Write, analyse and export poetry, stories, lyrics and scripts.</div>
+            <span class="tile-badge">✨ AI Writing</span>
+          </div>
+          <div class="studio-tile" style="--tile-accent:#f0703a" onclick="switchStudio('music')" role="button" tabindex="0" aria-label="Open Music Studio">
+            <span class="tile-icon">🎵</span>
+            <div class="tile-name">Music Studio</div>
+            <div class="tile-desc">Beat sequencer, mixer, mastering, chord builder and AI Beat Gen.</div>
+            <span class="tile-badge">🥁 Tone.js DAW</span>
+          </div>
+          <div class="studio-tile" style="--tile-accent:#2dd4bf" onclick="switchStudio('visual')" role="button" tabindex="0" aria-label="Open Visual Studio">
+            <span class="tile-icon">🎨</span>
+            <div class="tile-name">Visual Studio</div>
+            <div class="tile-desc">Design canvas with Fabric.js, AI image gen, layers and GIF export.</div>
+            <span class="tile-badge">🖼 12 AI Themes</span>
+          </div>
+          <div class="studio-tile" style="--tile-accent:#e23270" onclick="switchStudio('animation')" role="button" tabindex="0" aria-label="Open Animation Studio">
+            <span class="tile-icon">🎬</span>
+            <div class="tile-name">Animation Studio</div>
+            <div class="tile-desc">Text-to-animation, storyboard editor and timeline builder.</div>
+            <span class="tile-badge">🎞 Storyboard</span>
+          </div>
+          <div class="studio-tile" style="--tile-accent:#4ade80" onclick="switchStudio('video')" role="button" tabindex="0" aria-label="Open Video Studio">
+            <span class="tile-icon">🎥</span>
+            <div class="tile-name">Video Studio</div>
+            <div class="tile-desc">AI scene-based video scripts, style presets and JSON export.</div>
+            <span class="tile-badge">🎞 7 Styles</span>
+          </div>
+        </div>
+
+        <p class="dashboard-section-title">Community &amp; Tools</p>
+        <div class="community-tiles">
+          <div class="community-tile" onclick="switchStudio('feed')" role="button" tabindex="0">
+            <span class="community-tile-icon">🏠</span>
+            <div class="community-tile-info">
+              <div class="community-tile-name">Home Feed</div>
+              <div class="community-tile-hint">Discover creator posts</div>
+            </div>
+          </div>
+          <div class="community-tile" onclick="switchStudio('chat')" role="button" tabindex="0">
+            <span class="community-tile-icon">💬</span>
+            <div class="community-tile-info">
+              <div class="community-tile-name">Kala Chat</div>
+              <div class="community-tile-hint">AI assistant</div>
+            </div>
+          </div>
+          <div class="community-tile" onclick="switchStudio('dms')" role="button" tabindex="0">
+            <span class="community-tile-icon">✉️</span>
+            <div class="community-tile-info">
+              <div class="community-tile-name">Messages</div>
+              <div class="community-tile-hint">Direct messages</div>
+            </div>
+          </div>
+          <div class="community-tile" onclick="switchStudio('profile')" role="button" tabindex="0">
+            <span class="community-tile-icon">👤</span>
+            <div class="community-tile-info">
+              <div class="community-tile-name">Profile</div>
+              <div class="community-tile-hint">Your artist page</div>
+            </div>
+          </div>
+          <div class="community-tile" onclick="switchStudio('collab')" role="button" tabindex="0">
+            <span class="community-tile-icon">🤝</span>
+            <div class="community-tile-info">
+              <div class="community-tile-name">Collab</div>
+              <div class="community-tile-hint">Work with others</div>
+            </div>
+          </div>
+          <div class="community-tile" onclick="switchStudio('stream')" role="button" tabindex="0">
+            <span class="community-tile-icon">📡</span>
+            <div class="community-tile-info">
+              <div class="community-tile-name">Stream</div>
+              <div class="community-tile-hint">Live streaming tools</div>
+            </div>
+          </div>
+          <div class="community-tile" onclick="switchStudio('export')" role="button" tabindex="0">
+            <span class="community-tile-icon">📦</span>
+            <div class="community-tile-info">
+              <div class="community-tile-name">Export</div>
+              <div class="community-tile-hint">Batch &amp; publish</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div><!-- /dashboardStudio -->
 
     <!-- ── Text Studio ── -->
-    <div id="textStudio">
+    <div id="textStudio" class="hidden">
 
     <div class="studio-projects-bar" id="textProjectsBar">
       <span class="studio-projects-label" id="textProjectTitle">Untitled</span>

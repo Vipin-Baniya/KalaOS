@@ -576,6 +576,8 @@ function toggleUserMenu() {
 function showApp() {
   hide("authOverlay");
   show("appRoot");
+  // Show dashboard as the landing view
+  if (typeof switchStudio === "function") switchStudio("dashboard");
 }
 
 function showAuth() {
@@ -1194,23 +1196,64 @@ document.addEventListener("DOMContentLoaded", () => {
 ══════════════════════════════════════════════ */
 
 // Studio mode switcher
+// All known studio panel ids and their sidebar button ids
+const _STUDIO_PANELS = [
+  "dashboardStudio",
+  "textStudio",
+  "visualStudio",
+];
+
+function _setAllStudioBtnsInactive() {
+  document.querySelectorAll(".sidebar-btn[role='tab']").forEach(b => {
+    b.classList.remove("active");
+    b.setAttribute("aria-selected", "false");
+  });
+  // Also the sidebar logo dashboard shortcut
+  const logoBtn = document.querySelector(".sidebar-logo");
+  if (logoBtn) logoBtn.classList.remove("active");
+}
+
+function _setSidebarBtnActive(btnId) {
+  _setAllStudioBtnsInactive();
+  const btn = el(btnId);
+  if (btn) {
+    btn.classList.add("active");
+    btn.setAttribute("aria-selected", "true");
+  }
+}
+
+function _updateDashboardGreeting() {
+  const greet = el("dashboardGreeting");
+  if (!greet) return;
+  const hour = new Date().getHours();
+  const name = (_currentUser && _currentUser.name) ? _currentUser.name : "Artist";
+  const timeStr = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  greet.textContent = `${timeStr}, ${name}`;
+}
+
 function switchStudio(mode) {
   const textStudio = el("textStudio");
   const visualStudio = el("visualStudio");
-  const textBtn = el("textStudioBtn");
-  const visualBtn = el("visualStudioBtn");
-  if (mode === "visual") {
-    textStudio.classList.add("hidden");
-    visualStudio.classList.remove("hidden");
-    textBtn.classList.remove("active");
-    visualBtn.classList.add("active");
+  const dashboardStudio = el("dashboardStudio");
+
+  // Hide all known studio panels
+  if (dashboardStudio) dashboardStudio.classList.add("hidden");
+  if (textStudio)      textStudio.classList.add("hidden");
+  if (visualStudio)    visualStudio.classList.add("hidden");
+
+  if (mode === "dashboard") {
+    if (dashboardStudio) dashboardStudio.classList.remove("hidden");
+    _setSidebarBtnActive("dashboardStudioBtn");
+    _updateDashboardGreeting();
+  } else if (mode === "visual") {
+    if (visualStudio) visualStudio.classList.remove("hidden");
+    _setSidebarBtnActive("visualStudioBtn");
     if (!_paintInitDone) initPaintCanvas();
     if (!_logoInitDone) initLogoCanvas();
   } else {
-    textStudio.classList.remove("hidden");
-    visualStudio.classList.add("hidden");
-    textBtn.classList.add("active");
-    visualBtn.classList.remove("active");
+    // Default: text studio
+    if (textStudio) textStudio.classList.remove("hidden");
+    _setSidebarBtnActive("textStudioBtn");
   }
 }
 
@@ -2298,6 +2341,11 @@ function renderVisualAnalysis(d) {
 (function () {
   const _origSwitchStudio = switchStudio;
   switchStudio = function (mode) {
+    // Always hide dashboard panel when switching to any other studio
+    const _ds = el("dashboardStudio"), _dsb = el("dashboardStudioBtn");
+    if (_ds) _ds.classList.add("hidden");
+    if (_dsb) { _dsb.classList.remove("active"); _dsb.setAttribute("aria-selected", "false"); }
+
     const musicStudio = el("musicStudio");
     const musicBtn    = el("musicStudioBtn");
     const chatStudio  = el("chatStudio");
@@ -4136,6 +4184,11 @@ function escHtml(str) {
 (function () {
   const _prevSwitch = switchStudio;
   switchStudio = function (mode) {
+    // Always hide dashboard panel when switching to any other studio
+    const _ds = el("dashboardStudio"), _dsb = el("dashboardStudioBtn");
+    if (_ds) _ds.classList.add("hidden");
+    if (_dsb) { _dsb.classList.remove("active"); _dsb.setAttribute("aria-selected", "false"); }
+
     const animStudio = el("animationStudio");
     const animBtn    = el("animationStudioBtn");
 
@@ -4399,6 +4452,11 @@ function _renderAnimTimeline(plan) {
   const _PLATFORM_BTNS    = ["feedStudioBtn", "dmsStudioBtn", "profileStudioBtn"];
 
   switchStudio = function (mode) {
+    // Always hide dashboard panel when switching to any other studio
+    const _ds = el("dashboardStudio"), _dsb = el("dashboardStudioBtn");
+    if (_ds) _ds.classList.add("hidden");
+    if (_dsb) { _dsb.classList.remove("active"); _dsb.setAttribute("aria-selected", "false"); }
+
     // Hide platform studios and deactivate their buttons
     _PLATFORM_STUDIOS.forEach(id => { const s = el(id); if (s) s.classList.add("hidden"); });
     _PLATFORM_BTNS.forEach(id => { const b = el(id); if (b) { b.classList.remove("active"); b.setAttribute("aria-selected", "false"); } });
@@ -4991,6 +5049,11 @@ function shareProjectInDm(projectId, title, type) {
 (function () {
   const _prevSwitch = switchStudio;
   switchStudio = function (mode) {
+    // Always hide dashboard panel when switching to any other studio
+    const _ds = el("dashboardStudio"), _dsb = el("dashboardStudioBtn");
+    if (_ds) _ds.classList.add("hidden");
+    if (_dsb) { _dsb.classList.remove("active"); _dsb.setAttribute("aria-selected", "false"); }
+
     const vs  = el("videoStudio");
     const btn = el("videoStudioBtn");
 
@@ -5701,6 +5764,11 @@ document.addEventListener("DOMContentLoaded", () => {
   const _NEW_BTNS    = ["collabStudioBtn", "streamStudioBtn", "exportStudioBtn"];
 
   switchStudio = function (mode) {
+    // Always hide dashboard panel when switching to any other studio
+    const _ds = el("dashboardStudio"), _dsb = el("dashboardStudioBtn");
+    if (_ds) _ds.classList.add("hidden");
+    if (_dsb) { _dsb.classList.remove("active"); _dsb.setAttribute("aria-selected", "false"); }
+
     // Always hide new studios and deactivate their buttons
     _NEW_STUDIOS.forEach(id => { const s = el(id); if (s) s.classList.add("hidden"); });
     _NEW_BTNS.forEach(id => { const b = el(id); if (b) { b.classList.remove("active"); b.setAttribute("aria-selected", "false"); } });
