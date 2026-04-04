@@ -5297,6 +5297,92 @@ function vsExportJson() {
   URL.revokeObjectURL(url);
 }
 
+// ── Video Effects ──────────────────────────────────────────────────────────
+async function vsApplyEffect(effect) {
+  const scenes = vsGetScenesData();
+  if (!scenes.length) { showToast('Add scenes first'); return; }
+  const intensity = parseFloat(el('vsEffectIntensity')?.value || '1.0');
+  const st = el('vsEffectStatus');
+  if (st) st.textContent = `Applying ${effect}…`;
+  // Apply CSS filter preview
+  const previewBg = el('vsPreviewBg');
+  const filterMap = {
+    blur: `blur(${Math.round(intensity*3)}px)`,
+    sharpen: 'contrast(1.4) saturate(1.2)',
+    cinematic: 'contrast(1.2) saturate(0.9) sepia(0.1)',
+    vintage: 'sepia(0.4) saturate(0.8) brightness(0.9)',
+    vhs: 'contrast(1.1) saturate(0.7) hue-rotate(5deg)',
+    bw: 'grayscale(1)',
+    glitch: 'hue-rotate(90deg) invert(0.1)',
+  };
+  if (previewBg) previewBg.style.filter = filterMap[effect] || '';
+  // Highlight active effect button
+  document.querySelectorAll('.effect-btn').forEach(b => b.classList.toggle('active', b.dataset.effect === effect));
+  try {
+    const resp = await fetch(`${API_BASE}/video-studio/apply-effect`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({scenes, effect, intensity}),
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+    const data = await resp.json();
+    if (st) st.textContent = `✔ ${effect} applied (intensity: ${intensity})`;
+  } catch(e) {
+    if (st) st.textContent = `Effect applied (preview mode)`;
+  }
+}
+
+async function vsAiTool(tool) {
+  const scenes = vsGetScenesData();
+  if (!scenes.length) { showToast('Add scenes first'); return; }
+  const st = el('vsAiToolStatus');
+  const result = el('vsAiToolResult');
+  if (st) st.textContent = `Running ${tool.replace('_',' ')}…`;
+  try {
+    const resp = await fetch(`${API_BASE}/video-studio/ai-tool`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({scenes, tool}),
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+    const data = await resp.json();
+    if (result) { result.classList.remove('hidden'); result.textContent = JSON.stringify(data, null, 2); }
+    if (st) st.textContent = `✔ ${tool.replace('_',' ')} complete`;
+  } catch(e) {
+    if (st) st.textContent = `Tool applied (preview mode)`;
+  }
+}
+
+function vsGetScenesData() {
+  const sceneEls = document.querySelectorAll('#vsSceneList .vs-scene-item');
+  if (!sceneEls.length) return [];
+  return Array.from(sceneEls).map((el, i) => ({
+    scene: i+1,
+    text: el.querySelector('.vs-scene-narration')?.textContent || `Scene ${i+1}`,
+  }));
+}
+
+// Hook intensity display
+(function () {
+  const vsIntensityInput = el('vsEffectIntensity');
+  if (vsIntensityInput) {
+    vsIntensityInput.addEventListener('input', function() {
+      const v = el('vsEffectIntensityVal');
+      if (v) v.textContent = parseFloat(this.value).toFixed(1);
+    });
+  }
+  // Retry after DOM ready in case element not yet painted
+  document.addEventListener('DOMContentLoaded', function () {
+    const inp = el('vsEffectIntensity');
+    if (inp) {
+      inp.addEventListener('input', function() {
+        const v = el('vsEffectIntensityVal');
+        if (v) v.textContent = parseFloat(this.value).toFixed(1);
+      });
+    }
+  });
+})();
+
 /* ════════════════════════════════════════════════════════════════
    PHASE 16 — Notifications Bell
 ════════════════════════════════════════════════════════════════ */

@@ -5743,3 +5743,40 @@ body.focus-mode #artText {
 .black-key.pressed { background: var(--accent, #7c5af1); transform: translateY(2px); }
 .key-label { pointer-events: none; }
 .keyboard-controls { display: flex; gap: 1rem; flex-wrap: wrap; align-items: center; margin-bottom: 1rem; }
+
+/* ── Video Effects ─────────────────────────────────────────────── */
+.vs-effects-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  margin-top: .5rem;
+}
+.effect-btn {
+  padding: .45rem .9rem;
+  border: 2px solid var(--border, #333);
+  background: var(--bg-2, #1a1a2e);
+  color: var(--text-1, #fff);
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: .85rem;
+  transition: border-color .15s, background .15s;
+}
+.effect-btn:hover, .effect-btn.active { border-color: var(--accent, #7c5af1); background: var(--accent, #7c5af1); color: #fff; }
+
+.vs-ai-tools-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  margin-top: .5rem;
+}
+.ai-tool-btn {
+  padding: .5rem 1rem;
+  border: none;
+  background: var(--bg-3, #252538);
+  color: var(--text-1, #fff);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: .9rem;
+  transition: background .15s;
+}
+.ai-tool-btn:hover { background: var(--accent, #7c5af1); }

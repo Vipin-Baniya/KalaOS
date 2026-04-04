@@ -51,7 +51,15 @@ from kalacore.temporal import analyze_temporal
 from kalacore.kalavisual import analyze_visual, generate_image_concept, animate_canvas_objects, export_canvas_gif
 from kalacore.kalaproducer import produce, generate_ai_beat, generate_sampler_bank, generate_virtual_keyboard_config
 from kalacore.kalaanimation import generate_animation_plan, parse_storyboard
-from kalacore.kalavideo import generate_video_script, build_scene, _VALID_STYLES as _VIDEO_STYLES
+from kalacore.kalavideo import (
+    generate_video_script,
+    build_scene,
+    apply_video_effect,
+    apply_ai_video_tool,
+    _VALID_STYLES as _VIDEO_STYLES,
+    _VALID_EFFECTS as _VIDEO_EFFECTS,
+    _VALID_AI_TOOLS as _VIDEO_AI_TOOLS,
+)
 from kalacore.kalaintelligence import transform as intelligence_transform, ai_assist, VALID_INPUT_TYPES, VALID_OUTPUT_TYPES
 from kalacore.kalacollab import create_collab_workspace, add_collaborator, get_collab_activity, generate_collab_suggestions
 from kalacore.kalastream import setup_stream, get_stream_analytics, generate_stream_overlay
@@ -1845,9 +1853,75 @@ def video_generate_script(request: VideoScriptRequest):
     return result
 
 
+# ── Video Effects ──────────────────────────────────────────────────────────
 
-# ---------------------------------------------------------------------------
-# Phase 16 — Creative Intelligence Engine  POST /ai/transform
+class VideoEffectBody(BaseModel):
+    scenes: List[dict]
+    effect: str
+    intensity: float = 1.0
+
+    @field_validator("scenes")
+    @classmethod
+    def scenes_non_empty(cls, v: list) -> list:
+        if not v:
+            raise ValueError("scenes must not be empty")
+        return v
+
+    @field_validator("effect")
+    @classmethod
+    def effect_valid(cls, v: str) -> str:
+        if v not in _VIDEO_EFFECTS:
+            raise ValueError(f"Invalid effect '{v}'. Valid effects: {sorted(_VIDEO_EFFECTS)}")
+        return v
+
+    @field_validator("intensity")
+    @classmethod
+    def intensity_valid(cls, v: float) -> float:
+        if not (0.0 <= v <= 2.0):
+            raise ValueError("intensity must be between 0.0 and 2.0")
+        return v
+
+
+@app.post("/video-studio/apply-effect", summary="Apply a video effect to scenes")
+@limiter.limit("30/minute")
+def video_apply_effect(request: Request, body: VideoEffectBody):
+    try:
+        result = apply_video_effect(body.scenes, body.effect, body.intensity)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    return result
+
+
+# ── AI Video Tools ─────────────────────────────────────────────────────────
+
+class AiVideoToolBody(BaseModel):
+    scenes: List[dict]
+    tool: str
+    options: Optional[dict] = None
+
+    @field_validator("scenes")
+    @classmethod
+    def scenes_non_empty(cls, v: list) -> list:
+        if not v:
+            raise ValueError("scenes must not be empty")
+        return v
+
+    @field_validator("tool")
+    @classmethod
+    def tool_valid(cls, v: str) -> str:
+        if v not in _VIDEO_AI_TOOLS:
+            raise ValueError(f"Invalid tool '{v}'. Valid tools: {sorted(_VIDEO_AI_TOOLS)}")
+        return v
+
+
+@app.post("/video-studio/ai-tool", summary="Apply an AI video tool to scenes")
+@limiter.limit("30/minute")
+def video_ai_tool(request: Request, body: AiVideoToolBody):
+    try:
+        result = apply_ai_video_tool(body.scenes, body.tool, body.options)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    return result
 # ---------------------------------------------------------------------------
 
 class AiTransformRequest(BaseModel):

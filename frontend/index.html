@@ -2052,6 +2052,41 @@
         </div>
       </section>
 
+      <!-- ── Video Effects ── -->
+      <section class="section-card" id="vsEffectsSection">
+        <h2 class="section-heading">🎨 Video Effects</h2>
+        <p class="section-desc">Apply cinematic effects to your video scenes.</p>
+        <div class="vs-effects-grid" id="vsEffectsGrid">
+          <button class="effect-btn" data-effect="blur" onclick="vsApplyEffect('blur')">💧 Blur</button>
+          <button class="effect-btn" data-effect="sharpen" onclick="vsApplyEffect('sharpen')">🔪 Sharpen</button>
+          <button class="effect-btn" data-effect="cinematic" onclick="vsApplyEffect('cinematic')">🎬 Cinematic</button>
+          <button class="effect-btn" data-effect="vintage" onclick="vsApplyEffect('vintage')">📷 Vintage</button>
+          <button class="effect-btn" data-effect="vhs" onclick="vsApplyEffect('vhs')">📼 VHS</button>
+          <button class="effect-btn" data-effect="bw" onclick="vsApplyEffect('bw')">⬛ B&amp;W</button>
+          <button class="effect-btn" data-effect="glitch" onclick="vsApplyEffect('glitch')">⚡ Glitch</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:.75rem;margin-top:.75rem">
+          <label class="vs-label" for="vsEffectIntensity">Intensity</label>
+          <input type="range" id="vsEffectIntensity" min="0" max="2" step="0.1" value="1.0" style="width:10rem" />
+          <span id="vsEffectIntensityVal">1.0</span>
+        </div>
+        <p id="vsEffectStatus" class="vs-status" aria-live="polite"></p>
+      </section>
+
+      <!-- ── AI Video Tools ── -->
+      <section class="section-card" id="vsAiToolsSection">
+        <h2 class="section-heading">🤖 AI Video Tools</h2>
+        <p class="section-desc">Powerful AI tools to enhance your video automatically.</p>
+        <div class="vs-ai-tools-grid">
+          <button class="ai-tool-btn" onclick="vsAiTool('auto_caption')">💬 Auto Captions</button>
+          <button class="ai-tool-btn" onclick="vsAiTool('stabilize')">📷 Stabilize</button>
+          <button class="ai-tool-btn" onclick="vsAiTool('color_grade')">🎨 Color Grade</button>
+          <button class="ai-tool-btn" onclick="vsAiTool('slow_mo')">🐢 Slow Mo</button>
+        </div>
+        <div id="vsAiToolResult" class="vs-ai-tool-result hidden" style="margin-top:.75rem;padding:.75rem;background:var(--bg-2,#1a1a2e);border-radius:8px;font-size:.85rem"></div>
+        <p id="vsAiToolStatus" class="vs-status" aria-live="polite"></p>
+      </section>
+
     </div><!-- /videoStudio -->
 
     <!-- ═══════════════════════════════════════════
