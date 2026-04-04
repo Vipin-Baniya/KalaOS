@@ -56,6 +56,16 @@ from kalacore.kalaintelligence import transform as intelligence_transform, ai_as
 from kalacore.kalacollab import create_collab_workspace, add_collaborator, get_collab_activity, generate_collab_suggestions
 from kalacore.kalastream import setup_stream, get_stream_analytics, generate_stream_overlay
 from kalacore.kalaexport import prepare_export, import_from_url, batch_export
+from kalacore.kalaplatformconnect import (
+    get_oauth_url,
+    connect_platform,
+    disconnect_platform,
+    get_connected_platforms,
+    distribute_to_platforms,
+    get_analytics_summary,
+    generate_epk,
+    get_optimal_release_time,
+)
 from services.llm_service import (
     generate_explanation,
     generate_suggestions,
@@ -2341,3 +2351,114 @@ def ai_quality_check(request: Request, body: AIQualityCheckBody):
         ],
         "passed": score >= 70,
     }
+
+
+# ---------------------------------------------------------------------------
+# Platform Connect endpoints
+# ---------------------------------------------------------------------------
+
+class PlatformConnectBody(BaseModel):
+    platform: str
+    user_id: str
+    auth_code: str
+
+
+class PlatformDisconnectBody(BaseModel):
+    platform: str
+    user_id: str
+
+
+class PlatformDistributeBody(BaseModel):
+    user_id: str
+    platforms: List[str]
+    content: dict
+
+
+class PlatformEPKBody(BaseModel):
+    user_id: str
+    artist_name: str
+    genre: str
+    bio: str
+
+
+@app.get("/platform-connect/oauth-url", summary="Get OAuth URL for a platform")
+@limiter.limit("20/minute")
+def platform_connect_oauth_url(request: Request, platform: str, user_id: str):
+    try:
+        result = get_oauth_url(platform, user_id)
+        return result
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+@app.post("/platform-connect/connect", summary="Connect a platform via OAuth")
+@limiter.limit("20/minute")
+def platform_connect_connect(request: Request, body: PlatformConnectBody):
+    try:
+        result = connect_platform(body.platform, body.user_id, body.auth_code)
+        return result
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+@app.post("/platform-connect/disconnect", summary="Disconnect a connected platform")
+@limiter.limit("20/minute")
+def platform_connect_disconnect(request: Request, body: PlatformDisconnectBody):
+    try:
+        result = disconnect_platform(body.platform, body.user_id)
+        return result
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+@app.get("/platform-connect/platforms/{user_id}", summary="Get connected platforms for a user")
+@limiter.limit("20/minute")
+def platform_connect_get_platforms(user_id: str, request: Request):
+    result = get_connected_platforms(user_id)
+    return result
+
+
+@app.post("/platform-connect/distribute", summary="Distribute content to multiple platforms")
+@limiter.limit("20/minute")
+def platform_connect_distribute(request: Request, body: PlatformDistributeBody):
+    if not body.platforms:
+        raise HTTPException(status_code=422, detail="platforms must be a non-empty list")
+    if not body.content.get("title"):
+        raise HTTPException(status_code=422, detail="content must include a 'title' field")
+    if not body.content.get("type"):
+        raise HTTPException(status_code=422, detail="content must include a 'type' field")
+    try:
+        result = distribute_to_platforms(body.user_id, body.platforms, body.content)
+        return result
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+@app.get("/platform-connect/analytics/{user_id}", summary="Get analytics summary for a user")
+@limiter.limit("20/minute")
+def platform_connect_analytics(user_id: str, request: Request, platform: str = "all"):
+    result = get_analytics_summary(user_id, platform)
+    return result
+
+
+@app.post("/platform-connect/epk", summary="Generate an Electronic Press Kit")
+@limiter.limit("20/minute")
+def platform_connect_epk(request: Request, body: PlatformEPKBody):
+    if not body.artist_name or not body.artist_name.strip():
+        raise HTTPException(status_code=422, detail="artist_name must not be empty")
+    if not body.genre or not body.genre.strip():
+        raise HTTPException(status_code=422, detail="genre must not be empty")
+    if not body.bio or not body.bio.strip():
+        raise HTTPException(status_code=422, detail="bio must not be empty")
+    try:
+        result = generate_epk(body.user_id, body.artist_name, body.genre, body.bio)
+        return result
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+@app.get("/platform-connect/optimal-release", summary="Get optimal release timing for a genre")
+@limiter.limit("20/minute")
+def platform_connect_optimal_release(request: Request, genre: str, target_region: str = "global"):
+    result = get_optimal_release_time(genre, target_region)
+    return result

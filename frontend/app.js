@@ -5760,8 +5760,8 @@ document.addEventListener("DOMContentLoaded", () => {
 // ── switchStudio wrapper for new studios ──────────────────
 (function () {
   const _prevSS = switchStudio;
-  const _NEW_STUDIOS = ["collabStudio", "streamStudio", "exportStudio"];
-  const _NEW_BTNS    = ["collabStudioBtn", "streamStudioBtn", "exportStudioBtn"];
+  const _NEW_STUDIOS = ["collabStudio", "streamStudio", "exportStudio", "platformConnectStudio"];
+  const _NEW_BTNS    = ["collabStudioBtn", "streamStudioBtn", "exportStudioBtn", "platformConnectBtn"];
 
   switchStudio = function (mode) {
     // Always hide dashboard panel when switching to any other studio
@@ -5774,8 +5774,8 @@ document.addEventListener("DOMContentLoaded", () => {
     _NEW_BTNS.forEach(id => { const b = el(id); if (b) { b.classList.remove("active"); b.setAttribute("aria-selected", "false"); } });
 
     if (mode === "collab") {
-      ["textStudio","musicStudio","visualStudio","animationStudio","videoStudio","chatStudio","feedStudio","dmsStudio","profileStudio","streamStudio","exportStudio"].forEach(id => { const s = el(id); if (s) s.classList.add("hidden"); });
-      ["textStudioBtn","musicStudioBtn","visualStudioBtn","animationStudioBtn","videoStudioBtn","chatStudioBtn","feedStudioBtn","dmsStudioBtn","profileStudioBtn","streamStudioBtn","exportStudioBtn"].forEach(id => { const b = el(id); if (b) { b.classList.remove("active"); b.setAttribute("aria-selected","false"); } });
+      ["textStudio","musicStudio","visualStudio","animationStudio","videoStudio","chatStudio","feedStudio","dmsStudio","profileStudio","streamStudio","exportStudio","platformConnectStudio"].forEach(id => { const s = el(id); if (s) s.classList.add("hidden"); });
+      ["textStudioBtn","musicStudioBtn","visualStudioBtn","animationStudioBtn","videoStudioBtn","chatStudioBtn","feedStudioBtn","dmsStudioBtn","profileStudioBtn","streamStudioBtn","exportStudioBtn","platformConnectBtn"].forEach(id => { const b = el(id); if (b) { b.classList.remove("active"); b.setAttribute("aria-selected","false"); } });
       const s = el("collabStudio"), btn = el("collabStudioBtn");
       if (s) s.classList.remove("hidden");
       if (btn) { btn.classList.add("active"); btn.setAttribute("aria-selected","true"); }
@@ -5784,8 +5784,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     if (mode === "stream") {
-      ["textStudio","musicStudio","visualStudio","animationStudio","videoStudio","chatStudio","feedStudio","dmsStudio","profileStudio","collabStudio","exportStudio"].forEach(id => { const s = el(id); if (s) s.classList.add("hidden"); });
-      ["textStudioBtn","musicStudioBtn","visualStudioBtn","animationStudioBtn","videoStudioBtn","chatStudioBtn","feedStudioBtn","dmsStudioBtn","profileStudioBtn","collabStudioBtn","exportStudioBtn"].forEach(id => { const b = el(id); if (b) { b.classList.remove("active"); b.setAttribute("aria-selected","false"); } });
+      ["textStudio","musicStudio","visualStudio","animationStudio","videoStudio","chatStudio","feedStudio","dmsStudio","profileStudio","collabStudio","exportStudio","platformConnectStudio"].forEach(id => { const s = el(id); if (s) s.classList.add("hidden"); });
+      ["textStudioBtn","musicStudioBtn","visualStudioBtn","animationStudioBtn","videoStudioBtn","chatStudioBtn","feedStudioBtn","dmsStudioBtn","profileStudioBtn","collabStudioBtn","exportStudioBtn","platformConnectBtn"].forEach(id => { const b = el(id); if (b) { b.classList.remove("active"); b.setAttribute("aria-selected","false"); } });
       const s = el("streamStudio"), btn = el("streamStudioBtn");
       if (s) s.classList.remove("hidden");
       if (btn) { btn.classList.add("active"); btn.setAttribute("aria-selected","true"); }
@@ -5794,9 +5794,19 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     if (mode === "export") {
-      ["textStudio","musicStudio","visualStudio","animationStudio","videoStudio","chatStudio","feedStudio","dmsStudio","profileStudio","collabStudio","streamStudio"].forEach(id => { const s = el(id); if (s) s.classList.add("hidden"); });
-      ["textStudioBtn","musicStudioBtn","visualStudioBtn","animationStudioBtn","videoStudioBtn","chatStudioBtn","feedStudioBtn","dmsStudioBtn","profileStudioBtn","collabStudioBtn","streamStudioBtn"].forEach(id => { const b = el(id); if (b) { b.classList.remove("active"); b.setAttribute("aria-selected","false"); } });
+      ["textStudio","musicStudio","visualStudio","animationStudio","videoStudio","chatStudio","feedStudio","dmsStudio","profileStudio","collabStudio","streamStudio","platformConnectStudio"].forEach(id => { const s = el(id); if (s) s.classList.add("hidden"); });
+      ["textStudioBtn","musicStudioBtn","visualStudioBtn","animationStudioBtn","videoStudioBtn","chatStudioBtn","feedStudioBtn","dmsStudioBtn","profileStudioBtn","collabStudioBtn","streamStudioBtn","platformConnectBtn"].forEach(id => { const b = el(id); if (b) { b.classList.remove("active"); b.setAttribute("aria-selected","false"); } });
       const s = el("exportStudio"), btn = el("exportStudioBtn");
+      if (s) s.classList.remove("hidden");
+      if (btn) { btn.classList.add("active"); btn.setAttribute("aria-selected","true"); }
+      _hideAiPanel();
+      return;
+    }
+
+    if (mode === "platformConnect") {
+      ["textStudio","musicStudio","visualStudio","animationStudio","videoStudio","chatStudio","feedStudio","dmsStudio","profileStudio","collabStudio","streamStudio","exportStudio"].forEach(id => { const s = el(id); if (s) s.classList.add("hidden"); });
+      ["textStudioBtn","musicStudioBtn","visualStudioBtn","animationStudioBtn","videoStudioBtn","chatStudioBtn","feedStudioBtn","dmsStudioBtn","profileStudioBtn","collabStudioBtn","streamStudioBtn","exportStudioBtn"].forEach(id => { const b = el(id); if (b) { b.classList.remove("active"); b.setAttribute("aria-selected","false"); } });
+      const s = el("platformConnectStudio"), btn = el("platformConnectBtn");
       if (s) s.classList.remove("hidden");
       if (btn) { btn.classList.add("active"); btn.setAttribute("aria-selected","true"); }
       _hideAiPanel();
@@ -6148,6 +6158,124 @@ async function runQualityCheck() {
     const data = await resp.json();
     if (!resp.ok) { if (statusEl) statusEl.textContent = `Error: ${data.detail || "Failed"}`; return; }
     if (statusEl) statusEl.textContent = `✓ Quality score: ${data.quality_score}/100 (Grade ${data.grade})`;
+    if (resultEl) { resultEl.textContent = JSON.stringify(data, null, 2); resultEl.classList.remove("hidden"); }
+  } catch (err) {
+    if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`;
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+// PLATFORM CONNECT STUDIO
+// ══════════════════════════════════════════════════════════
+
+const _PC_USER_ID = () => (_currentUser && _currentUser.id) ? _currentUser.id : "demo_user";
+
+async function pcConnectPlatform(platform) {
+  const statusEl = el("pcConnectStatus");
+  const resultEl = el("pcConnectResult");
+  if (statusEl) statusEl.textContent = `Connecting to ${platform}…`;
+  if (resultEl) resultEl.classList.add("hidden");
+  try {
+    const oauthResp = await fetch(`${API_BASE}/platform-connect/oauth-url?platform=${encodeURIComponent(platform)}&user_id=${encodeURIComponent(_PC_USER_ID())}`);
+    const oauthData = await oauthResp.json();
+    if (!oauthResp.ok) { if (statusEl) statusEl.textContent = `Error: ${oauthData.detail || "Failed"}`; return; }
+
+    const connectResp = await fetch(`${API_BASE}/platform-connect/connect`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ platform, user_id: _PC_USER_ID(), auth_code: oauthData.state }),
+    });
+    const data = await connectResp.json();
+    if (!connectResp.ok) { if (statusEl) statusEl.textContent = `Error: ${data.detail || "Failed"}`; return; }
+    if (statusEl) statusEl.textContent = `✓ Connected to ${platform} as @${data.username}`;
+    if (resultEl) { resultEl.textContent = JSON.stringify(data, null, 2); resultEl.classList.remove("hidden"); }
+  } catch (err) {
+    if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`;
+  }
+}
+
+async function pcLoadAnalytics() {
+  const platform = el("pcAnalyticsPlatform")?.value || "all";
+  const statusEl = el("pcAnalyticsStatus");
+  const resultEl = el("pcAnalyticsResult");
+  if (statusEl) statusEl.textContent = "Loading analytics…";
+  if (resultEl) resultEl.classList.add("hidden");
+  try {
+    const resp = await fetch(`${API_BASE}/platform-connect/analytics/${encodeURIComponent(_PC_USER_ID())}?platform=${encodeURIComponent(platform)}`);
+    const data = await resp.json();
+    if (!resp.ok) { if (statusEl) statusEl.textContent = `Error: ${data.detail || "Failed"}`; return; }
+    if (statusEl) statusEl.textContent = `✓ Analytics loaded — ${data.total_plays.toLocaleString()} total plays`;
+    if (resultEl) { resultEl.textContent = JSON.stringify(data, null, 2); resultEl.classList.remove("hidden"); }
+  } catch (err) {
+    if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`;
+  }
+}
+
+async function pcGenerateEPK() {
+  const artist_name = el("pcEpkArtistName")?.value?.trim();
+  const genre       = el("pcEpkGenre")?.value?.trim();
+  const bio         = el("pcEpkBio")?.value?.trim();
+  const statusEl    = el("pcEpkStatus");
+  const resultEl    = el("pcEpkResult");
+  if (!artist_name) { if (statusEl) statusEl.textContent = "Please enter an artist name."; return; }
+  if (!genre)       { if (statusEl) statusEl.textContent = "Please enter a genre."; return; }
+  if (!bio)         { if (statusEl) statusEl.textContent = "Please enter a bio."; return; }
+  if (statusEl) statusEl.textContent = "Generating EPK…";
+  if (resultEl) resultEl.classList.add("hidden");
+  try {
+    const resp = await fetch(`${API_BASE}/platform-connect/epk`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: _PC_USER_ID(), artist_name, genre, bio }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) { if (statusEl) statusEl.textContent = `Error: ${data.detail || "Failed"}`; return; }
+    if (statusEl) statusEl.textContent = `✓ EPK generated for ${data.artist_name}`;
+    if (resultEl) { resultEl.textContent = JSON.stringify(data, null, 2); resultEl.classList.remove("hidden"); }
+  } catch (err) {
+    if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`;
+  }
+}
+
+async function pcGetOptimalTime() {
+  const genre         = el("pcReleaseGenre")?.value?.trim();
+  const target_region = el("pcReleaseRegion")?.value || "global";
+  const statusEl      = el("pcReleaseStatus");
+  const resultEl      = el("pcReleaseResult");
+  if (!genre) { if (statusEl) statusEl.textContent = "Please enter a genre."; return; }
+  if (statusEl) statusEl.textContent = "Calculating optimal release time…";
+  if (resultEl) resultEl.classList.add("hidden");
+  try {
+    const resp = await fetch(`${API_BASE}/platform-connect/optimal-release?genre=${encodeURIComponent(genre)}&target_region=${encodeURIComponent(target_region)}`);
+    const data = await resp.json();
+    if (!resp.ok) { if (statusEl) statusEl.textContent = `Error: ${data.detail || "Failed"}`; return; }
+    if (statusEl) statusEl.textContent = `✓ Best day: ${data.optimal_day} at ${data.optimal_time_utc} UTC`;
+    if (resultEl) { resultEl.textContent = JSON.stringify(data, null, 2); resultEl.classList.remove("hidden"); }
+  } catch (err) {
+    if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`;
+  }
+}
+
+async function pcDistribute() {
+  const platforms = Array.from(document.querySelectorAll("input[name='distPlatform']:checked")).map(c => c.value);
+  const title     = el("pcDistTitle")?.value?.trim();
+  const type      = el("pcDistType")?.value || "audio";
+  const desc      = el("pcDistDesc")?.value?.trim() || "";
+  const statusEl  = el("pcDistStatus");
+  const resultEl  = el("pcDistResult");
+  if (!platforms.length) { if (statusEl) statusEl.textContent = "Please select at least one platform."; return; }
+  if (!title)            { if (statusEl) statusEl.textContent = "Please enter a content title."; return; }
+  if (statusEl) statusEl.textContent = "Distributing content…";
+  if (resultEl) resultEl.classList.add("hidden");
+  try {
+    const resp = await fetch(`${API_BASE}/platform-connect/distribute`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: _PC_USER_ID(), platforms, content: { title, type, description: desc } }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) { if (statusEl) statusEl.textContent = `Error: ${data.detail || "Failed"}`; return; }
+    if (statusEl) statusEl.textContent = `✓ Queued for ${data.queued} platform${data.queued !== 1 ? "s" : ""}`;
     if (resultEl) { resultEl.textContent = JSON.stringify(data, null, 2); resultEl.classList.remove("hidden"); }
   } catch (err) {
     if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`;

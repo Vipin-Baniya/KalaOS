@@ -342,6 +342,10 @@
           <span class="sidebar-icon" aria-hidden="true">📦</span>
           <span class="sidebar-label">Export</span>
         </button>
+        <button class="sidebar-btn" id="platformConnectBtn" onclick="switchStudio('platformConnect')" role="tab" aria-selected="false">
+          <span class="sidebar-icon" aria-hidden="true">🔗</span>
+          <span class="sidebar-label">Platform Connect</span>
+        </button>
       </nav>
       <div class="sidebar-footer">
         <button class="sidebar-collapse-btn" id="sidebarToggle" onclick="toggleSidebar()" title="Collapse sidebar" aria-label="Toggle sidebar">
@@ -465,6 +469,13 @@
             <div class="community-tile-info">
               <div class="community-tile-name">Export</div>
               <div class="community-tile-hint">Batch &amp; publish</div>
+            </div>
+          </div>
+          <div class="community-tile" onclick="switchStudio('platformConnect')" role="button" tabindex="0">
+            <span class="community-tile-icon">🔗</span>
+            <div class="community-tile-info">
+              <div class="community-tile-name">Platform Connect</div>
+              <div class="community-tile-hint">Connect &amp; distribute</div>
             </div>
           </div>
         </div>
@@ -2126,6 +2137,139 @@
         </section>
       </div>
     </div><!-- /profileStudio -->
+
+<!-- ══════════════════════════════════════════════════════
+     PLATFORM CONNECT STUDIO
+══════════════════════════════════════════════════════ -->
+<div id="platformConnectStudio" class="input-panel hidden" aria-label="Platform Connect Studio">
+  <div class="collab-header">
+    <h2 class="collab-title">🔗 Platform Connect</h2>
+    <p class="collab-subtitle">Connect your accounts, distribute content &amp; grow your audience</p>
+  </div>
+
+  <!-- Connected Platforms Grid -->
+  <section class="collab-section">
+    <h3 class="collab-section-title">Connected Platforms</h3>
+    <div class="pc-platforms-grid">
+      <div class="pc-platform-card"><span class="pc-platform-icon">🎵</span><span class="pc-platform-name">Spotify</span><button class="btn-secondary pc-connect-btn" id="connectSpotifyBtn" onclick="pcConnectPlatform('spotify')">Connect</button></div>
+      <div class="pc-platform-card"><span class="pc-platform-icon">🍎</span><span class="pc-platform-name">Apple Music</span><button class="btn-secondary pc-connect-btn" id="connectAppleMusicBtn" onclick="pcConnectPlatform('apple_music')">Connect</button></div>
+      <div class="pc-platform-card"><span class="pc-platform-icon">▶️</span><span class="pc-platform-name">YouTube</span><button class="btn-secondary pc-connect-btn" id="connectYoutubeBtn" onclick="pcConnectPlatform('youtube')">Connect</button></div>
+      <div class="pc-platform-card"><span class="pc-platform-icon">📸</span><span class="pc-platform-name">Instagram</span><button class="btn-secondary pc-connect-btn" id="connectInstagramBtn" onclick="pcConnectPlatform('instagram')">Connect</button></div>
+      <div class="pc-platform-card"><span class="pc-platform-icon">🎶</span><span class="pc-platform-name">TikTok</span><button class="btn-secondary pc-connect-btn" id="connectTiktokBtn" onclick="pcConnectPlatform('tiktok')">Connect</button></div>
+      <div class="pc-platform-card"><span class="pc-platform-icon">☁️</span><span class="pc-platform-name">SoundCloud</span><button class="btn-secondary pc-connect-btn" id="connectSoundcloudBtn" onclick="pcConnectPlatform('soundcloud')">Connect</button></div>
+      <div class="pc-platform-card"><span class="pc-platform-icon">🏕️</span><span class="pc-platform-name">Bandcamp</span><button class="btn-secondary pc-connect-btn" id="connectBandcampBtn" onclick="pcConnectPlatform('bandcamp')">Connect</button></div>
+      <div class="pc-platform-card"><span class="pc-platform-icon">🎧</span><span class="pc-platform-name">Amazon Music</span><button class="btn-secondary pc-connect-btn" id="connectAmazonMusicBtn" onclick="pcConnectPlatform('amazon_music')">Connect</button></div>
+      <div class="pc-platform-card"><span class="pc-platform-icon">🎼</span><span class="pc-platform-name">Deezer</span><button class="btn-secondary pc-connect-btn" id="connectDeezerBtn" onclick="pcConnectPlatform('deezer')">Connect</button></div>
+      <div class="pc-platform-card"><span class="pc-platform-icon">🌊</span><span class="pc-platform-name">TIDAL</span><button class="btn-secondary pc-connect-btn" id="connectTidalBtn" onclick="pcConnectPlatform('tidal')">Connect</button></div>
+      <div class="pc-platform-card"><span class="pc-platform-icon">🐦</span><span class="pc-platform-name">Twitter/X</span><button class="btn-secondary pc-connect-btn" id="connectTwitterBtn" onclick="pcConnectPlatform('twitter')">Connect</button></div>
+      <div class="pc-platform-card"><span class="pc-platform-icon">👥</span><span class="pc-platform-name">Facebook</span><button class="btn-secondary pc-connect-btn" id="connectFacebookBtn" onclick="pcConnectPlatform('facebook')">Connect</button></div>
+      <div class="pc-platform-card"><span class="pc-platform-icon">🟣</span><span class="pc-platform-name">Twitch</span><button class="btn-secondary pc-connect-btn" id="connectTwitchBtn" onclick="pcConnectPlatform('twitch')">Connect</button></div>
+      <div class="pc-platform-card"><span class="pc-platform-icon">🎁</span><span class="pc-platform-name">Patreon</span><button class="btn-secondary pc-connect-btn" id="connectPatreonBtn" onclick="pcConnectPlatform('patreon')">Connect</button></div>
+      <div class="pc-platform-card"><span class="pc-platform-icon">💬</span><span class="pc-platform-name">Discord</span><button class="btn-secondary pc-connect-btn" id="connectDiscordBtn" onclick="pcConnectPlatform('discord')">Connect</button></div>
+    </div>
+    <div id="pcConnectStatus" class="vs-status" aria-live="polite"></div>
+    <div id="pcConnectResult" class="export-result hidden"></div>
+  </section>
+
+  <!-- Distribution Panel -->
+  <section class="collab-section">
+    <h3 class="collab-section-title">Distribute Content</h3>
+    <div class="form-group">
+      <label>Select platforms to distribute to:</label>
+      <div class="pc-dist-checkboxes">
+        <label><input type="checkbox" name="distPlatform" value="spotify"> Spotify</label>
+        <label><input type="checkbox" name="distPlatform" value="apple_music"> Apple Music</label>
+        <label><input type="checkbox" name="distPlatform" value="youtube"> YouTube</label>
+        <label><input type="checkbox" name="distPlatform" value="instagram"> Instagram</label>
+        <label><input type="checkbox" name="distPlatform" value="tiktok"> TikTok</label>
+        <label><input type="checkbox" name="distPlatform" value="soundcloud"> SoundCloud</label>
+        <label><input type="checkbox" name="distPlatform" value="bandcamp"> Bandcamp</label>
+        <label><input type="checkbox" name="distPlatform" value="amazon_music"> Amazon Music</label>
+      </div>
+    </div>
+    <div class="form-group">
+      <label for="pcDistTitle">Content Title</label>
+      <input type="text" id="pcDistTitle" class="vs-input" placeholder="e.g. My New Single" />
+    </div>
+    <div class="form-group">
+      <label for="pcDistType">Content Type</label>
+      <select id="pcDistType" class="vs-select">
+        <option value="audio">🎵 Audio</option>
+        <option value="video">🎥 Video</option>
+        <option value="post">📝 Post</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="pcDistDesc">Description <span class="optional">(optional)</span></label>
+      <textarea id="pcDistDesc" rows="2" class="vs-ai-textarea" placeholder="Brief description of your content…"></textarea>
+    </div>
+    <button class="btn-primary" onclick="pcDistribute()">🚀 Distribute Now</button>
+    <div id="pcDistStatus" class="vs-status" aria-live="polite"></div>
+    <div id="pcDistResult" class="export-result hidden"></div>
+  </section>
+
+  <!-- Analytics Dashboard -->
+  <section class="collab-section">
+    <h3 class="collab-section-title">Analytics Dashboard</h3>
+    <div class="form-group">
+      <label for="pcAnalyticsPlatform">Platform</label>
+      <select id="pcAnalyticsPlatform" class="vs-select">
+        <option value="all">All Platforms</option>
+        <option value="spotify">Spotify</option>
+        <option value="apple_music">Apple Music</option>
+        <option value="youtube">YouTube</option>
+        <option value="instagram">Instagram</option>
+        <option value="tiktok">TikTok</option>
+        <option value="soundcloud">SoundCloud</option>
+      </select>
+    </div>
+    <button class="btn-primary" onclick="pcLoadAnalytics()">📊 Load Analytics</button>
+    <div id="pcAnalyticsStatus" class="vs-status" aria-live="polite"></div>
+    <div id="pcAnalyticsResult" class="export-result hidden"></div>
+  </section>
+
+  <!-- EPK Generator -->
+  <section class="collab-section">
+    <h3 class="collab-section-title">Electronic Press Kit (EPK)</h3>
+    <div class="form-group">
+      <label for="pcEpkArtistName">Artist Name</label>
+      <input type="text" id="pcEpkArtistName" class="vs-input" placeholder="Your artist name" />
+    </div>
+    <div class="form-group">
+      <label for="pcEpkGenre">Genre</label>
+      <input type="text" id="pcEpkGenre" class="vs-input" placeholder="e.g. Electronic, Hip-Hop, Pop" />
+    </div>
+    <div class="form-group">
+      <label for="pcEpkBio">Artist Bio</label>
+      <textarea id="pcEpkBio" rows="4" class="vs-ai-textarea" placeholder="Write your artist biography…"></textarea>
+    </div>
+    <button class="btn-primary" onclick="pcGenerateEPK()">📄 Generate EPK</button>
+    <div id="pcEpkStatus" class="vs-status" aria-live="polite"></div>
+    <div id="pcEpkResult" class="export-result hidden"></div>
+  </section>
+
+  <!-- Optimal Release Timing -->
+  <section class="collab-section">
+    <h3 class="collab-section-title">Optimal Release Timing</h3>
+    <div class="form-group">
+      <label for="pcReleaseGenre">Genre</label>
+      <input type="text" id="pcReleaseGenre" class="vs-input" placeholder="e.g. pop, hip-hop, electronic" />
+    </div>
+    <div class="form-group">
+      <label for="pcReleaseRegion">Target Region</label>
+      <select id="pcReleaseRegion" class="vs-select">
+        <option value="global">🌍 Global</option>
+        <option value="us">🇺🇸 United States</option>
+        <option value="europe">🇪🇺 Europe</option>
+        <option value="latam">🌎 Latin America</option>
+        <option value="asia">🌏 Asia</option>
+      </select>
+    </div>
+    <button class="btn-primary" onclick="pcGetOptimalTime()">⏰ Get Optimal Time</button>
+    <div id="pcReleaseStatus" class="vs-status" aria-live="polite"></div>
+    <div id="pcReleaseResult" class="export-result hidden"></div>
+  </section>
+</div><!-- /platformConnectStudio -->
 
     </main><!-- /app-workspace -->
 
