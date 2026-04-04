@@ -5829,6 +5829,9 @@ async function sendKalaAssist() {
    PHASE 16 — Cross-Medium Transform Modal
 ════════════════════════════════════════════════════════════════ */
 
+/** Supported input→output pairs for the cross-medium transform feature. */
+const _TRANSFORM_PAIRS = { text: ["video", "song"], design: ["animation"], music: ["video"] };
+
 function openTransformModal(inputType, outputType) {
   const inSel  = el("transformInputType");
   const outSel = el("transformOutputType");
@@ -5845,9 +5848,8 @@ function updateTransformOptions() {
   const optDiv  = el("transformOptions");
 
   // Show only valid output types for the selected input
-  const _VALID_OUTPUTS = { text: ["video","song"], design: ["animation"], music: ["video"] };
   if (outSel) {
-    const validOuts = _VALID_OUTPUTS[inType] || ["video"];
+    const validOuts = _TRANSFORM_PAIRS[inType] || ["video"];
     Array.from(outSel.options).forEach(opt => {
       opt.hidden = !validOuts.includes(opt.value);
     });
@@ -5904,10 +5906,6 @@ function renderResultCard(containerEl, data, title) {
     return `<span class="src-val">${esc(s)}</span>`;
   }
 
-  function label(k) {
-    return k.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
-  }
-
   const rows = Object.entries(data)
     .filter(([k]) => !skipKeys.has(k))
     .map(([k, v]) => `<div class="src-row"><span class="src-key">${esc(label(k))}</span>${valHtml(v)}</div>`)
@@ -5930,8 +5928,7 @@ async function runTransform() {
   const btn        = el("transformRunBtn");
 
   // Client-side supported-pair validation
-  const _SUPPORTED = {text: ["video","song"], design: ["animation"], music: ["video"]};
-  if (!(_SUPPORTED[inputType] || []).includes(outputType)) {
+  if (!(_TRANSFORM_PAIRS[inputType] || []).includes(outputType)) {
     if (statusEl) statusEl.textContent = `⚠ Transform from "${inputType}" to "${outputType}" is not supported. Supported: text→video, text→song, design→animation, music→video.`;
     return;
   }
