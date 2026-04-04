@@ -313,6 +313,15 @@ def test_get_optimal_release_time_default_region():
     assert result["target_region"] == "global"
 
 
+def test_get_optimal_release_time_all_known_genres():
+    from kalacore.kalaplatformconnect import _GENRE_RELEASE_INFO
+    for genre in _GENRE_RELEASE_INFO:
+        result = get_optimal_release_time(genre)
+        assert result["optimal_day"] in ["Friday", "Thursday", "Wednesday"]
+        assert result["predicted_reach_multiplier"] > 1.0
+        assert "reasoning" in result
+
+
 def test_get_optimal_release_time_unknown_genre():
     result = get_optimal_release_time("polka")
     assert "optimal_day" in result
