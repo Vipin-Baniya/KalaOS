@@ -6644,3 +6644,64 @@ async function pcDistribute() {
   document.addEventListener('DOMContentLoaded', () => { if (el('pianoKeyboard')) renderKeyboard(); });
   setTimeout(() => { if (el('pianoKeyboard') && el('pianoKeyboard').children.length === 0) renderKeyboard(); }, 500);
 })();
+
+// ── 3D Studio ──────────────────────────────────────────────────────────────
+
+async function vs3dGenerate() {
+  const prompt = el('vs3dPrompt')?.value?.trim();
+  if (!prompt) { showToast('Enter a scene description'); return; }
+  const style = el('vs3dStyle')?.value || 'realistic';
+  const btn = el('vs3dGenerateBtn');
+  const st = el('vs3dStatus');
+  if (btn) btn.disabled = true;
+  if (st) st.textContent = 'Generating 3D scene…';
+  try {
+    const resp = await fetch(`${API_BASE}/visual-studio/generate-3d-scene`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({prompt, style, objects: []}),
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+    const data = await resp.json();
+    const preview = el('vs3dPreview');
+    const canvas = el('vs3dCanvas');
+    const config = el('vs3dConfig');
+    if (preview) preview.classList.remove('hidden');
+    if (canvas) {
+      canvas.style.background = data.scene?.background_color || '#0a0a1a';
+      canvas.innerHTML = `<div style="text-align:center;color:#fff"><div style="font-size:3rem">🎲</div><div style="opacity:.7;margin-top:.5rem">${style} scene</div><div style="font-size:.8rem;opacity:.5;margin-top:.25rem">${data.objects?.length || 0} objects</div></div>`;
+    }
+    if (config) config.textContent = JSON.stringify({lighting: data.lighting, material: data.material, camera: data.camera}, null, 2);
+    if (st) st.textContent = `✔ Scene generated — ${data.objects?.length || 0} objects, ${style} style`;
+  } catch(e) {
+    if (st) st.textContent = 'Generation failed. Check your connection.';
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+// ── AI Photo Edit ──────────────────────────────────────────────────────────
+
+async function vsPhotoAiEdit(operation) {
+  const url = el('vsPhotoAiUrl')?.value?.trim() || 'https://example.com/photo.jpg';
+  const st = el('vsPhotoAiStatus');
+  const result = el('vsPhotoAiResult');
+  const opLabels = {remove_bg:'Removing background', upscale:'Upscaling', colorize:'Colorizing', denoise:'Denoising'};
+  if (st) st.textContent = `${opLabels[operation] || operation}…`;
+  try {
+    const resp = await fetch(`${API_BASE}/visual-studio/ai-photo-edit`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({image_url: url, operation, options: {}}),
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+    const data = await resp.json();
+    if (result) {
+      result.classList.remove('hidden');
+      result.innerHTML = `<div><strong>✔ ${data.operation.replace('_',' ')}</strong></div>
+        <div>Result: ${data.result_url}</div>
+        <div>Processing: ${data.processing_time_ms}ms | Status: ${data.status}</div>`;
+    }
+    if (st) st.textContent = `✔ ${operation.replace('_',' ')} complete`;
+  } catch(e) {
+    if (st) st.textContent = 'Processing failed. Check your connection.';
+  }
+}

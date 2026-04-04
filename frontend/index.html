@@ -1502,6 +1502,8 @@
           <button class="visual-tab" data-vtab="video" onclick="switchVisualTab('video')" role="tab">🎬 Video Editor</button>
           <button class="visual-tab" data-vtab="logo" onclick="switchVisualTab('logo')" role="tab">✏️ Logo Maker</button>
           <button class="visual-tab" data-vtab="canvas" onclick="switchVisualTab('canvas')" role="tab">🎨 Design Canvas</button>
+          <button class="visual-tab" data-vtab="3d" onclick="switchVisualTab('3d')" role="tab">🎲 3D Studio</button>
+          <button class="visual-tab" data-vtab="photoai" onclick="switchVisualTab('photoai')" role="tab">🤖 AI Photo Edit</button>
         </div>
 
         <!-- ─── Paint / Sketch ─── -->
@@ -1806,6 +1808,67 @@
           </div>
 
         </div><!-- /vpane-canvas -->
+
+        <!-- ─── 3D Studio ─── -->
+        <div class="visual-pane hidden" id="vpane-3d" role="tabpanel">
+          <div class="vs-tab-pane" id="vsTab3d" role="tabpanel" aria-label="3D Studio">
+            <section class="section-card">
+              <h3 class="section-heading">🎲 3D Studio</h3>
+              <p class="section-desc">Generate and preview 3D scenes powered by Three.js configuration.</p>
+              <div style="display:grid;gap:.75rem">
+                <div>
+                  <label class="vs-label" for="vs3dPrompt">Scene Description</label>
+                  <textarea id="vs3dPrompt" class="vs-ai-textarea" rows="3" placeholder="Describe your 3D scene, e.g. 'A futuristic space station with glowing rings orbiting a planet'"></textarea>
+                </div>
+                <div style="display:flex;gap:.75rem;flex-wrap:wrap">
+                  <div>
+                    <label class="vs-label" for="vs3dStyle">Style</label>
+                    <select id="vs3dStyle" class="vs-select">
+                      <option value="realistic">🌍 Realistic</option>
+                      <option value="cartoon">🎨 Cartoon</option>
+                      <option value="abstract">✨ Abstract</option>
+                      <option value="architectural">🏛 Architectural</option>
+                      <option value="sci-fi">🚀 Sci-Fi</option>
+                      <option value="fantasy">🧙 Fantasy</option>
+                    </select>
+                  </div>
+                </div>
+                <button class="btn-primary" id="vs3dGenerateBtn" onclick="vs3dGenerate()">✦ Generate 3D Scene</button>
+              </div>
+              <p id="vs3dStatus" class="vs-status" aria-live="polite"></p>
+              <div id="vs3dPreview" class="hidden" style="margin-top:1rem;background:var(--bg-2,#1a1a2e);border-radius:12px;padding:1rem">
+                <div id="vs3dCanvas" style="width:100%;height:300px;background:#0a0a1a;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:2rem">
+                  🎲
+                </div>
+                <div id="vs3dConfig" style="margin-top:.75rem;font-size:.8rem;opacity:.7;font-family:monospace;white-space:pre-wrap"></div>
+              </div>
+            </section>
+          </div>
+        </div><!-- /vpane-3d -->
+
+        <!-- ─── AI Photo Edit ─── -->
+        <div class="visual-pane hidden" id="vpane-photoai" role="tabpanel">
+          <div class="vs-tab-pane" id="vsTabPhotoAi" role="tabpanel" aria-label="AI Photo Edit">
+            <section class="section-card">
+              <h3 class="section-heading">🤖 AI Photo Edit</h3>
+              <p class="section-desc">Powerful AI tools: remove backgrounds, upscale to 4x, colorize B&amp;W photos, and denoise images.</p>
+              <div style="display:grid;gap:.75rem">
+                <div>
+                  <label class="vs-label" for="vsPhotoAiUrl">Image URL or path</label>
+                  <input type="text" id="vsPhotoAiUrl" class="vs-select" style="width:100%" placeholder="https://example.com/image.jpg" />
+                </div>
+                <div class="vs-ai-tools-grid">
+                  <button class="ai-tool-btn" onclick="vsPhotoAiEdit('remove_bg')">🪄 Remove BG</button>
+                  <button class="ai-tool-btn" onclick="vsPhotoAiEdit('upscale')">🔍 Upscale 4x</button>
+                  <button class="ai-tool-btn" onclick="vsPhotoAiEdit('colorize')">🎨 Colorize</button>
+                  <button class="ai-tool-btn" onclick="vsPhotoAiEdit('denoise')">✨ Denoise</button>
+                </div>
+              </div>
+              <p id="vsPhotoAiStatus" class="vs-status" aria-live="polite"></p>
+              <div id="vsPhotoAiResult" class="hidden" style="margin-top:.75rem;background:var(--bg-2,#1a1a2e);border-radius:8px;padding:.75rem;font-size:.85rem"></div>
+            </section>
+          </div>
+        </div><!-- /vpane-photoai -->
 
       </div><!-- /input-card -->
     </div><!-- /visualStudio -->

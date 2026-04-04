@@ -1130,3 +1130,170 @@ class TestExportGifEndpoint:
             json={"frames": [_TINY_PNG_B64], "frame_duration_ms": 6000},
         )
         assert resp.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# generate_3d_scene – unit tests
+# ---------------------------------------------------------------------------
+
+class TestGenerate3dScene:
+    def test_basic_scene(self):
+        from kalacore.kalavisual import generate_3d_scene
+        result = generate_3d_scene("A futuristic city skyline")
+        assert result["style"] == "realistic"
+        assert "scene" in result
+        assert "lighting" in result
+        assert "objects" in result
+        assert "camera" in result
+
+    def test_all_styles(self):
+        from kalacore.kalavisual import generate_3d_scene
+        for style in ["realistic", "cartoon", "abstract", "architectural", "sci-fi", "fantasy"]:
+            r = generate_3d_scene("test scene", style=style)
+            assert r["style"] == style
+
+    def test_invalid_style_raises(self):
+        from kalacore.kalavisual import generate_3d_scene
+        with pytest.raises(ValueError):
+            generate_3d_scene("test", style="invalid_style_xyz")
+
+    def test_custom_objects(self):
+        from kalacore.kalavisual import generate_3d_scene
+        objects = [{"type": "sphere", "position": [0, 0, 0]}]
+        r = generate_3d_scene("test", objects=objects)
+        assert len(r["objects"]) == 1
+
+    def test_has_three_js_version(self):
+        from kalacore.kalavisual import generate_3d_scene
+        r = generate_3d_scene("some scene")
+        assert "three_js_version" in r
+
+    def test_empty_prompt_raises(self):
+        from kalacore.kalavisual import generate_3d_scene
+        with pytest.raises(ValueError):
+            generate_3d_scene("")
+
+    def test_scifi_style_dark_background(self):
+        from kalacore.kalavisual import generate_3d_scene
+        r = generate_3d_scene("space station", style="sci-fi")
+        assert r["scene"]["background_color"] == "#0a0a1a"
+
+
+class TestApplyAiPhotoEdit:
+    def test_remove_bg(self):
+        from kalacore.kalavisual import apply_ai_photo_edit
+        r = apply_ai_photo_edit("https://example.com/photo.jpg", "remove_bg")
+        assert r["operation"] == "remove_bg"
+        assert r["background_removed"] is True
+        assert r["status"] == "processed"
+
+    def test_upscale(self):
+        from kalacore.kalavisual import apply_ai_photo_edit
+        r = apply_ai_photo_edit("https://example.com/photo.jpg", "upscale")
+        assert r["operation"] == "upscale"
+        assert r["model"] == "Real-ESRGAN"
+
+    def test_colorize(self):
+        from kalacore.kalavisual import apply_ai_photo_edit
+        r = apply_ai_photo_edit("https://example.com/bw.jpg", "colorize")
+        assert r["operation"] == "colorize"
+        assert r["colorized"] is True
+
+    def test_denoise(self):
+        from kalacore.kalavisual import apply_ai_photo_edit
+        r = apply_ai_photo_edit("https://example.com/noisy.jpg", "denoise")
+        assert r["operation"] == "denoise"
+        assert "noise_reduction_pct" in r
+
+    def test_invalid_operation_raises(self):
+        from kalacore.kalavisual import apply_ai_photo_edit
+        with pytest.raises(ValueError):
+            apply_ai_photo_edit("https://example.com/photo.jpg", "invalid_op")
+
+    def test_empty_url_raises(self):
+        from kalacore.kalavisual import apply_ai_photo_edit
+        with pytest.raises(ValueError):
+            apply_ai_photo_edit("", "remove_bg")
+
+    def test_result_has_processed_at(self):
+        from kalacore.kalavisual import apply_ai_photo_edit
+        r = apply_ai_photo_edit("https://example.com/photo.jpg", "upscale")
+        assert "processed_at" in r
+
+    def test_custom_options_upscale(self):
+        from kalacore.kalavisual import apply_ai_photo_edit
+        r = apply_ai_photo_edit("https://example.com/photo.jpg", "upscale", {"scale": 2})
+        assert r["scale_factor"] == 2
+
+
+# ---------------------------------------------------------------------------
+# POST /visual-studio/generate-3d-scene endpoint
+# ---------------------------------------------------------------------------
+
+class TestGenerate3dSceneEndpoint:
+    @pytest.fixture
+    def client(self):
+        from main import app
+        from fastapi.testclient import TestClient
+        return TestClient(app)
+
+    def test_valid_request(self, client):
+        resp = client.post("/visual-studio/generate-3d-scene", json={"prompt": "A mountain landscape", "style": "realistic"})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "style" in data
+        assert "scene" in data
+
+    def test_all_styles(self, client):
+        for style in ["realistic", "cartoon", "abstract", "architectural", "sci-fi", "fantasy"]:
+            resp = client.post("/visual-studio/generate-3d-scene", json={"prompt": "test scene", "style": style})
+            assert resp.status_code == 200
+
+    def test_invalid_style(self, client):
+        resp = client.post("/visual-studio/generate-3d-scene", json={"prompt": "test", "style": "invalid_xyz"})
+        assert resp.status_code == 422
+
+    def test_empty_prompt_rejected(self, client):
+        resp = client.post("/visual-studio/generate-3d-scene", json={"prompt": "", "style": "realistic"})
+        assert resp.status_code == 422
+
+    def test_missing_prompt_rejected(self, client):
+        resp = client.post("/visual-studio/generate-3d-scene", json={"style": "realistic"})
+        assert resp.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# POST /visual-studio/ai-photo-edit endpoint
+# ---------------------------------------------------------------------------
+
+class TestAiPhotoEditEndpoint:
+    @pytest.fixture
+    def client(self):
+        from main import app
+        from fastapi.testclient import TestClient
+        return TestClient(app)
+
+    def test_remove_bg(self, client):
+        resp = client.post("/visual-studio/ai-photo-edit", json={"image_url": "https://example.com/photo.jpg", "operation": "remove_bg"})
+        assert resp.status_code == 200
+        assert resp.json()["operation"] == "remove_bg"
+
+    def test_upscale(self, client):
+        resp = client.post("/visual-studio/ai-photo-edit", json={"image_url": "https://example.com/photo.jpg", "operation": "upscale"})
+        assert resp.status_code == 200
+
+    def test_colorize(self, client):
+        resp = client.post("/visual-studio/ai-photo-edit", json={"image_url": "https://example.com/photo.jpg", "operation": "colorize"})
+        assert resp.status_code == 200
+
+    def test_denoise(self, client):
+        resp = client.post("/visual-studio/ai-photo-edit", json={"image_url": "https://example.com/photo.jpg", "operation": "denoise"})
+        assert resp.status_code == 200
+
+    def test_invalid_operation(self, client):
+        resp = client.post("/visual-studio/ai-photo-edit", json={"image_url": "https://example.com/photo.jpg", "operation": "invalid_op_xyz"})
+        assert resp.status_code == 422
+
+    def test_empty_url_rejected(self, client):
+        resp = client.post("/visual-studio/ai-photo-edit", json={"image_url": "", "operation": "remove_bg"})
+        assert resp.status_code == 422

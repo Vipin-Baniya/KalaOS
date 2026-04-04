@@ -48,7 +48,7 @@ from kalacore.kalacomposer import compose
 from kalacore.kalaflow import flow
 from kalacore.kalacustody import custody, assess_artistic_lineage
 from kalacore.temporal import analyze_temporal
-from kalacore.kalavisual import analyze_visual, generate_image_concept, animate_canvas_objects, export_canvas_gif
+from kalacore.kalavisual import analyze_visual, generate_image_concept, animate_canvas_objects, export_canvas_gif, generate_3d_scene, apply_ai_photo_edit
 from kalacore.kalaproducer import produce, generate_ai_beat, generate_sampler_bank, generate_virtual_keyboard_config
 from kalacore.kalaanimation import generate_animation_plan, parse_storyboard
 from kalacore.kalavideo import (
@@ -2702,3 +2702,60 @@ def platform_connect_epk(request: Request, body: PlatformEPKBody):
 def platform_connect_optimal_release(request: Request, genre: str, target_region: str = "global"):
     result = get_optimal_release_time(genre, target_region)
     return result
+
+
+# ---------------------------------------------------------------------------
+# Phase 15 – 3D Studio
+# ---------------------------------------------------------------------------
+
+_VALID_3D_STYLES: set[str] = {"realistic", "cartoon", "abstract", "architectural", "sci-fi", "fantasy"}
+
+
+class Generate3dSceneRequest(BaseModel):
+    prompt: str = Field(..., min_length=1)
+    style: str = "realistic"
+    objects: list = []
+
+    @field_validator("style")
+    @classmethod
+    def style_must_be_valid(cls, v: str) -> str:
+        if v.lower() not in _VALID_3D_STYLES:
+            raise ValueError(f"Invalid 3D style '{v}'. Must be one of: {', '.join(sorted(_VALID_3D_STYLES))}")
+        return v.lower()
+
+
+@app.post("/visual-studio/generate-3d-scene", summary="Generate a 3D scene configuration")
+def visual_generate_3d_scene(body: Generate3dSceneRequest):
+    try:
+        return generate_3d_scene(body.prompt, body.style, body.objects)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+# ---------------------------------------------------------------------------
+# Phase 15 – AI Photo Editor
+# ---------------------------------------------------------------------------
+
+_VALID_PHOTO_OPS: set[str] = {"remove_bg", "upscale", "colorize", "denoise"}
+
+
+class AiPhotoEditRequest(BaseModel):
+    image_url: str = Field(..., min_length=1)
+    operation: str
+    options: dict = {}
+
+    @field_validator("operation")
+    @classmethod
+    def operation_must_be_valid(cls, v: str) -> str:
+        normalized = v.lower().replace("-", "_").replace(" ", "_")
+        if normalized not in _VALID_PHOTO_OPS:
+            raise ValueError(f"Invalid operation '{v}'. Must be one of: {', '.join(sorted(_VALID_PHOTO_OPS))}")
+        return normalized
+
+
+@app.post("/visual-studio/ai-photo-edit", summary="Apply AI photo editing operations")
+def visual_ai_photo_edit(body: AiPhotoEditRequest):
+    try:
+        return apply_ai_photo_edit(body.image_url, body.operation, body.options)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
