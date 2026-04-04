@@ -346,6 +346,13 @@
           <span class="sidebar-icon" aria-hidden="true">🔗</span>
           <span class="sidebar-label">Platform Connect</span>
         </button>
+
+        <!-- Transform -->
+        <div class="sidebar-divider"></div>
+        <button class="sidebar-btn" id="transformSidebarBtn" onclick="openTransformModal()" title="Cross-Medium AI Transform" aria-label="Cross-Medium AI Transform">
+          <span class="sidebar-icon" aria-hidden="true">🔀</span>
+          <span class="sidebar-label">Transform</span>
+        </button>
       </nav>
       <div class="sidebar-footer">
         <button class="sidebar-collapse-btn" id="sidebarToggle" onclick="toggleSidebar()" title="Collapse sidebar" aria-label="Toggle sidebar">
@@ -1855,7 +1862,7 @@
               <div style="display:grid;gap:.75rem">
                 <div>
                   <label class="vs-label" for="vsPhotoAiUrl">Image URL or path</label>
-                  <input type="text" id="vsPhotoAiUrl" class="vs-select" style="width:100%" placeholder="https://example.com/image.jpg" />
+                  <input type="text" id="vsPhotoAiUrl" class="vs-select select-full" placeholder="https://example.com/image.jpg" />
                 </div>
                 <div class="vs-ai-tools-grid">
                   <button class="ai-tool-btn" onclick="vsPhotoAiEdit('remove_bg')">🪄 Remove BG</button>
@@ -2629,7 +2636,7 @@
       </div>
       <div class="form-group">
         <label for="collabProjectType">Project type</label>
-        <select id="collabProjectType" class="vs-select" style="width:100%">
+        <select id="collabProjectType" class="vs-select select-full">
           <option value="music">🎵 Music</option>
           <option value="visual">🎨 Visual Art</option>
           <option value="animation">🎬 Animation</option>
@@ -2661,7 +2668,7 @@
       </div>
       <div class="form-group">
         <label for="collabInviteRole">Role</label>
-        <select id="collabInviteRole" class="vs-select" style="width:100%">
+        <select id="collabInviteRole" class="vs-select select-full">
           <option value="editor">✏️ Editor</option>
           <option value="viewer">👁️ Viewer</option>
           <option value="commenter">💬 Commenter</option>
@@ -2696,7 +2703,7 @@
     <div class="input-card collab-tool-card">
       <div class="form-group">
         <label for="collabSuggestType">Project type</label>
-        <select id="collabSuggestType" class="vs-select" style="width:100%">
+        <select id="collabSuggestType" class="vs-select select-full">
           <option value="music">🎵 Music</option>
           <option value="visual">🎨 Visual Art</option>
           <option value="animation">🎬 Animation</option>
@@ -2736,7 +2743,7 @@
     <div class="input-card stream-tool-card">
       <div class="form-group">
         <label for="streamPlatform">Platform</label>
-        <select id="streamPlatform" class="vs-select" style="width:100%">
+        <select id="streamPlatform" class="vs-select select-full">
           <option value="youtube">▶️ YouTube</option>
           <option value="twitch">🟣 Twitch</option>
           <option value="facebook">🔵 Facebook</option>
@@ -2750,7 +2757,7 @@
       </div>
       <div class="form-group">
         <label for="streamQuality">Quality</label>
-        <select id="streamQuality" class="vs-select" style="width:100%">
+        <select id="streamQuality" class="vs-select select-full">
           <option value="1080p">1080p HD</option>
           <option value="720p">720p</option>
           <option value="4k">4K Ultra HD</option>
@@ -2793,7 +2800,7 @@
       </div>
       <div class="form-group">
         <label for="streamOverlayStyle">Overlay style</label>
-        <select id="streamOverlayStyle" class="vs-select" style="width:100%">
+        <select id="streamOverlayStyle" class="vs-select select-full">
           <option value="minimal">Minimal</option>
           <option value="gaming">Gaming</option>
           <option value="podcast">Podcast</option>
@@ -2807,26 +2814,26 @@
   </div>
 
   <!-- ── Now Playing Bar ── -->
-  <div class="now-playing-bar" id="nowPlayingBar" style="background:var(--bg-2,#1a1a2e);border-radius:12px;padding:1rem;margin-top:1rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
-    <div style="flex:1;min-width:150px">
-      <div id="npTrackName" style="font-weight:600;font-size:.95rem">No track playing</div>
-      <div id="npArtistName" style="font-size:.8rem;opacity:.7">— Select a track to play —</div>
+  <div class="now-playing-bar" id="nowPlayingBar">
+    <div class="np-track-info">
+      <div id="npTrackName" class="np-track-name">No track playing</div>
+      <div id="npArtistName" class="np-artist-name">— Select a track to play —</div>
     </div>
-    <div style="display:flex;gap:.5rem;align-items:center">
+    <div class="np-controls">
       <button class="btn-ghost btn-sm" onclick="npPrevTrack()" aria-label="Previous">⏮</button>
-      <button class="btn-secondary" id="npPlayPauseBtn" onclick="npTogglePlay()" aria-label="Play/Pause" style="width:40px;height:40px;border-radius:50%;font-size:1.1rem">▶</button>
+      <button class="btn-secondary np-play-btn" id="npPlayPauseBtn" onclick="npTogglePlay()" aria-label="Play/Pause">▶</button>
       <button class="btn-ghost btn-sm" onclick="npNextTrack()" aria-label="Next">⏭</button>
-      <button class="btn-ghost btn-sm" onclick="npToggleShuffle()" id="npShuffleBtn" aria-label="Shuffle">🔀</button>
-      <button class="btn-ghost btn-sm" onclick="npToggleRepeat()" id="npRepeatBtn" aria-label="Repeat">🔁</button>
+      <button class="btn-ghost btn-sm" onclick="npToggleShuffle()" id="npShuffleBtn" aria-label="Shuffle" style="opacity:.5">🔀</button>
+      <button class="btn-ghost btn-sm" onclick="npToggleRepeat()" id="npRepeatBtn" aria-label="Repeat" style="opacity:.5">🔁</button>
     </div>
-    <div style="display:flex;align-items:center;gap:.5rem;flex:1;min-width:120px">
-      <span style="font-size:.75rem;opacity:.6" id="npCurrentTime">0:00</span>
-      <input type="range" id="npProgressBar" min="0" max="100" value="0" style="flex:1" oninput="npSeek(this.value)" />
-      <span style="font-size:.75rem;opacity:.6" id="npDuration">0:00</span>
+    <div class="np-progress-row">
+      <span class="np-time" id="npCurrentTime">0:00</span>
+      <input type="range" id="npProgressBar" class="np-progress" min="0" max="100" value="0" oninput="npSeek(this.value)" />
+      <span class="np-time" id="npDuration">0:00</span>
     </div>
-    <div style="display:flex;align-items:center;gap:.5rem">
-      <span style="font-size:.8rem">🔊</span>
-      <input type="range" id="npVolumeBar" min="0" max="100" value="80" style="width:70px" oninput="npSetVolume(this.value)" />
+    <div class="np-volume-row">
+      <span class="np-vol-icon">🔊</span>
+      <input type="range" id="npVolumeBar" class="np-vol-slider" min="0" max="100" value="80" oninput="npSetVolume(this.value)" />
     </div>
   </div>
 </div>
@@ -2852,7 +2859,7 @@
     <div class="input-card export-tool-card">
       <div class="form-group">
         <label for="exportStudioType">Studio</label>
-        <select id="exportStudioType" class="vs-select" style="width:100%" onchange="updateExportFormats()">
+        <select id="exportStudioType" class="vs-select select-full" onchange="updateExportFormats()">
           <option value="music">🎵 Music</option>
           <option value="video">🎥 Video</option>
           <option value="image">🖼️ Image</option>
@@ -2862,7 +2869,7 @@
       </div>
       <div class="form-group">
         <label for="exportFormat">Format</label>
-        <select id="exportFormat" class="vs-select" style="width:100%">
+        <select id="exportFormat" class="vs-select select-full">
           <option value="mp3">MP3</option>
           <option value="wav">WAV</option>
           <option value="flac">FLAC</option>
@@ -2870,7 +2877,7 @@
       </div>
       <div class="form-group">
         <label for="exportQuality">Quality</label>
-        <select id="exportQuality" class="vs-select" style="width:100%">
+        <select id="exportQuality" class="vs-select select-full">
           <option value="high">High</option>
           <option value="medium">Medium</option>
           <option value="low">Low (smaller file)</option>
@@ -2895,7 +2902,7 @@
       </div>
       <div class="form-group">
         <label for="importStudio">Import to studio</label>
-        <select id="importStudio" class="vs-select" style="width:100%">
+        <select id="importStudio" class="vs-select select-full">
           <option value="music">🎵 Music</option>
           <option value="video">🎥 Video</option>
           <option value="image">🖼️ Image</option>
@@ -2987,15 +2994,18 @@
      CROSS-MEDIUM TRANSFORM MODAL  (Phase 16)
 ══════════════════════════════════════════════════════ -->
 <div id="transformModal" class="auth-overlay hidden" role="dialog" aria-modal="true" aria-label="Cross-Medium Transform">
-  <div class="auth-card" style="max-width:520px;width:100%">
+  <div class="auth-card" style="max-width:540px;width:100%">
     <div class="projects-modal-header">
       <span class="projects-modal-title">🔀 Cross-Medium Transform</span>
       <button class="btn-icon-round" onclick="hide('transformModal')" aria-label="Close">✕</button>
     </div>
-    <p style="font-size:.85rem;color:var(--text-dim);margin:0 0 1rem">Transform your creative content across media types using AI.</p>
+    <p style="font-size:.85rem;color:var(--text-dim);margin:0 0 .6rem">Transform your creative content across media types using AI.</p>
+    <p style="font-size:.78rem;color:var(--text-dim);margin:0 0 1rem;padding:.45rem .7rem;background:var(--surface-2);border-radius:var(--radius-sm);border:1px solid var(--border)">
+      Supported pairs: <strong>Text→Video</strong> · <strong>Text→Song</strong> · <strong>Design→Animation</strong> · <strong>Music→Video</strong>
+    </p>
     <div class="form-group">
       <label for="transformInputType">From</label>
-      <select id="transformInputType" class="vs-select" style="width:100%">
+      <select id="transformInputType" class="vs-select select-full" onchange="updateTransformOptions()">
         <option value="text">✍️ Text</option>
         <option value="design">🎨 Design</option>
         <option value="music">🎵 Music</option>
@@ -3003,7 +3013,7 @@
     </div>
     <div class="form-group">
       <label for="transformOutputType">To</label>
-      <select id="transformOutputType" class="vs-select" style="width:100%" onchange="updateTransformOptions()">
+      <select id="transformOutputType" class="vs-select select-full" onchange="updateTransformOptions()">
         <option value="video">🎥 Video Script</option>
         <option value="song">🎵 Song Structure</option>
         <option value="animation">🎬 Animation Plan</option>
@@ -3019,7 +3029,7 @@
       <button class="btn-secondary" onclick="hide('transformModal')">Cancel</button>
     </div>
     <div id="transformStatus" class="vs-status"></div>
-    <div id="transformResult" class="transform-result hidden"></div>
+    <div id="transformResult" class="hidden"></div>
   </div>
 </div>
 

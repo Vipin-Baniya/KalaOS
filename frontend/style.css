@@ -1405,6 +1405,16 @@ dd.value-negative { color: var(--negative); }
   }
   textarea { min-height: 140px; }
   .tab { padding: .7rem 1rem; }
+  .collab-tool-btn,
+  .stream-tool-btn,
+  .export-tool-btn,
+  .sidebar-btn { min-height: 44px; }
+  .btn-secondary { min-height: 44px; }
+  input[type="text"],
+  input[type="email"],
+  input[type="url"],
+  input[type="number"],
+  select { min-height: 44px; }
 }
 
 /* ──────────────────────────────────────────────────────────
@@ -5192,6 +5202,9 @@ body.focus-mode #artText {
 }
 .feed-comment-input:focus { outline: none; border-color: var(--accent); }
 
+/* Full-width select utility */
+.select-full { width: 100%; }
+
 /* ══════════════════════════════════════════════════════════
    PHASE 16 — Transform modal result
    ══════════════════════════════════════════════════════════ */
@@ -5210,35 +5223,133 @@ body.focus-mode #artText {
 }
 
 /* ══════════════════════════════════════════════════════════
+   STUDIO RESULT CARD — shared across Collab / Stream / Export
+   ══════════════════════════════════════════════════════════ */
+.studio-result-card {
+  margin-top: .9rem;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.studio-result-card .src-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: .55rem .9rem;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+  font-size: .78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+.studio-result-card .src-body {
+  padding: .75rem .9rem;
+  display: flex;
+  flex-direction: column;
+  gap: .45rem;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.src-row {
+  display: flex;
+  align-items: flex-start;
+  gap: .5rem;
+  font-size: .83rem;
+}
+.src-row .src-key {
+  min-width: 130px;
+  color: var(--text-muted);
+  font-weight: 500;
+  flex-shrink: 0;
+}
+.src-row .src-val {
+  color: var(--text);
+  word-break: break-word;
+  flex: 1;
+}
+.src-row .src-val.positive { color: var(--positive); font-weight: 600; }
+.src-row .src-val.negative { color: var(--negative); font-weight: 600; }
+.src-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem;
+  margin-top: .2rem;
+}
+.src-chip {
+  padding: .2rem .6rem;
+  border-radius: 99px;
+  background: var(--accent-glow);
+  border: 1px solid var(--glass-border);
+  color: var(--accent);
+  font-size: .75rem;
+  font-weight: 500;
+}
+.src-divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: .3rem 0;
+}
+.src-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: .3rem; }
+.src-list li {
+  font-size: .83rem;
+  color: var(--text);
+  padding-left: 1rem;
+  position: relative;
+}
+.src-list li::before { content: "•"; position: absolute; left: 0; color: var(--accent); }
+.src-raw {
+  margin-top: .8rem;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: .75rem 1rem;
+  font-size: .78rem;
+  color: var(--text-muted);
+  max-height: 280px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  font-family: monospace;
+}
+
+/* ══════════════════════════════════════════════════════════
    COLLABORATION STUDIO
    ══════════════════════════════════════════════════════════ */
 .collab-tool-bar {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: .35rem;
   padding: .5rem 1rem;
   background: var(--surface-2);
   border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
 }
+.collab-tool-bar::-webkit-scrollbar { display: none; }
 .collab-tool-btn {
-  padding: .35rem .85rem;
+  padding: .4rem .95rem;
   border-radius: var(--radius-sm);
   border: 1.5px solid var(--border);
   background: transparent;
-  color: var(--text-dim);
+  color: var(--text-muted);
   cursor: pointer;
   font-size: .82rem;
   font-weight: 500;
   transition: all .15s;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
-.collab-tool-btn:hover { border-color: var(--accent); color: var(--text); }
+.collab-tool-btn:hover { border-color: var(--accent); color: var(--text); background: var(--accent-glow); }
 .collab-tool-btn.active {
   background: var(--accent);
   border-color: var(--accent);
   color: #fff;
 }
-.collab-tool-pane { padding: 1rem; }
-.collab-tool-card { max-width: 640px; }
+.collab-tool-pane { padding: 1rem 1rem 1.5rem; }
+.collab-tool-card { max-width: 680px; }
 .collab-result {
   margin-top: .8rem;
   background: var(--surface-3);
@@ -5275,9 +5386,54 @@ body.focus-mode #artText {
 /* ══════════════════════════════════════════════════════════
    STREAMING STUDIO
    ══════════════════════════════════════════════════════════ */
+/* Now Playing Bar */
+.now-playing-bar {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: .85rem 1rem;
+  margin-top: 1rem;
+  display: flex;
+  align-items: center;
+  gap: .85rem;
+  flex-wrap: wrap;
+}
+.np-track-info { flex: 1; min-width: 140px; }
+.np-track-name { font-weight: 600; font-size: .95rem; color: var(--text); }
+.np-artist-name { font-size: .8rem; color: var(--text-muted); margin-top: .1rem; }
+.np-controls { display: flex; gap: .45rem; align-items: center; }
+.np-play-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.np-progress-row {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  flex: 1;
+  min-width: 120px;
+}
+.np-time { font-size: .75rem; color: var(--text-muted); }
+.np-progress { flex: 1; }
+.np-volume-row { display: flex; align-items: center; gap: .45rem; }
+.np-vol-icon { font-size: .8rem; }
+.np-vol-slider { width: 70px; }
+
+@media (max-width: 640px) {
+  .now-playing-bar { flex-direction: column; align-items: stretch; gap: .6rem; }
+  .np-track-info { min-width: unset; }
+  .np-controls { justify-content: center; }
+  .np-progress-row { min-width: unset; }
+}
+
 .stream-tool-bar {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: .35rem;
   padding: .5rem 1rem;
   background: var(--surface-2);
@@ -5294,14 +5450,14 @@ body.focus-mode #artText {
   font-weight: 500;
   transition: all .15s;
 }
-.stream-tool-btn:hover { border-color: var(--accent); color: var(--text); }
+.stream-tool-btn:hover { border-color: var(--accent); color: var(--text); background: var(--accent-glow); }
 .stream-tool-btn.active {
   background: var(--accent);
   border-color: var(--accent);
   color: #fff;
 }
-.stream-tool-pane { padding: 1rem; }
-.stream-tool-card { max-width: 640px; }
+.stream-tool-pane { padding: 1rem 1rem 1.5rem; }
+.stream-tool-card { max-width: 680px; }
 .stream-result {
   margin-top: .8rem;
   background: var(--surface-3);
@@ -5315,37 +5471,50 @@ body.focus-mode #artText {
   white-space: pre-wrap;
   font-family: monospace;
 }
+.stream-tool-bar {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.stream-tool-bar::-webkit-scrollbar { display: none; }
+.stream-tool-btn { white-space: nowrap; flex-shrink: 0; }
 
 /* ══════════════════════════════════════════════════════════
    EXPORT / IMPORT STUDIO
    ══════════════════════════════════════════════════════════ */
 .export-tool-bar {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: .35rem;
   padding: .5rem 1rem;
   background: var(--surface-2);
   border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
 }
+.export-tool-bar::-webkit-scrollbar { display: none; }
 .export-tool-btn {
-  padding: .35rem .85rem;
+  padding: .4rem .95rem;
   border-radius: var(--radius-sm);
   border: 1.5px solid var(--border);
   background: transparent;
-  color: var(--text-dim);
+  color: var(--text-muted);
   cursor: pointer;
   font-size: .82rem;
   font-weight: 500;
   transition: all .15s;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
-.export-tool-btn:hover { border-color: var(--accent); color: var(--text); }
+.export-tool-btn:hover { border-color: var(--accent); color: var(--text); background: var(--accent-glow); }
 .export-tool-btn.active {
   background: var(--accent);
   border-color: var(--accent);
   color: #fff;
 }
-.export-tool-pane { padding: 1rem; }
-.export-tool-card { max-width: 640px; }
+.export-tool-pane { padding: 1rem 1rem 1.5rem; }
+.export-tool-card { max-width: 680px; }
 .export-result {
   margin-top: .8rem;
   background: var(--surface-3);
@@ -5364,10 +5533,16 @@ body.focus-mode #artText {
   gap: .5rem;
   margin-bottom: .5rem;
   align-items: center;
+  flex-wrap: wrap;
 }
 .batch-item-row .batch-studio,
-.batch-item-row .batch-format { flex-shrink: 0; }
-.batch-item-row .batch-content { flex: 1; }
+.batch-item-row .batch-format { flex-shrink: 0; min-width: 100px; }
+.batch-item-row .batch-content { flex: 1; min-width: 120px; }
+@media (max-width: 500px) {
+  .batch-item-row { flex-direction: column; align-items: stretch; }
+  .batch-item-row .batch-studio,
+  .batch-item-row .batch-format { min-width: unset; width: 100%; }
+}
 
 /* ══════════════════════════════════════════════════════════
    DASHBOARD — Studio Landing Page
