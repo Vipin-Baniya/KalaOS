@@ -5829,6 +5829,9 @@ async function sendKalaAssist() {
    PHASE 16 — Cross-Medium Transform Modal
 ════════════════════════════════════════════════════════════════ */
 
+/** Supported input→output pairs for the cross-medium transform feature. */
+const _TRANSFORM_PAIRS = { text: ["video", "song"], design: ["animation"], music: ["video"] };
+
 function openTransformModal(inputType, outputType) {
   const inSel  = el("transformInputType");
   const outSel = el("transformOutputType");
@@ -5839,13 +5842,27 @@ function openTransformModal(inputType, outputType) {
 }
 
 function updateTransformOptions() {
-  const outType = el("transformOutputType")?.value;
+  const inType  = el("transformInputType")?.value;
+  const outSel  = el("transformOutputType");
+  const outType = outSel?.value;
   const optDiv  = el("transformOptions");
+
+  // Show only valid output types for the selected input
+  if (outSel) {
+    const validOuts = _TRANSFORM_PAIRS[inType] || ["video"];
+    Array.from(outSel.options).forEach(opt => {
+      opt.hidden = !validOuts.includes(opt.value);
+    });
+    // If current selection is invalid, switch to first valid
+    if (!validOuts.includes(outSel.value)) outSel.value = validOuts[0];
+  }
+
   if (!optDiv) return;
-  if (outType === "video") {
+  const currentOut = outSel?.value;
+  if (currentOut === "video") {
     optDiv.innerHTML = `
       <label style="font-size:.82rem;color:var(--text-dim)">Video Style</label>
-      <select id="transformStyleOpt" class="vs-select" style="width:100%;margin-top:.3rem">
+      <select id="transformStyleOpt" class="vs-select select-full" style="margin-top:.3rem">
         <option value="cinematic">Cinematic</option>
         <option value="motivational">Motivational</option>
         <option value="lofi">Lofi</option>
@@ -5853,13 +5870,53 @@ function updateTransformOptions() {
         <option value="cartoon">Cartoon</option>
         <option value="abstract">Abstract</option>
       </select>`;
-  } else if (outType === "song") {
+  } else if (currentOut === "song") {
     optDiv.innerHTML = `
       <label style="font-size:.82rem;color:var(--text-dim)">Genre Hint (optional)</label>
       <input id="transformGenreOpt" class="vs-ai-textarea" style="min-height:unset;padding:.35rem .6rem;margin-top:.3rem" placeholder="e.g. lofi, trap, classical…" />`;
   } else {
     optDiv.innerHTML = "";
   }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   Shared result-card renderer
+   Renders an API response dict as a human-readable card instead of
+   raw JSON.  Falls back to a monospace pre-block for unknown shapes.
+════════════════════════════════════════════════════════════════ */
+function renderResultCard(containerEl, data, title) {
+  if (!containerEl) return;
+  const skipKeys = new Set(["status", "ok"]);
+
+  function valHtml(v) {
+    if (Array.isArray(v)) {
+      if (v.length === 0) return '<em style="color:var(--text-dim)">—</em>';
+      if (typeof v[0] === "object") {
+        return v.map(item => `<div class="src-chip">${esc(JSON.stringify(item))}</div>`).join("");
+      }
+      return `<div class="src-chip-row">${v.map(s => `<span class="src-chip">${esc(String(s))}</span>`).join("")}</div>`;
+    }
+    if (v === null || v === undefined) return '<em style="color:var(--text-dim)">—</em>';
+    if (typeof v === "object") {
+      return `<div class="src-raw">${esc(JSON.stringify(v, null, 2))}</div>`;
+    }
+    const s = String(v);
+    if (s === "true" || s === "pass" || s === "ok") return `<span class="src-val positive">${esc(s)}</span>`;
+    if (s === "false" || s === "fail" || s === "error") return `<span class="src-val negative">${esc(s)}</span>`;
+    return `<span class="src-val">${esc(s)}</span>`;
+  }
+
+  const rows = Object.entries(data)
+    .filter(([k]) => !skipKeys.has(k))
+    .map(([k, v]) => `<div class="src-row"><span class="src-key">${esc(label(k))}</span>${valHtml(v)}</div>`)
+    .join("");
+
+  containerEl.innerHTML = `
+    <div class="studio-result-card">
+      <div class="src-header">${esc(title || "Result")}</div>
+      <div class="src-body">${rows || '<em style="color:var(--text-dim)">No data returned.</em>'}</div>
+    </div>`;
+  containerEl.classList.remove("hidden");
 }
 
 async function runTransform() {
@@ -5869,6 +5926,12 @@ async function runTransform() {
   const statusEl   = el("transformStatus");
   const resultEl   = el("transformResult");
   const btn        = el("transformRunBtn");
+
+  // Client-side supported-pair validation
+  if (!(_TRANSFORM_PAIRS[inputType] || []).includes(outputType)) {
+    if (statusEl) statusEl.textContent = `⚠ Transform from "${inputType}" to "${outputType}" is not supported. Supported: text→video, text→song, design→animation, music→video.`;
+    return;
+  }
 
   if (!data) { if (statusEl) statusEl.textContent = "Please enter content to transform."; return; }
   if (statusEl) statusEl.textContent = "Transforming…";
@@ -5897,36 +5960,20 @@ async function runTransform() {
       if (btn) btn.disabled = false;
       return;
     }
-    if (statusEl) statusEl.textContent = `✓ Transform complete (${outputType})`;
-    if (resultEl) {
-      resultEl.textContent = JSON.stringify(result, null, 2);
-      resultEl.classList.remove("hidden");
-    }
+    if (statusEl) statusEl.textContent = `✓ Transform complete (${inputType} → ${outputType})`;
+    if (resultEl) renderResultCard(resultEl, result, `${label(inputType)} → ${label(outputType)}`);
   } catch (err) {
     if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`;
   }
   if (btn) btn.disabled = false;
 }
 
-// Add Transform button to sidebar nav (inject once DOM is ready)
+function label(str) {
+  return str ? str.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()) : str;
+}
+
+// Kick off initial notif count poll after login
 document.addEventListener("DOMContentLoaded", () => {
-  // Add a "🔀 Transform" item to the sidebar
-  const sidebarNav = document.querySelector(".sidebar-nav");
-  if (sidebarNav) {
-    const divider = document.createElement("hr");
-    divider.style.cssText = "border:none;border-top:1px solid var(--border);margin:.4rem .5rem";
-    sidebarNav.appendChild(divider);
-
-    const btn = document.createElement("button");
-    btn.className = "sidebar-btn";
-    btn.title = "Cross-Medium AI Transform";
-    btn.setAttribute("aria-label", "Cross-Medium AI Transform");
-    btn.innerHTML = `<span class="sidebar-icon" aria-hidden="true">🔀</span><span class="sidebar-label">Transform</span>`;
-    btn.addEventListener("click", () => openTransformModal());
-    sidebarNav.appendChild(btn);
-  }
-
-  // Kick off initial notif count poll after login
   setTimeout(() => { if (_authToken) _pollNotifCount(); }, 3000);
 });
 
@@ -6024,7 +6071,7 @@ async function createCollabWorkspace() {
     const data = await resp.json();
     if (!resp.ok) { if (statusEl) statusEl.textContent = `Error: ${data.detail || "Failed"}`; return; }
     if (statusEl) statusEl.textContent = `✓ Workspace created! ID: ${data.workspace_id}`;
-    if (resultEl) { resultEl.textContent = JSON.stringify(data, null, 2); resultEl.classList.remove("hidden"); }
+    renderResultCard(resultEl, data, "Workspace Created");
     // Pre-fill the invite and activity workspace ID
     const invEl = el("collabInviteWorkspaceId");
     const actEl = el("collabActivityWorkspaceId");
@@ -6053,7 +6100,7 @@ async function inviteCollaborator() {
     const data = await resp.json();
     if (!resp.ok) { if (statusEl) statusEl.textContent = `Error: ${data.detail || "Failed"}`; return; }
     if (statusEl) statusEl.textContent = `✓ ${user_email} invited as ${role}`;
-    if (resultEl) { resultEl.textContent = JSON.stringify(data, null, 2); resultEl.classList.remove("hidden"); }
+    renderResultCard(resultEl, data, "Invite Sent");
   } catch (err) {
     if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`;
   }
@@ -6101,7 +6148,7 @@ async function getCollabSuggestions() {
     const data = await resp.json();
     if (!resp.ok) { if (statusEl) statusEl.textContent = `Error: ${data.detail || "Failed"}`; return; }
     if (statusEl) statusEl.textContent = "✓ AI suggestions ready";
-    if (resultEl) { resultEl.textContent = JSON.stringify(data, null, 2); resultEl.classList.remove("hidden"); }
+    renderResultCard(resultEl, data, "AI Suggestions");
   } catch (err) {
     if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`;
   }
@@ -6141,7 +6188,7 @@ async function setupStream() {
     // Pre-fill analytics stream ID
     const analEl = el("streamAnalyticsId");
     if (analEl) analEl.value = data.stream_id;
-    if (resultEl) { resultEl.textContent = JSON.stringify(data, null, 2); resultEl.classList.remove("hidden"); }
+    renderResultCard(resultEl, data, "Stream Configuration");
   } catch (err) {
     if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`;
   }
@@ -6160,7 +6207,7 @@ async function loadStreamAnalytics() {
     const data = await resp.json();
     if (!resp.ok) { if (statusEl) statusEl.textContent = `Error: ${data.detail || "Failed"}`; return; }
     if (statusEl) statusEl.textContent = `✓ Analytics loaded — peak: ${data.peak_viewers} viewers`;
-    if (resultEl) { resultEl.textContent = JSON.stringify(data, null, 2); resultEl.classList.remove("hidden"); }
+    renderResultCard(resultEl, data, "Stream Analytics");
   } catch (err) {
     if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`;
   }
@@ -6183,7 +6230,7 @@ async function generateStreamOverlay() {
     const data = await resp.json();
     if (!resp.ok) { if (statusEl) statusEl.textContent = `Error: ${data.detail || "Failed"}`; return; }
     if (statusEl) statusEl.textContent = "✓ Overlay config generated";
-    if (resultEl) { resultEl.textContent = JSON.stringify(data, null, 2); resultEl.classList.remove("hidden"); }
+    renderResultCard(resultEl, data, "Overlay Configuration");
   } catch (err) {
     if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`;
   }
@@ -6294,7 +6341,7 @@ async function prepareExport() {
     const data = await resp.json();
     if (!resp.ok) { if (statusEl) statusEl.textContent = `Error: ${data.detail || "Failed"}`; return; }
     if (statusEl) statusEl.textContent = `✓ Export ready — ${data.format?.toUpperCase()} (${data.estimated_size_mb} MB)`;
-    if (resultEl) { resultEl.textContent = JSON.stringify(data, null, 2); resultEl.classList.remove("hidden"); }
+    renderResultCard(resultEl, data, "Export Details");
   } catch (err) {
     if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`;
   }
@@ -6317,7 +6364,7 @@ async function importFromUrl() {
     const data = await resp.json();
     if (!resp.ok) { if (statusEl) statusEl.textContent = `Error: ${data.detail || "Failed"}`; return; }
     if (statusEl) statusEl.textContent = `✓ Imported ${data.detected_format?.toUpperCase() || "file"} → ${studio} studio`;
-    if (resultEl) { resultEl.textContent = JSON.stringify(data, null, 2); resultEl.classList.remove("hidden"); }
+    renderResultCard(resultEl, data, "Import Result");
   } catch (err) {
     if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`;
   }
@@ -6369,7 +6416,7 @@ async function runBatchExport() {
     const data = await resp.json();
     if (!resp.ok) { if (statusEl) statusEl.textContent = `Error: ${data.detail || "Failed"}`; return; }
     if (statusEl) statusEl.textContent = `✓ Batch export: ${data.total_items} items, ${data.estimated_total_size_mb} MB total`;
-    if (resultEl) { resultEl.textContent = JSON.stringify(data, null, 2); resultEl.classList.remove("hidden"); }
+    renderResultCard(resultEl, data, "Batch Export");
   } catch (err) {
     if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`;
   }
@@ -6393,7 +6440,7 @@ async function runQualityCheck() {
     const data = await resp.json();
     if (!resp.ok) { if (statusEl) statusEl.textContent = `Error: ${data.detail || "Failed"}`; return; }
     if (statusEl) statusEl.textContent = `✓ Quality score: ${data.quality_score}/100 (Grade ${data.grade})`;
-    if (resultEl) { resultEl.textContent = JSON.stringify(data, null, 2); resultEl.classList.remove("hidden"); }
+    renderResultCard(resultEl, data, "Quality Report");
   } catch (err) {
     if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`;
   }
