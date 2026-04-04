@@ -470,10 +470,10 @@ class TestApplyAiVideoTool:
         result = apply_ai_video_tool(_SAMPLE_SCENES, "slow_mo")
         assert result["fps_output"] == 60
 
-    def test_all_tools_return_tool_key(self):
+    def test_all_tools_return_scenes_processed(self):
         for tool in _VALID_AI_TOOLS:
             result = apply_ai_video_tool(_SAMPLE_SCENES, tool)
-            assert result.get("tool") == tool or "captions" in result or "stabilization_strength" in result
+            assert result["scenes_processed"] == len(_SAMPLE_SCENES)
 
     def test_options_none_default(self):
         result = apply_ai_video_tool(_SAMPLE_SCENES, "stabilize", options=None)

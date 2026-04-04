@@ -5363,7 +5363,7 @@ function vsGetScenesData() {
 }
 
 // Hook intensity display
-(function () {
+document.addEventListener('DOMContentLoaded', function () {
   const vsIntensityInput = el('vsEffectIntensity');
   if (vsIntensityInput) {
     vsIntensityInput.addEventListener('input', function() {
@@ -5371,17 +5371,7 @@ function vsGetScenesData() {
       if (v) v.textContent = parseFloat(this.value).toFixed(1);
     });
   }
-  // Retry after DOM ready in case element not yet painted
-  document.addEventListener('DOMContentLoaded', function () {
-    const inp = el('vsEffectIntensity');
-    if (inp) {
-      inp.addEventListener('input', function() {
-        const v = el('vsEffectIntensityVal');
-        if (v) v.textContent = parseFloat(this.value).toFixed(1);
-      });
-    }
-  });
-})();
+});
 
 /* ════════════════════════════════════════════════════════════════
    PHASE 16 — Notifications Bell
