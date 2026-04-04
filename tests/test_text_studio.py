@@ -618,3 +618,133 @@ class TestTextStudioMarkdownPreviewAndExport:
         assert match, "visualStudio element not found"
         assert "hidden" in match.group(1)
 
+
+
+# ---------------------------------------------------------------------------
+# POST /text-studio/analyze-document
+# ---------------------------------------------------------------------------
+
+class TestAnalyzeDocument:
+    def test_basic_analysis(self):
+        resp = client.post("/text-studio/analyze-document", json={"text": "This is a great example of wonderful writing. The story is beautiful and amazing."})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "word_count" in data
+        assert "readability_level" in data
+        assert "sentiment" in data
+        assert "keywords" in data
+        assert isinstance(data["keywords"], list)
+
+    def test_word_count_correct(self):
+        text = "one two three four five"
+        resp = client.post("/text-studio/analyze-document", json={"text": text})
+        assert resp.status_code == 200
+        assert resp.json()["word_count"] == 5
+
+    def test_positive_sentiment(self):
+        resp = client.post("/text-studio/analyze-document", json={"text": "This is wonderful, great, amazing and fantastic work! I love it!"})
+        assert resp.status_code == 200
+        assert resp.json()["sentiment"] == "positive"
+
+    def test_negative_sentiment(self):
+        resp = client.post("/text-studio/analyze-document", json={"text": "This is terrible, awful, bad and horrible. I hate it!"})
+        assert resp.status_code == 200
+        assert resp.json()["sentiment"] == "negative"
+
+    def test_readability_fields(self):
+        resp = client.post("/text-studio/analyze-document", json={"text": "The quick brown fox jumps over the lazy dog. Simple sentences are easy to read."})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "readability_score" in data
+        assert "avg_words_per_sentence" in data
+        assert "estimated_reading_time_min" in data
+        assert "char_count" in data
+
+    def test_too_short_text_rejected(self):
+        resp = client.post("/text-studio/analyze-document", json={"text": "short"})
+        assert resp.status_code == 422
+
+    def test_empty_text_rejected(self):
+        resp = client.post("/text-studio/analyze-document", json={"text": ""})
+        assert resp.status_code == 422
+
+    def test_keywords_are_meaningful(self):
+        resp = client.post("/text-studio/analyze-document", json={"text": "Python programming language is excellent for data science. Python developers love Python."})
+        assert resp.status_code == 200
+        keywords = [k["word"] for k in resp.json()["keywords"]]
+        assert "python" in keywords
+
+    def test_sentence_count(self):
+        resp = client.post("/text-studio/analyze-document", json={"text": "First sentence here. Second sentence here. Third sentence here."})
+        assert resp.status_code == 200
+        assert resp.json()["sentence_count"] >= 2
+
+    def test_reading_time_non_negative(self):
+        resp = client.post("/text-studio/analyze-document", json={"text": "A reasonable amount of text to check reading time is calculated properly for the user."})
+        assert resp.status_code == 200
+        assert resp.json()["estimated_reading_time_min"] >= 0
+
+
+# ---------------------------------------------------------------------------
+# POST /text-studio/generate-outline
+# ---------------------------------------------------------------------------
+
+class TestGenerateOutline:
+    def test_basic_outline(self):
+        resp = client.post("/text-studio/generate-outline", json={
+            "text": "Introduction to the topic.\n\nMain body with more details about the subject matter and discussion.\n\nConclusion and final thoughts."
+        })
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "outline" in data
+        assert isinstance(data["outline"], list)
+        assert len(data["outline"]) > 0
+
+    def test_outline_has_sections(self):
+        resp = client.post("/text-studio/generate-outline", json={
+            "text": "Chapter one.\n\nChapter two.\n\nChapter three."
+        })
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["sections"] >= 1
+
+    def test_outline_title(self):
+        resp = client.post("/text-studio/generate-outline", json={"text": "My document title line here.\n\nSome content follows."})
+        assert resp.status_code == 200
+        assert "title" in resp.json()
+
+    def test_depth_param(self):
+        resp = client.post("/text-studio/generate-outline", json={
+            "text": "Section with multiple sentences. First point here. Second point matters. Third point also.",
+            "depth": 2
+        })
+        assert resp.status_code == 200
+        assert resp.json()["depth"] == 2
+
+    def test_depth_too_high_rejected(self):
+        resp = client.post("/text-studio/generate-outline", json={"text": "Some text here to test validation", "depth": 10})
+        assert resp.status_code == 422
+
+    def test_depth_zero_rejected(self):
+        resp = client.post("/text-studio/generate-outline", json={"text": "Some text here to test validation", "depth": 0})
+        assert resp.status_code == 422
+
+    def test_short_text_rejected(self):
+        resp = client.post("/text-studio/generate-outline", json={"text": "short"})
+        assert resp.status_code == 422
+
+    def test_empty_text_rejected(self):
+        resp = client.post("/text-studio/generate-outline", json={"text": ""})
+        assert resp.status_code == 422
+
+    def test_outline_sections_have_headings(self):
+        resp = client.post("/text-studio/generate-outline", json={"text": "First section heading.\n\nSecond section content with more words."})
+        assert resp.status_code == 200
+        for section in resp.json()["outline"]:
+            assert "heading" in section
+            assert "level" in section
+
+    def test_max_depth_4(self):
+        resp = client.post("/text-studio/generate-outline", json={"text": "Deep document with lots of content here to analyze.", "depth": 4})
+        assert resp.status_code == 200
+        assert resp.json()["depth"] == 4

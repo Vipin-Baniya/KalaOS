@@ -4176,6 +4176,68 @@ function escHtml(str) {
     .replace(/"/g, "&quot;");
 }
 
+// ── Document Analysis & Outline ────────────────────────────────
+function tsToggleDocAnalysis() {
+  const panel = el('tsDocAnalysisPanel');
+  if (!panel) return;
+  panel.classList.toggle('hidden');
+}
+
+async function tsAnalyzeDocument() {
+  const textEl = el('artText') || el('textInput') || el('tsTextArea') || document.querySelector('#textStudio textarea');
+  const text = textEl?.value?.trim() || '';
+  if (text.length < 10) { showToast('Write at least 10 characters to analyze'); return; }
+  const result = el('tsDocAnalysisResult');
+  if (result) { result.classList.remove('hidden'); result.textContent = 'Analyzing\u2026'; }
+  try {
+    const resp = await fetch(`${API_BASE}/text-studio/analyze-document`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({text}),
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+    const data = await resp.json();
+    if (result) {
+      result.innerHTML = `
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.5rem">
+          <div class="stat-chip">\u{1F4DD} <strong>${data.word_count}</strong> words</div>
+          <div class="stat-chip">\u{1F4D6} <strong>${data.readability_level}</strong></div>
+          <div class="stat-chip">\u{1F60A} Sentiment: <strong>${data.sentiment}</strong></div>
+          <div class="stat-chip">\u23F1 ~${data.estimated_reading_time_min} min read</div>
+        </div>
+        <div style="margin-top:.5rem"><strong>Keywords:</strong> ${data.keywords.map(k => escHtml(k.word)).join(', ')}</div>
+      `;
+    }
+  } catch(e) { if (result) result.textContent = 'Analysis failed. Try again.'; }
+}
+
+async function tsGenerateOutline() {
+  const textEl = el('artText') || el('textInput') || el('tsTextArea') || document.querySelector('#textStudio textarea');
+  const text = textEl?.value?.trim() || '';
+  if (text.length < 10) { showToast('Write at least 10 characters to generate outline'); return; }
+  const result = el('tsOutlineResult');
+  if (result) { result.classList.remove('hidden'); result.textContent = 'Generating outline\u2026'; }
+  try {
+    const resp = await fetch(`${API_BASE}/text-studio/generate-outline`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({text, depth: 2}),
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+    const data = await resp.json();
+    if (result) {
+      const lines = data.outline.map((s, i) => {
+        let html = `<div style="font-weight:600;margin:.4rem 0 .2rem">\u{1F4CC} ${i+1}. ${escHtml(s.heading)}</div>`;
+        if (s.sub_items?.length) {
+          html += s.sub_items.map(sub => `<div style="padding-left:1.5rem;opacity:.8">&bull; ${escHtml(sub.heading)}</div>`).join('');
+        }
+        return html;
+      });
+      result.innerHTML = `<div><strong>${escHtml(data.title)}</strong> &mdash; ${data.sections} sections</div>${lines.join('')}`;
+    }
+  } catch(e) { if (result) result.textContent = 'Outline generation failed. Try again.'; }
+}
+
+
+
 /* ════════════════════════════════════════════════════════════════════
    ANIMATION STUDIO  🎬  (Phase 13 – AI Animation Generator)
 ════════════════════════════════════════════════════════════════════ */

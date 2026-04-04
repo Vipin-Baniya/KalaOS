@@ -30,7 +30,7 @@ import os as _os
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
@@ -911,6 +911,99 @@ def text_studio_patterns(request: AnalyseRequest):
         "symmetry_score":  genome.symmetry_score,
         "rhyme_density":   genome.rhyme_density,
         "complexity_score": genome.complexity_score,
+    }
+
+
+class DocumentAnalysisRequest(BaseModel):
+    text: str = Field(..., min_length=10)
+
+
+class OutlineRequest(BaseModel):
+    text: str = Field(..., min_length=10)
+    depth: int = Field(default=2, ge=1, le=4)
+
+
+@app.post("/text-studio/analyze-document", summary="Analyze document readability, sentiment, and keywords")
+def analyze_document(body: DocumentAnalysisRequest):
+    import re
+    text = body.text.strip()
+    words = text.split()
+    sentences = re.split(r'[.!?]+', text)
+    sentences = [s.strip() for s in sentences if s.strip()]
+    word_count = len(words)
+    sentence_count = len(sentences)
+    avg_words_per_sentence = round(word_count / max(sentence_count, 1), 1)
+    avg_syllables = sum(max(1, len(re.findall(r'[aeiouAEIOU]', w))) for w in words) / max(word_count, 1)
+    flesch = max(0, min(100, round(206.835 - 1.015 * avg_words_per_sentence - 84.6 * avg_syllables, 1)))
+    if flesch >= 70:
+        readability = "Easy"
+    elif flesch >= 50:
+        readability = "Standard"
+    elif flesch >= 30:
+        readability = "Difficult"
+    else:
+        readability = "Very Difficult"
+    pos_words = {'good', 'great', 'excellent', 'amazing', 'wonderful', 'love', 'best', 'happy', 'joy', 'perfect', 'beautiful', 'fantastic', 'awesome', 'brilliant', 'outstanding'}
+    neg_words = {'bad', 'terrible', 'awful', 'hate', 'worst', 'sad', 'horrible', 'poor', 'wrong', 'fail', 'ugly', 'broken', 'useless', 'disappointing'}
+    text_lower = text.lower()
+    pos_count = sum(1 for w in pos_words if w in text_lower)
+    neg_count = sum(1 for w in neg_words if w in text_lower)
+    if pos_count > neg_count:
+        sentiment = "positive"
+    elif neg_count > pos_count:
+        sentiment = "negative"
+    else:
+        sentiment = "neutral"
+    sentiment_score = round((pos_count - neg_count) / max(word_count / 10, 1), 2)
+    stop_words = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'from', 'is', 'are', 'was', 'were', 'be', 'been', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'this', 'that', 'these', 'those', 'it', 'its', 'he', 'she', 'they', 'we', 'you', 'i', 'me', 'him', 'her', 'us', 'them'}
+    word_freq: dict = {}
+    for w in re.findall(r'\b[a-zA-Z]{3,}\b', text_lower):
+        if w not in stop_words:
+            word_freq[w] = word_freq.get(w, 0) + 1
+    keywords = sorted(word_freq.items(), key=lambda x: -x[1])[:10]
+    return {
+        "word_count": word_count,
+        "sentence_count": sentence_count,
+        "avg_words_per_sentence": avg_words_per_sentence,
+        "readability_score": flesch,
+        "readability_level": readability,
+        "sentiment": sentiment,
+        "sentiment_score": sentiment_score,
+        "keywords": [{"word": w, "frequency": f} for w, f in keywords],
+        "char_count": len(text),
+        "estimated_reading_time_min": round(word_count / 200, 1),
+    }
+
+
+@app.post("/text-studio/generate-outline", summary="Generate a document outline from text")
+def generate_outline(body: OutlineRequest):
+    import re
+    text = body.text.strip()
+    depth = body.depth
+    paragraphs = [p.strip() for p in re.split(r'\n{2,}', text) if p.strip()]
+    if not paragraphs:
+        paragraphs = [text[:200]]
+    outline = []
+    for para in paragraphs[:10]:
+        words = para.split()[:8]
+        heading = ' '.join(words).rstrip('.,;:')
+        section: dict = {"level": 1, "heading": heading, "word_count": len(para.split())}
+        if depth >= 2 and len(para.split()) > 50:
+            sentences = re.split(r'[.!?]+', para)
+            sentences = [s.strip() for s in sentences if s.strip()]
+            sub_items = []
+            for sent in sentences[:3]:
+                sub_words = sent.split()[:6]
+                sub_heading = ' '.join(sub_words).rstrip('.,;:')
+                if sub_heading:
+                    sub_items.append({"level": 2, "heading": sub_heading})
+            section["sub_items"] = sub_items
+        outline.append(section)
+    return {
+        "sections": len(outline),
+        "depth": depth,
+        "outline": outline,
+        "title": outline[0]["heading"] if outline else "Document",
     }
 
 
