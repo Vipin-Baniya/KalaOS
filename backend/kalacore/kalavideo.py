@@ -17,6 +17,7 @@ build_scene(index, text, image_concept, animation, duration, voice_text, bg_musi
 from __future__ import annotations
 
 import re
+from datetime import datetime, timezone
 from typing import Any, Literal
 
 # ---------------------------------------------------------------------------
@@ -297,4 +298,105 @@ def generate_video_script(
         "total_duration": total_duration,
         "bg_music_hint": bg_music,
         "creative_score": creative_score,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Video Effects
+# ---------------------------------------------------------------------------
+
+_VALID_EFFECTS: set[str] = {"blur", "sharpen", "cinematic", "vintage", "vhs", "bw", "glitch"}
+
+_EFFECT_CSS: dict[str, str] = {
+    "sharpen":   "contrast(1.4) saturate(1.2)",
+    "cinematic": "contrast(1.2) saturate(0.9) sepia(0.1)",
+    "vintage":   "sepia(0.4) saturate(0.8) brightness(0.9)",
+    "vhs":       "contrast(1.1) saturate(0.7) hue-rotate(5deg)",
+    "bw":        "grayscale(1)",
+    "glitch":    "hue-rotate(90deg) invert(0.1)",
+}
+
+
+def apply_video_effect(
+    scenes: list,
+    effect: str,
+    intensity: float = 1.0,
+) -> dict[str, Any]:
+    """Apply a visual effect to a list of scenes."""
+    if effect not in _VALID_EFFECTS:
+        raise ValueError(f"Invalid effect '{effect}'. Valid effects: {sorted(_VALID_EFFECTS)}")
+    if not (0.0 <= intensity <= 2.0):
+        raise ValueError("intensity must be between 0.0 and 2.0")
+
+    if effect == "blur":
+        filter_css = f"blur({int(intensity * 3)}px)"
+    else:
+        filter_css = _EFFECT_CSS[effect]
+
+    return {
+        "effect": effect,
+        "intensity": intensity,
+        "scenes_processed": len(scenes),
+        "filter_css": filter_css,
+        "preview_url": f"https://kalaos.com/preview/effect/{effect}",
+        "applied_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+# ---------------------------------------------------------------------------
+# AI Video Tools
+# ---------------------------------------------------------------------------
+
+_VALID_AI_TOOLS: set[str] = {"auto_caption", "stabilize", "color_grade", "slow_mo"}
+
+
+def apply_ai_video_tool(
+    scenes: list,
+    tool: str,
+    options: dict | None = None,
+) -> dict[str, Any]:
+    """Apply an AI video tool to a list of scenes."""
+    if tool not in _VALID_AI_TOOLS:
+        raise ValueError(f"Invalid tool '{tool}'. Valid tools: {sorted(_VALID_AI_TOOLS)}")
+
+    if tool == "auto_caption":
+        return {
+            "tool": "auto_caption",
+            "captions": [
+                {
+                    "scene": i + 1,
+                    "text": f"Scene {i + 1}: {scene.get('text', scene.get('narration', 'Content'))[:50]}",
+                    "timestamp": f"00:{i * 3:02d}:00",
+                }
+                for i, scene in enumerate(scenes)
+            ],
+            "scenes_processed": len(scenes),
+        }
+
+    if tool == "stabilize":
+        return {
+            "tool": "stabilize",
+            "stabilization_strength": options.get("strength", 0.8) if options else 0.8,
+            "scenes_processed": len(scenes),
+            "smoothing_factor": 0.95,
+            "status": "stabilized",
+        }
+
+    if tool == "color_grade":
+        return {
+            "tool": "color_grade",
+            "grade_preset": options.get("preset", "cinematic") if options else "cinematic",
+            "lut_applied": True,
+            "scenes_processed": len(scenes),
+            "adjustments": {"shadows": -10, "midtones": 5, "highlights": -5, "saturation": 1.1},
+        }
+
+    # slow_mo
+    speed = options.get("speed", 0.5) if options else 0.5
+    return {
+        "tool": "slow_mo",
+        "speed_factor": speed,
+        "fps_output": 60,
+        "scenes_processed": len(scenes),
+        "duration_multiplier": 1 / speed,
     }
