@@ -1155,8 +1155,8 @@ def generate_sampler_bank(bank: str, pad_count: int = 16) -> dict:
             f"Invalid bank '{bank}'. Must be one of: {', '.join(_VALID_BANKS)}"
         )
 
-    labels = _SAMPLER_BANKS.get(bank, [f"Pad {i+1}" for i in range(16)])
-    # Pad with generic labels if the bank has fewer entries than pad_count
+    labels = _SAMPLER_BANKS[bank]
+    # Extend with generic labels if the bank has fewer entries than pad_count
     while len(labels) < pad_count:
         labels.append(f"Pad {len(labels)+1}")
 

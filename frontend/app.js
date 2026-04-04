@@ -6388,9 +6388,9 @@ async function pcDistribute() {
     'G#': 415.30, 'A': 440.00, 'A#': 466.16, 'B': 493.88
   };
 
-  function getFreq(note, oct) {
+  function getFreq(note, octave) {
     const base = NOTE_FREQS[note] || 440;
-    return base * Math.pow(2, oct - 4);
+    return base * Math.pow(2, octave - 4);
   }
 
   function playNote(note, oct) {
@@ -6495,8 +6495,9 @@ async function pcDistribute() {
     };
     const note = noteMap[e.key.toLowerCase()];
     if (note) {
-      const oct = (e.key.toLowerCase() === 'k') ? octave + 1 : octave;
-      playNote(note, oct);
+      // 'k' maps to C one octave above the current octave (wraps the keyboard span)
+      const targetOctave = (e.key.toLowerCase() === 'k') ? octave + 1 : octave;
+      playNote(note, targetOctave);
     }
     if (e.key === '+' || e.key === '=') keyboardOctaveUp();
     if (e.key === '-') keyboardOctaveDown();
