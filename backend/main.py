@@ -50,7 +50,7 @@ from kalacore.kalacustody import custody, assess_artistic_lineage
 from kalacore.temporal import analyze_temporal
 from kalacore.kalavisual import analyze_visual, generate_image_concept, animate_canvas_objects, export_canvas_gif, generate_3d_scene, apply_ai_photo_edit
 from kalacore.kalaproducer import produce, generate_ai_beat, generate_sampler_bank, generate_virtual_keyboard_config
-from kalacore.kalaanimation import generate_animation_plan, parse_storyboard
+from kalacore.kalaanimation import generate_animation_plan, parse_storyboard, prepare_mp4_export
 from kalacore.kalavideo import (
     generate_video_script,
     build_scene,
@@ -1450,6 +1450,24 @@ def animation_generate(request: AnimationGenerateRequest):
             status_code=500, detail=f"Animation generation failed: {exc}"
         )
     return plan
+
+
+class AnimationExportMp4Request(BaseModel):
+    frames: list = Field(..., min_length=1)
+    fps: int = 24
+    resolution: str = "1920x1080"
+
+
+@app.post("/animation/export-mp4", summary="Prepare MP4 export configuration for animation")
+def animation_export_mp4(body: AnimationExportMp4Request):
+    """Prepare an MP4 export configuration for the animation."""
+    if not body.frames:
+        raise HTTPException(status_code=422, detail="frames list must not be empty")
+    try:
+        result = prepare_mp4_export(body.frames, body.fps, body.resolution)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    return result
 
 class AuthRegisterRequest(BaseModel):
     email: str

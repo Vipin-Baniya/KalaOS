@@ -4503,11 +4503,50 @@ function _renderAnimTimeline(plan) {
   if (empty) empty.classList.add("hidden");
 }
 
+// ── Animation MP4 Export ────────────────────────────────────────
+async function animExportMp4() {
+  const fps = parseInt(el('animFpsSelect')?.value || '24', 10);
+  // Collect frames from timeline or generate demo frames
+  const frames = [];
+  const frameEls = document.querySelectorAll('#animTimeline .anim-frame, #animFrameList .frame-item');
+  if (frameEls.length > 0) {
+    frameEls.forEach((f, i) => frames.push({index: i, duration: 1/fps}));
+  } else {
+    // Demo: 3 frames
+    for (let i = 0; i < 3; i++) frames.push({index: i, duration: 1/fps});
+  }
+  const st = el('animMp4Status');
+  const result = el('animMp4Result');
+  const btn = el('animExportMp4Btn');
+  if (btn) btn.disabled = true;
+  if (st) st.textContent = 'Preparing MP4 export\u2026';
+  const resolution = el('animResSelect')?.value || '1920x1080';
+  try {
+    const resp = await fetch(`${API_BASE}/animation/export-mp4`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({frames, fps, resolution}),
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+    const data = await resp.json();
+    if (result) {
+      result.classList.remove('hidden');
+      result.innerHTML = `<strong>\u2714 MP4 Export Ready</strong><br>
+        Frames: ${data.frame_count} | FPS: ${data.fps} | Duration: ${data.duration_seconds}s<br>
+        Resolution: ${data.resolution} | Codec: ${data.codec}<br>
+        Estimated size: ${data.estimated_size_mb} MB<br>
+        <code style="font-size:.75rem;opacity:.7">${escHtml(data.ffmpeg_command)}</code>`;
+    }
+    if (st) st.textContent = `\u2714 Export prepared \u2014 ${data.duration_seconds}s @ ${data.fps}fps`;
+  } catch(e) {
+    if (st) st.textContent = 'Export preparation failed.';
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
 /* ════════════════════════════════════════════════════════════════════
    PLATFORM LAYER — Feed, Messages (DMs), Profile Page
 ════════════════════════════════════════════════════════════════════ */
-
-// ── Studio switcher: extend to handle feed / dms / profile ────────────────
 (function () {
   const _prevSwitch = switchStudio;
   const _PLATFORM_STUDIOS = ["feedStudio", "dmsStudio", "profileStudio"];
@@ -6149,6 +6188,64 @@ async function generateStreamOverlay() {
     if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`;
   }
 }
+
+// ── Now Playing Bar ──────────────────────────────────────────────
+(function initNowPlaying() {
+  const DEMO_QUEUE = [
+    {title: 'Cosmic Dreams', artist: 'KalaOS Artist', duration: 213},
+    {title: 'Night City Beat', artist: 'ProducerX', duration: 187},
+    {title: 'Solar Waves', artist: 'Wavecraft', duration: 244},
+    {title: 'Digital Rain', artist: 'ByteBeats', duration: 198},
+    {title: 'Neon Soul', artist: 'SynthPop', duration: 221},
+  ];
+  let queueIndex = 0;
+  let isPlaying = false;
+  let isShuffle = false;
+  let isRepeat = false;
+  let progressTimer = null;
+  let currentProgress = 0;
+
+  function loadTrack(index) {
+    queueIndex = Math.max(0, Math.min(index, DEMO_QUEUE.length-1));
+    const track = DEMO_QUEUE[queueIndex];
+    const tn = el('npTrackName'); if (tn) tn.textContent = track.title;
+    const an = el('npArtistName'); if (an) an.textContent = track.artist;
+    const dur = el('npDuration'); if (dur) dur.textContent = formatTime(track.duration);
+    currentProgress = 0;
+    const pb = el('npProgressBar'); if (pb) { pb.max = track.duration; pb.value = 0; }
+    const ct = el('npCurrentTime'); if (ct) ct.textContent = '0:00';
+  }
+
+  function formatTime(s) { return `${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,'0')}`; }
+
+  window.npTogglePlay = function() {
+    isPlaying = !isPlaying;
+    const btn = el('npPlayPauseBtn');
+    if (btn) btn.textContent = isPlaying ? '\u23F8' : '\u25B6';
+    if (isPlaying) {
+      progressTimer = setInterval(() => {
+        const track = DEMO_QUEUE[queueIndex];
+        currentProgress = Math.min(currentProgress + 1, track.duration);
+        const pb = el('npProgressBar'); if (pb) pb.value = currentProgress;
+        const ct = el('npCurrentTime'); if (ct) ct.textContent = formatTime(currentProgress);
+        if (currentProgress >= track.duration) {
+          isRepeat ? (currentProgress = 0) : window.npNextTrack();
+        }
+      }, 1000);
+    } else {
+      clearInterval(progressTimer);
+    }
+  };
+  window.npPrevTrack = function() { clearInterval(progressTimer); isPlaying = false; const b=el('npPlayPauseBtn'); if(b) b.textContent='\u25B6'; loadTrack(isShuffle ? Math.floor(Math.random()*DEMO_QUEUE.length) : queueIndex-1 < 0 ? DEMO_QUEUE.length-1 : queueIndex-1); };
+  window.npNextTrack = function() { clearInterval(progressTimer); isPlaying = false; const b=el('npPlayPauseBtn'); if(b) b.textContent='\u25B6'; loadTrack(isShuffle ? Math.floor(Math.random()*DEMO_QUEUE.length) : (queueIndex+1) % DEMO_QUEUE.length); };
+  window.npToggleShuffle = function() { isShuffle = !isShuffle; const b=el('npShuffleBtn'); if(b) b.style.opacity=isShuffle?'1':'.5'; };
+  window.npToggleRepeat = function() { isRepeat = !isRepeat; const b=el('npRepeatBtn'); if(b) b.style.opacity=isRepeat?'1':'.5'; };
+  window.npSeek = function(v) { currentProgress = parseInt(v); const ct=el('npCurrentTime'); if(ct) ct.textContent=formatTime(currentProgress); };
+  window.npSetVolume = function(v) { /* Web Audio volume control placeholder */ };
+
+  document.addEventListener('DOMContentLoaded', () => loadTrack(0));
+  setTimeout(() => loadTrack(0), 300);
+})();
 
 // ── Export helpers ────────────────────────────────────────
 const _EXPORT_FORMATS = {

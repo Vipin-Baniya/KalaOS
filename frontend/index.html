@@ -2040,6 +2040,25 @@
           <span class="anim-export-label">Export formats:</span>
           <span id="animExportFormats" class="anim-export-chips"></span>
         </div>
+
+        <!-- MP4 Export -->
+        <div class="anim-export-row" style="flex-wrap:wrap;gap:.5rem;margin-top:.5rem">
+          <select id="animFpsSelect" class="dc-ai-select" title="FPS">
+            <option value="12">12 fps</option>
+            <option value="24" selected>24 fps</option>
+            <option value="30">30 fps</option>
+            <option value="60">60 fps</option>
+          </select>
+          <select id="animResSelect" class="dc-ai-select" title="Resolution">
+            <option value="640x480">640×480</option>
+            <option value="1280x720">1280×720</option>
+            <option value="1920x1080" selected>1920×1080</option>
+            <option value="3840x2160">3840×2160 (4K)</option>
+          </select>
+          <button class="btn-secondary" id="animExportMp4Btn" onclick="animExportMp4()">🎬 Export MP4</button>
+        </div>
+        <div id="animMp4Status" class="vs-status" aria-live="polite"></div>
+        <div id="animMp4Result" class="hidden" style="background:var(--bg-2,#1a1a2e);border-radius:8px;padding:.75rem;font-size:.85rem;margin-top:.5rem"></div>
       </section>
 
     </div><!-- /animationStudio -->
@@ -2784,6 +2803,30 @@
       <button class="btn-primary" onclick="generateStreamOverlay()">🎨 Generate Overlay</button>
       <div id="streamOverlayStatus" class="vs-status" aria-live="polite"></div>
       <div id="streamOverlayResult" class="stream-result hidden"></div>
+    </div>
+  </div>
+
+  <!-- ── Now Playing Bar ── -->
+  <div class="now-playing-bar" id="nowPlayingBar" style="background:var(--bg-2,#1a1a2e);border-radius:12px;padding:1rem;margin-top:1rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+    <div style="flex:1;min-width:150px">
+      <div id="npTrackName" style="font-weight:600;font-size:.95rem">No track playing</div>
+      <div id="npArtistName" style="font-size:.8rem;opacity:.7">— Select a track to play —</div>
+    </div>
+    <div style="display:flex;gap:.5rem;align-items:center">
+      <button class="btn-ghost btn-sm" onclick="npPrevTrack()" aria-label="Previous">⏮</button>
+      <button class="btn-secondary" id="npPlayPauseBtn" onclick="npTogglePlay()" aria-label="Play/Pause" style="width:40px;height:40px;border-radius:50%;font-size:1.1rem">▶</button>
+      <button class="btn-ghost btn-sm" onclick="npNextTrack()" aria-label="Next">⏭</button>
+      <button class="btn-ghost btn-sm" onclick="npToggleShuffle()" id="npShuffleBtn" aria-label="Shuffle">🔀</button>
+      <button class="btn-ghost btn-sm" onclick="npToggleRepeat()" id="npRepeatBtn" aria-label="Repeat">🔁</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:.5rem;flex:1;min-width:120px">
+      <span style="font-size:.75rem;opacity:.6" id="npCurrentTime">0:00</span>
+      <input type="range" id="npProgressBar" min="0" max="100" value="0" style="flex:1" oninput="npSeek(this.value)" />
+      <span style="font-size:.75rem;opacity:.6" id="npDuration">0:00</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:.5rem">
+      <span style="font-size:.8rem">🔊</span>
+      <input type="range" id="npVolumeBar" min="0" max="100" value="80" style="width:70px" oninput="npSetVolume(this.value)" />
     </div>
   </div>
 </div>
