@@ -1094,3 +1094,159 @@ def generate_ai_beat(prompt: str) -> Dict[str, Any]:
         "genre":  matched_genre,
         "prompt": prompt,
     }
+
+
+# ---------------------------------------------------------------------------
+# Sampler Bank Generator
+# ---------------------------------------------------------------------------
+
+_SAMPLER_BANKS = {
+    "drums": [
+        "Kick", "Snare", "Hi-Hat", "Open HH", "Clap", "Tom Hi",
+        "Tom Mid", "Tom Lo", "Rim", "Cowbell", "Crash", "Ride",
+        "Shaker", "Tambourine", "Conga Hi", "Conga Lo",
+    ],
+    "percussion": [
+        "Clave", "Guiro", "Maracas", "Cabasa", "Agogo Hi", "Agogo Lo",
+        "Vibraslap", "Wood Blk", "Bell Tree", "Finger Snap", "Hand Clap",
+        "Slap", "Pop", "Click", "Tick", "Beep",
+    ],
+    "bass": [
+        "Bass 1", "Bass 2", "Sub Bass", "Pluck", "Stab", "Muted",
+        "Palm", "Slap Bass", "Pop Bass", "Fuzz", "Octave", "Chord",
+        "Arp Up", "Arp Dn", "Walk", "Root",
+    ],
+    "synth": [
+        "Lead 1", "Lead 2", "Pad 1", "Pad 2", "Pluck", "Stab",
+        "Chord", "Arp", "Bell", "Key", "Organ", "Brass",
+        "Sweep", "Rise", "Drop", "Zap",
+    ],
+    "vocals": [
+        "Aaah", "Oooh", "Hey!", "Yeah!", "Uh!", "Oh!", "Woo!", "Clap",
+        "Snap", "Stomp", "Grunt", "Breath", "Vox 1", "Vox 2", "Choir", "Harmony",
+    ],
+    "fx": [
+        "Riser", "Crash", "Downlift", "Swoosh", "Impact", "Whoosh",
+        "Zap", "Glitch", "Reverse", "Vinyl", "Tape", "Noise",
+        "Wind", "Rain", "Thunder", "Space",
+    ],
+}
+
+_VALID_BANKS = list(_SAMPLER_BANKS.keys())
+
+
+def generate_sampler_bank(bank: str, pad_count: int = 16) -> dict:
+    """Return a sampler bank configuration with pad metadata.
+
+    Parameters
+    ----------
+    bank:
+        One of ``drums``, ``percussion``, ``bass``, ``synth``, ``vocals``, ``fx``.
+    pad_count:
+        Number of pads to return (default 16).
+
+    Raises
+    ------
+    ValueError
+        If *bank* is not a recognised bank name.
+    """
+    if bank not in _VALID_BANKS:
+        raise ValueError(
+            f"Invalid bank '{bank}'. Must be one of: {', '.join(_VALID_BANKS)}"
+        )
+
+    labels = _SAMPLER_BANKS.get(bank, [f"Pad {i+1}" for i in range(16)])
+    # Pad with generic labels if the bank has fewer entries than pad_count
+    while len(labels) < pad_count:
+        labels.append(f"Pad {len(labels)+1}")
+
+    pads = [
+        {
+            "index": i,
+            "label": label,
+            "sample_url": (
+                f"https://cdn.kalaos.com/samples/{bank}/"
+                f"{label.lower().replace(' ', '_')}.wav"
+            ),
+            "velocity": 100,
+            "pitch": 60 + i,
+        }
+        for i, label in enumerate(labels[:pad_count])
+    ]
+
+    return {
+        "bank": bank,
+        "pad_count": pad_count,
+        "pads": pads,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Virtual Keyboard Config Generator
+# ---------------------------------------------------------------------------
+
+_VALID_INSTRUMENTS = ["piano", "organ", "strings", "synth", "bass", "marimba"]
+
+_WAVEFORM_MAP: dict = {
+    "piano":   "triangle",
+    "organ":   "square",
+    "strings": "sawtooth",
+    "synth":   "sawtooth",
+    "bass":    "triangle",
+    "marimba": "sine",
+}
+
+_NOTE_FREQS = [
+    ("C",   261.63, 60),
+    ("C#",  277.18, 61),
+    ("D",   293.66, 62),
+    ("D#",  311.13, 63),
+    ("E",   329.63, 64),
+    ("F",   349.23, 65),
+    ("F#",  369.99, 66),
+    ("G",   392.00, 67),
+    ("G#",  415.30, 68),
+    ("A",   440.00, 69),
+    ("A#",  466.16, 70),
+    ("B",   493.88, 71),
+]
+
+
+def generate_virtual_keyboard_config(instrument: str, octave: int = 4) -> dict:
+    """Return a virtual keyboard configuration for the given instrument and octave.
+
+    Parameters
+    ----------
+    instrument:
+        One of ``piano``, ``organ``, ``strings``, ``synth``, ``bass``, ``marimba``.
+    octave:
+        MIDI octave (1-8, default 4).
+
+    Raises
+    ------
+    ValueError
+        If *instrument* is not recognised.
+    """
+    if instrument not in _VALID_INSTRUMENTS:
+        raise ValueError(
+            f"Invalid instrument '{instrument}'. "
+            f"Must be one of: {', '.join(_VALID_INSTRUMENTS)}"
+        )
+
+    notes = [
+        {
+            "note":      note,
+            "octave":    octave,
+            "frequency": round(freq * (2 ** (octave - 4)), 2),
+            "midi":      midi_base + (octave - 4) * 12,
+        }
+        for note, freq, midi_base in _NOTE_FREQS
+    ]
+
+    return {
+        "instrument": instrument,
+        "octave":     octave,
+        "notes":      notes,
+        "effects":    {"reverb": 20, "volume": 80},
+        "waveform":   _WAVEFORM_MAP.get(instrument, "sine"),
+    }

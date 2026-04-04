@@ -6281,3 +6281,227 @@ async function pcDistribute() {
     if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`;
   }
 }
+
+// ── Sampler Pads ──────────────────────────────────────────────────────────
+(function initSampler() {
+  const PAD_COUNT = 16;
+  const BANK_LABELS = {
+    drums:      ['Kick','Snare','Hi-Hat','Open HH','Clap','Tom Hi','Tom Mid','Tom Lo','Rim','Cowbell','Crash','Ride','Shaker','Tambourine','Conga Hi','Conga Lo'],
+    percussion: ['Clave','Guiro','Maracas','Cabasa','Agogo Hi','Agogo Lo','Vibraslap','Wood Blk','Bell Tree','Finger Snap','Hand Clap','Slap','Pop','Click','Tick','Beep'],
+    bass:       ['Bass 1','Bass 2','Sub Bass','Pluck','Stab','Muted','Palm','Slap Bass','Pop Bass','Fuzz','Octave','Chord','Arp Up','Arp Dn','Walk','Root'],
+    synth:      ['Lead 1','Lead 2','Pad 1','Pad 2','Pluck','Stab','Chord','Arp','Bell','Key','Organ','Brass','Sweep','Rise','Drop','Zap'],
+    vocals:     ['Aaah','Oooh','Hey!','Yeah!','Uh!','Oh!','Woo!','Clap','Snap','Stomp','Grunt','Breath','Vox 1','Vox 2','Choir','Harmony'],
+    fx:         ['Riser','Crash','Downlift','Swoosh','Impact','Whoosh','Zap','Glitch','Reverse','Vinyl','Tape','Noise','Wind','Rain','Thunder','Space'],
+  };
+  let currentBank = 'drums';
+  let padLabels = [...BANK_LABELS.drums];
+  let isPlaying = false;
+  let currentStep = 0;
+  let stepTimer = null;
+  let padActive = Array(PAD_COUNT).fill(false);
+
+  window.samplerLoadBank = function(bank) {
+    currentBank = bank;
+    padLabels = [...(BANK_LABELS[bank] || BANK_LABELS.drums)];
+    renderSamplerGrid();
+    const st = el('samplerStatus');
+    if (st) st.textContent = `Loaded ${bank} bank`;
+  };
+
+  function renderSamplerGrid() {
+    const grid = el('samplerGrid');
+    if (!grid) return;
+    grid.innerHTML = '';
+    for (let i = 0; i < PAD_COUNT; i++) {
+      const pad = document.createElement('button');
+      pad.className = 'sampler-pad' + (padActive[i] ? ' active' : '');
+      pad.id = `samplerPad${i}`;
+      pad.setAttribute('data-pad', i);
+      pad.setAttribute('aria-label', padLabels[i]);
+      pad.innerHTML = `<span class="pad-label">${padLabels[i]}</span><span class="pad-num">${i+1}</span>`;
+      pad.addEventListener('mousedown', () => {
+        padActive[i] = !padActive[i];
+        pad.classList.toggle('active', padActive[i]);
+        padTrigger(i);
+      });
+      grid.appendChild(pad);
+    }
+  }
+
+  function padTrigger(i) {
+    const pad = el(`samplerPad${i}`);
+    if (!pad) return;
+    pad.classList.add('triggered');
+    setTimeout(() => pad.classList.remove('triggered'), 150);
+    const st = el('samplerStatus');
+    if (st) st.textContent = `▶ ${padLabels[i]}`;
+  }
+
+  window.samplerStartStop = function() {
+    isPlaying = !isPlaying;
+    const btn = el('samplerPlayBtn');
+    if (btn) btn.textContent = isPlaying ? '⏹ Stop' : '▶ Play';
+    if (isPlaying) runSequencer(); else { clearTimeout(stepTimer); currentStep = 0; }
+  };
+
+  function runSequencer() {
+    if (!isPlaying) return;
+    const bpm = parseInt(el('samplerBpm')?.value || '120', 10);
+    const interval = (60 / bpm / 4) * 1000;
+    document.querySelectorAll('.sampler-pad').forEach((p, i) => p.classList.toggle('step-active', i === currentStep));
+    if (padActive[currentStep]) padTrigger(currentStep);
+    currentStep = (currentStep + 1) % PAD_COUNT;
+    stepTimer = setTimeout(runSequencer, interval);
+  }
+
+  window.samplerClearAll = function() {
+    padActive = Array(PAD_COUNT).fill(false);
+    renderSamplerGrid();
+    isPlaying = false;
+    clearTimeout(stepTimer);
+    const btn = el('samplerPlayBtn');
+    if (btn) btn.textContent = '▶ Play';
+  };
+
+  document.addEventListener('DOMContentLoaded', () => {
+    if (el('samplerGrid')) renderSamplerGrid();
+  });
+  setTimeout(() => { if (el('samplerGrid') && el('samplerGrid').children.length === 0) renderSamplerGrid(); }, 500);
+})();
+
+// ── Virtual Keyboard ──────────────────────────────────────────────────────
+(function initVirtualKeyboard() {
+  const WHITE_KEYS = ['C','D','E','F','G','A','B'];
+  const BLACK_KEY_POSITIONS = [0,1,3,4,5]; // after which white key index
+  let octave = 4;
+  let instrument = 'piano';
+  let reverb = 20;
+  let volume = 80;
+  let isRecording = false;
+  let recording = [];
+  let recordStart = null;
+  let playbackTimer = null;
+
+  const NOTE_FREQS = {
+    'C': 261.63, 'C#': 277.18, 'D': 293.66, 'D#': 311.13,
+    'E': 329.63, 'F': 349.23, 'F#': 369.99, 'G': 392.00,
+    'G#': 415.30, 'A': 440.00, 'A#': 466.16, 'B': 493.88
+  };
+
+  function getFreq(note, oct) {
+    const base = NOTE_FREQS[note] || 440;
+    return base * Math.pow(2, oct - 4);
+  }
+
+  function playNote(note, oct) {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+      osc.connect(gainNode);
+      gainNode.connect(ctx.destination);
+      const waveTypes = { piano: 'triangle', organ: 'square', strings: 'sawtooth', synth: 'sawtooth', bass: 'triangle', marimba: 'sine' };
+      osc.type = waveTypes[instrument] || 'triangle';
+      osc.frequency.setValueAtTime(getFreq(note, oct), ctx.currentTime);
+      const vol = volume / 100 * 0.3;
+      gainNode.gain.setValueAtTime(vol, ctx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.8 + reverb / 200);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.8 + reverb / 200);
+    } catch(e) {}
+    if (isRecording) {
+      const t = Date.now() - (recordStart || Date.now());
+      recording.push({note, oct, time: t});
+    }
+    highlightKey(note, oct);
+    const st = el('keyboardStatus');
+    if (st) st.textContent = `♪ ${note}${oct}`;
+  }
+
+  function highlightKey(note, oct) {
+    const keyId = `pianoKey${note.replace('#','s')}${oct}`;
+    const k = el(keyId);
+    if (!k) return;
+    k.classList.add('pressed');
+    setTimeout(() => k.classList.remove('pressed'), 200);
+  }
+
+  function renderKeyboard() {
+    const kb = el('pianoKeyboard');
+    if (!kb) return;
+    kb.innerHTML = '';
+    [octave, octave + 1].forEach(o => {
+      const octDiv = document.createElement('div');
+      octDiv.className = 'piano-octave';
+      octDiv.style.cssText = 'position:relative;display:inline-flex;';
+      WHITE_KEYS.forEach((note, wi) => {
+        const key = document.createElement('button');
+        key.className = 'piano-key white-key';
+        key.id = `pianoKey${note}${o}`;
+        key.setAttribute('aria-label', `${note}${o}`);
+        key.innerHTML = `<span class="key-label">${note}</span>`;
+        key.addEventListener('mousedown', (e) => { e.preventDefault(); playNote(note, o); });
+        octDiv.appendChild(key);
+        if (BLACK_KEY_POSITIONS.includes(wi)) {
+          const sharpNote = note + '#';
+          const bkey = document.createElement('button');
+          bkey.className = 'piano-key black-key';
+          bkey.id = `pianoKey${sharpNote.replace('#','s')}${o}`;
+          bkey.setAttribute('aria-label', `${sharpNote}${o}`);
+          bkey.addEventListener('mousedown', (e) => { e.preventDefault(); playNote(sharpNote, o); });
+          octDiv.appendChild(bkey);
+        }
+      });
+      kb.appendChild(octDiv);
+    });
+  }
+
+  window.keyboardOctaveDown = function() {
+    if (octave > 1) { octave--; const d = el('keyboardOctaveDisplay'); if (d) d.textContent = octave; renderKeyboard(); }
+  };
+  window.keyboardOctaveUp = function() {
+    if (octave < 7) { octave++; const d = el('keyboardOctaveDisplay'); if (d) d.textContent = octave; renderKeyboard(); }
+  };
+  window.keyboardSetInstrument = function(v) { instrument = v; };
+  window.keyboardSetReverb = function(v) { reverb = parseInt(v, 10); };
+  window.keyboardSetVolume = function(v) { volume = parseInt(v, 10); };
+
+  window.keyboardToggleRecord = function() {
+    isRecording = !isRecording;
+    const btn = el('keyboardRecordBtn');
+    if (isRecording) {
+      recording = []; recordStart = Date.now();
+      if (btn) btn.style.color = '#f00';
+      const st = el('keyboardStatus'); if (st) st.textContent = '⏺ Recording...';
+    } else {
+      if (btn) btn.style.color = '';
+      const st = el('keyboardStatus'); if (st) st.textContent = `Recorded ${recording.length} notes`;
+    }
+  };
+
+  window.keyboardPlayRecording = function() {
+    if (!recording.length) return;
+    clearTimeout(playbackTimer);
+    recording.forEach(({note, oct, time}) => {
+      setTimeout(() => playNote(note, oct), time);
+    });
+  };
+
+  document.addEventListener('keydown', function(e) {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    const noteMap = {
+      'a':'C','w':'C#','s':'D','e':'D#','d':'E','f':'F','t':'F#',
+      'g':'G','y':'G#','h':'A','u':'A#','j':'B','k':'C'
+    };
+    const note = noteMap[e.key.toLowerCase()];
+    if (note) {
+      const oct = (e.key.toLowerCase() === 'k') ? octave + 1 : octave;
+      playNote(note, oct);
+    }
+    if (e.key === '+' || e.key === '=') keyboardOctaveUp();
+    if (e.key === '-') keyboardOctaveDown();
+  });
+
+  document.addEventListener('DOMContentLoaded', () => { if (el('pianoKeyboard')) renderKeyboard(); });
+  setTimeout(() => { if (el('pianoKeyboard') && el('pianoKeyboard').children.length === 0) renderKeyboard(); }, 500);
+})();

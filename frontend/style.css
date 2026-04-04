@@ -5658,3 +5658,88 @@ body.focus-mode #artText {
   .studio-tiles { grid-template-columns: 1fr 1fr; }
   .dashboard-stats { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* ── Sampler Pads ─────────────────────────────────────────────── */
+.sampler-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: .5rem;
+  margin-top: 1rem;
+}
+.sampler-pad {
+  background: var(--bg-2, #1a1a2e);
+  border: 2px solid var(--border, #333);
+  border-radius: 8px;
+  padding: .8rem .5rem;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: .25rem;
+  min-height: 60px;
+  transition: background .1s, border-color .1s, transform .07s;
+  color: var(--text-1, #fff);
+  font-size: .75rem;
+}
+.sampler-pad:hover { border-color: var(--accent, #7c5af1); }
+.sampler-pad.active { background: var(--accent, #7c5af1); border-color: var(--accent, #7c5af1); }
+.sampler-pad.triggered { transform: scale(0.93); background: var(--accent-2, #f0703a); }
+.sampler-pad.step-active { border-color: var(--accent-2, #f0703a); }
+.pad-label { font-weight: 600; }
+.pad-num { opacity: .5; font-size: .65rem; }
+.sampler-controls { display: flex; gap: 1rem; flex-wrap: wrap; align-items: center; margin-bottom: .5rem; }
+
+/* ── Virtual Keyboard ─────────────────────────────────────────── */
+.piano-keyboard {
+  display: flex;
+  gap: .25rem;
+  overflow-x: auto;
+  padding: .5rem 0 1rem;
+  min-height: 120px;
+  align-items: flex-end;
+}
+.piano-octave {
+  position: relative;
+  display: inline-flex;
+  margin-right: .5rem;
+}
+.piano-key {
+  cursor: pointer;
+  border-radius: 0 0 5px 5px;
+  border: none;
+  transition: background .1s, transform .05s;
+  position: relative;
+}
+.white-key {
+  width: 36px;
+  height: 110px;
+  background: #f0f0f0;
+  border: 1px solid #888;
+  color: #333;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 4px;
+  font-size: .65rem;
+  font-weight: 600;
+  z-index: 1;
+}
+.white-key:hover { background: #ddd; }
+.white-key.pressed { background: var(--accent, #7c5af1); color: #fff; transform: translateY(2px); }
+.black-key {
+  width: 24px;
+  height: 70px;
+  background: #222;
+  color: #fff;
+  font-size: .55rem;
+  position: absolute;
+  right: -12px;
+  bottom: 0;
+  z-index: 2;
+  border: 1px solid #000;
+}
+.black-key:hover { background: #444; }
+.black-key.pressed { background: var(--accent, #7c5af1); transform: translateY(2px); }
+.key-label { pointer-events: none; }
+.keyboard-controls { display: flex; gap: 1rem; flex-wrap: wrap; align-items: center; margin-bottom: 1rem; }

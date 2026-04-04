@@ -49,7 +49,7 @@ from kalacore.kalaflow import flow
 from kalacore.kalacustody import custody, assess_artistic_lineage
 from kalacore.temporal import analyze_temporal
 from kalacore.kalavisual import analyze_visual, generate_image_concept, animate_canvas_objects, export_canvas_gif
-from kalacore.kalaproducer import produce, generate_ai_beat
+from kalacore.kalaproducer import produce, generate_ai_beat, generate_sampler_bank, generate_virtual_keyboard_config
 from kalacore.kalaanimation import generate_animation_plan, parse_storyboard
 from kalacore.kalavideo import generate_video_script, build_scene, _VALID_STYLES as _VIDEO_STYLES
 from kalacore.kalaintelligence import transform as intelligence_transform, ai_assist, VALID_INPUT_TYPES, VALID_OUTPUT_TYPES
@@ -1713,8 +1713,81 @@ def ai_beat_endpoint(request: AiBeatRequest):
 
 
 # ---------------------------------------------------------------------------
-# Video Studio — AI Video Generator (Phase 15)
+# Music Studio — Sampler Bank (Phase 16)
 # ---------------------------------------------------------------------------
+
+class SamplerBankRequest(BaseModel):
+    bank: str
+    pad_count: int = 16
+
+    @field_validator("bank")
+    @classmethod
+    def bank_valid(cls, v: str) -> str:
+        valid = ["drums", "percussion", "bass", "synth", "vocals", "fx"]
+        if v not in valid:
+            raise ValueError(f"Invalid bank '{v}'. Must be one of: {', '.join(valid)}")
+        return v
+
+    @field_validator("pad_count")
+    @classmethod
+    def pad_count_valid(cls, v: int) -> int:
+        if v < 1 or v > 64:
+            raise ValueError("pad_count must be between 1 and 64")
+        return v
+
+
+@app.post(
+    "/music-studio/sampler-bank",
+    summary="Sampler Bank: return pad configuration for a named sample bank",
+)
+def sampler_bank_endpoint(request: SamplerBankRequest):
+    """Return a 16-pad (or custom count) sampler bank configuration."""
+    try:
+        result = generate_sampler_bank(request.bank, request.pad_count)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Sampler bank generation failed: {exc}")
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Music Studio — Virtual Keyboard Config (Phase 16)
+# ---------------------------------------------------------------------------
+
+class KeyboardConfigRequest(BaseModel):
+    instrument: str
+    octave: int = 4
+
+    @field_validator("instrument")
+    @classmethod
+    def instrument_valid(cls, v: str) -> str:
+        valid = ["piano", "organ", "strings", "synth", "bass", "marimba"]
+        if v not in valid:
+            raise ValueError(f"Invalid instrument '{v}'. Must be one of: {', '.join(valid)}")
+        return v
+
+    @field_validator("octave")
+    @classmethod
+    def octave_valid(cls, v: int) -> int:
+        if v < 1 or v > 8:
+            raise ValueError("octave must be between 1 and 8")
+        return v
+
+
+@app.post(
+    "/music-studio/keyboard-config",
+    summary="Virtual Keyboard Config: return note/frequency mapping for an instrument",
+)
+def keyboard_config_endpoint(request: KeyboardConfigRequest):
+    """Return note frequencies and waveform config for the virtual keyboard."""
+    try:
+        result = generate_virtual_keyboard_config(request.instrument, request.octave)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Keyboard config generation failed: {exc}")
+    return result
 
 class VideoScriptRequest(BaseModel):
     prompt: str
