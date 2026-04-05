@@ -44,7 +44,7 @@ from typing import Any
 _VALID_PLATFORMS: set[str] = {
     "spotify", "apple_music", "youtube", "instagram", "tiktok",
     "soundcloud", "bandcamp", "amazon_music", "deezer", "tidal",
-    "twitter", "facebook", "twitch", "patreon", "discord",
+    "twitter", "facebook", "twitch", "patreon", "discord", "distrokid",
 }
 
 _VALID_TIME_RANGES: set[str] = {"7d", "30d", "90d", "1y"}
