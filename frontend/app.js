@@ -6085,3 +6085,222 @@ async function runQualityCheck() {
     if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`;
   }
 }
+
+// ── Platform Connect Studio ───────────────────────────────
+(function () {
+  const _prevSS = switchStudio;
+  const _PC_STUDIO = "platformConnectStudio";
+  const _PC_BTN    = "platformConnectStudioBtn";
+
+  switchStudio = function (mode) {
+    const pcStudio = el(_PC_STUDIO);
+    const pcBtn    = el(_PC_BTN);
+    if (pcStudio) pcStudio.classList.add("hidden");
+    if (pcBtn)    { pcBtn.classList.remove("active"); pcBtn.setAttribute("aria-selected", "false"); }
+
+    if (mode === "platform-connect") {
+      ["textStudio","musicStudio","visualStudio","animationStudio","videoStudio",
+       "chatStudio","feedStudio","dmsStudio","profileStudio","collabStudio","streamStudio","exportStudio"]
+        .forEach(id => { const s = el(id); if (s) s.classList.add("hidden"); });
+      ["textStudioBtn","musicStudioBtn","visualStudioBtn","animationStudioBtn","videoStudioBtn",
+       "chatStudioBtn","feedStudioBtn","dmsStudioBtn","profileStudioBtn","collabStudioBtn","streamStudioBtn","exportStudioBtn"]
+        .forEach(id => { const b = el(id); if (b) { b.classList.remove("active"); b.setAttribute("aria-selected","false"); } });
+      if (pcStudio) pcStudio.classList.remove("hidden");
+      if (pcBtn) { pcBtn.classList.add("active"); pcBtn.setAttribute("aria-selected","true"); }
+      _hideAiPanel();
+      return;
+    }
+
+    _prevSS(mode);
+  };
+})();
+
+function switchPlatformConnectTool(tool) {
+  document.querySelectorAll(".collab-tool-btn[data-pctool]").forEach(b => {
+    const active = b.dataset.pctool === tool;
+    b.classList.toggle("active", active);
+    b.setAttribute("aria-selected", String(active));
+  });
+  document.querySelectorAll("#platformConnectStudio .collab-tool-pane").forEach(p => {
+    p.classList.toggle("hidden", p.id !== `pctool-${tool}`);
+  });
+}
+
+async function connectPlatform() {
+  const platform = el("pcOAuthPlatform")?.value;
+  const user_id  = el("pcOAuthUserId")?.value?.trim();
+  const scope    = el("pcOAuthScope")?.value?.trim();
+  const statusEl = el("pcOAuthStatus"), resultEl = el("pcOAuthResult");
+  if (!user_id) { if (statusEl) statusEl.textContent = "Please enter a user ID."; return; }
+  if (!scope)   { if (statusEl) statusEl.textContent = "Please enter a scope."; return; }
+  if (statusEl) statusEl.textContent = "Connecting…";
+  if (resultEl) resultEl.classList.add("hidden");
+  try {
+    const resp = await fetch(`${API_BASE}/platform-connect/oauth`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ platform, user_id, scope }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) { if (statusEl) statusEl.textContent = `Error: ${data.detail || "Failed"}`; return; }
+    if (statusEl) statusEl.textContent = `✓ Auth URL generated for ${platform}`;
+    if (resultEl) { resultEl.textContent = JSON.stringify(data, null, 2); resultEl.classList.remove("hidden"); }
+  } catch (err) { if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`; }
+}
+
+async function distributeRelease() {
+  const title    = el("pcDistTitle")?.value?.trim();
+  const artist   = el("pcDistArtist")?.value?.trim();
+  const platforms = (el("pcDistPlatforms")?.value || "").split(",").map(s => s.trim()).filter(Boolean);
+  const release_date = el("pcDistDate")?.value;
+  const statusEl = el("pcDistStatus"), resultEl = el("pcDistResult");
+  if (!title)  { if (statusEl) statusEl.textContent = "Please enter a title."; return; }
+  if (!artist) { if (statusEl) statusEl.textContent = "Please enter an artist."; return; }
+  if (!platforms.length) { if (statusEl) statusEl.textContent = "Please enter at least one platform."; return; }
+  if (statusEl) statusEl.textContent = "Submitting distribution…";
+  if (resultEl) resultEl.classList.add("hidden");
+  try {
+    const resp = await fetch(`${API_BASE}/platform-connect/distribute`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title, artist, platforms, release_date, metadata: {} }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) { if (statusEl) statusEl.textContent = `Error: ${data.detail || "Failed"}`; return; }
+    if (statusEl) statusEl.textContent = `✓ Release submitted: ID ${data.release_id}`;
+    if (resultEl) { resultEl.textContent = JSON.stringify(data, null, 2); resultEl.classList.remove("hidden"); }
+  } catch (err) { if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`; }
+}
+
+async function generateEPK() {
+  const artist_name   = el("pcEpkArtist")?.value?.trim();
+  const bio           = el("pcEpkBio")?.value?.trim();
+  const genres        = (el("pcEpkGenres")?.value || "").split(",").map(s => s.trim()).filter(Boolean);
+  const contact_email = el("pcEpkEmail")?.value?.trim();
+  const statusEl = el("pcEpkStatus"), resultEl = el("pcEpkResult");
+  if (!artist_name)   { if (statusEl) statusEl.textContent = "Please enter an artist name."; return; }
+  if (!bio)           { if (statusEl) statusEl.textContent = "Please enter a bio."; return; }
+  if (!contact_email) { if (statusEl) statusEl.textContent = "Please enter a contact email."; return; }
+  if (statusEl) statusEl.textContent = "Generating EPK…";
+  if (resultEl) resultEl.classList.add("hidden");
+  try {
+    const resp = await fetch(`${API_BASE}/platform-connect/epk`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ artist_name, bio, genres, contact_email, media_links: [] }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) { if (statusEl) statusEl.textContent = `Error: ${data.detail || "Failed"}`; return; }
+    if (statusEl) statusEl.textContent = `✓ EPK created: ${data.epk_id}`;
+    if (resultEl) { resultEl.textContent = JSON.stringify(data, null, 2); resultEl.classList.remove("hidden"); }
+  } catch (err) { if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`; }
+}
+
+async function getAnalytics() {
+  const platform   = el("pcAnalyticsPlatform")?.value;
+  const user_id    = el("pcAnalyticsUserId")?.value?.trim();
+  const time_range = el("pcAnalyticsRange")?.value;
+  const statusEl = el("pcAnalyticsStatus"), resultEl = el("pcAnalyticsResult");
+  if (!user_id) { if (statusEl) statusEl.textContent = "Please enter a user ID."; return; }
+  if (statusEl) statusEl.textContent = "Fetching analytics…";
+  if (resultEl) resultEl.classList.add("hidden");
+  try {
+    const resp = await fetch(`${API_BASE}/platform-connect/analytics`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ platform, user_id, time_range }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) { if (statusEl) statusEl.textContent = `Error: ${data.detail || "Failed"}`; return; }
+    if (statusEl) statusEl.textContent = `✓ ${data.metrics.streams.toLocaleString()} streams in ${time_range}`;
+    if (resultEl) { resultEl.textContent = JSON.stringify(data, null, 2); resultEl.classList.remove("hidden"); }
+  } catch (err) { if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`; }
+}
+
+async function syncCatalog() {
+  const user_id         = el("pcSyncUserId")?.value?.trim();
+  const source_platform = el("pcSyncSource")?.value?.trim();
+  const target_platforms = (el("pcSyncTargets")?.value || "").split(",").map(s => s.trim()).filter(Boolean);
+  const statusEl = el("pcSyncStatus"), resultEl = el("pcSyncResult");
+  if (!user_id)         { if (statusEl) statusEl.textContent = "Please enter a user ID."; return; }
+  if (!source_platform) { if (statusEl) statusEl.textContent = "Please enter a source platform."; return; }
+  if (statusEl) statusEl.textContent = "Syncing catalog…";
+  if (resultEl) resultEl.classList.add("hidden");
+  try {
+    const resp = await fetch(`${API_BASE}/platform-connect/sync-catalog`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id, source_platform, target_platforms }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) { if (statusEl) statusEl.textContent = `Error: ${data.detail || "Failed"}`; return; }
+    if (statusEl) statusEl.textContent = `✓ Syncing ${data.tracks_synced} tracks`;
+    if (resultEl) { resultEl.textContent = JSON.stringify(data, null, 2); resultEl.classList.remove("hidden"); }
+  } catch (err) { if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`; }
+}
+
+async function createSmartLink() {
+  const title   = el("pcLinkTitle")?.value?.trim();
+  const artist  = el("pcLinkArtist")?.value?.trim();
+  const spotify = el("pcLinkSpotify")?.value?.trim();
+  const youtube = el("pcLinkYoutube")?.value?.trim();
+  const statusEl = el("pcLinkStatus"), resultEl = el("pcLinkResult");
+  if (!title)  { if (statusEl) statusEl.textContent = "Please enter a title."; return; }
+  if (!artist) { if (statusEl) statusEl.textContent = "Please enter an artist."; return; }
+  const platforms_urls = {};
+  if (spotify) platforms_urls.spotify = spotify;
+  if (youtube) platforms_urls.youtube = youtube;
+  if (!Object.keys(platforms_urls).length) { if (statusEl) statusEl.textContent = "Enter at least one platform URL."; return; }
+  if (statusEl) statusEl.textContent = "Creating smart link…";
+  if (resultEl) resultEl.classList.add("hidden");
+  try {
+    const resp = await fetch(`${API_BASE}/platform-connect/smart-link`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title, artist, platforms_urls }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) { if (statusEl) statusEl.textContent = `Error: ${data.detail || "Failed"}`; return; }
+    if (statusEl) statusEl.textContent = `✓ Smart link: ${data.smart_url}`;
+    if (resultEl) { resultEl.textContent = JSON.stringify(data, null, 2); resultEl.classList.remove("hidden"); }
+  } catch (err) { if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`; }
+}
+
+async function scheduleRelease() {
+  const title        = el("pcSchedTitle")?.value?.trim();
+  const artist       = el("pcSchedArtist")?.value?.trim();
+  const release_date = el("pcSchedDate")?.value;
+  const platforms    = (el("pcSchedPlatforms")?.value || "").split(",").map(s => s.trim()).filter(Boolean);
+  const pre_save_enabled = el("pcSchedPresave")?.checked || false;
+  const statusEl = el("pcSchedStatus"), resultEl = el("pcSchedResult");
+  if (!title)  { if (statusEl) statusEl.textContent = "Please enter a title."; return; }
+  if (!artist) { if (statusEl) statusEl.textContent = "Please enter an artist."; return; }
+  if (!platforms.length) { if (statusEl) statusEl.textContent = "Enter at least one platform."; return; }
+  if (statusEl) statusEl.textContent = "Scheduling release…";
+  if (resultEl) resultEl.classList.add("hidden");
+  try {
+    const resp = await fetch(`${API_BASE}/platform-connect/schedule-release`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title, artist, release_date, platforms, pre_save_enabled }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) { if (statusEl) statusEl.textContent = `Error: ${data.detail || "Failed"}`; return; }
+    if (statusEl) statusEl.textContent = `✓ Scheduled: ${data.countdown_days} days to go`;
+    if (resultEl) { resultEl.textContent = JSON.stringify(data, null, 2); resultEl.classList.remove("hidden"); }
+  } catch (err) { if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`; }
+}
+
+async function getRoyaltyReport() {
+  const user_id  = el("pcRoyaltyUserId")?.value?.trim();
+  const period   = el("pcRoyaltyPeriod")?.value?.trim();
+  const platforms = (el("pcRoyaltyPlatforms")?.value || "").split(",").map(s => s.trim()).filter(Boolean);
+  const statusEl = el("pcRoyaltyStatus"), resultEl = el("pcRoyaltyResult");
+  if (!user_id) { if (statusEl) statusEl.textContent = "Please enter a user ID."; return; }
+  if (!period)  { if (statusEl) statusEl.textContent = "Please enter a period."; return; }
+  if (statusEl) statusEl.textContent = "Fetching royalty report…";
+  if (resultEl) resultEl.classList.add("hidden");
+  try {
+    const resp = await fetch(`${API_BASE}/platform-connect/royalty-report`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id, period, platforms }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) { if (statusEl) statusEl.textContent = `Error: ${data.detail || "Failed"}`; return; }
+    if (statusEl) statusEl.textContent = `✓ Total earnings: $${data.total_earnings}`;
+    if (resultEl) { resultEl.textContent = JSON.stringify(data, null, 2); resultEl.classList.remove("hidden"); }
+  } catch (err) { if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`; }
+}
