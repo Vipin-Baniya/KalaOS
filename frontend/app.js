@@ -5973,62 +5973,13 @@ document.addEventListener("DOMContentLoaded", () => {
 // COLLABORATION, STREAMING & EXPORT STUDIOS
 // ══════════════════════════════════════════════════════════
 
-// ── switchStudio wrapper for new studios ──────────────────
+// ── switchStudio wrapper — hides the dashboard when switching to any studio ──
 (function () {
   const _prevSS = switchStudio;
-  const _NEW_STUDIOS = ["collabStudio", "streamStudio", "exportStudio", "platformConnectStudio"];
-  const _NEW_BTNS    = ["collabStudioBtn", "streamStudioBtn", "exportStudioBtn", "platformConnectBtn"];
-
   switchStudio = function (mode) {
-    // Always hide dashboard panel when switching to any other studio
     const _ds = el("dashboardStudio"), _dsb = el("dashboardStudioBtn");
     if (_ds) _ds.classList.add("hidden");
     if (_dsb) { _dsb.classList.remove("active"); _dsb.setAttribute("aria-selected", "false"); }
-
-    // Always hide new studios and deactivate their buttons
-    _NEW_STUDIOS.forEach(id => { const s = el(id); if (s) s.classList.add("hidden"); });
-    _NEW_BTNS.forEach(id => { const b = el(id); if (b) { b.classList.remove("active"); b.setAttribute("aria-selected", "false"); } });
-
-    if (mode === "collab") {
-      ["textStudio","musicStudio","visualStudio","animationStudio","videoStudio","chatStudio","feedStudio","dmsStudio","profileStudio","streamStudio","exportStudio","platformConnectStudio"].forEach(id => { const s = el(id); if (s) s.classList.add("hidden"); });
-      ["textStudioBtn","musicStudioBtn","visualStudioBtn","animationStudioBtn","videoStudioBtn","chatStudioBtn","feedStudioBtn","dmsStudioBtn","profileStudioBtn","streamStudioBtn","exportStudioBtn","platformConnectBtn"].forEach(id => { const b = el(id); if (b) { b.classList.remove("active"); b.setAttribute("aria-selected","false"); } });
-      const s = el("collabStudio"), btn = el("collabStudioBtn");
-      if (s) s.classList.remove("hidden");
-      if (btn) { btn.classList.add("active"); btn.setAttribute("aria-selected","true"); }
-      _hideAiPanel();
-      return;
-    }
-
-    if (mode === "stream") {
-      ["textStudio","musicStudio","visualStudio","animationStudio","videoStudio","chatStudio","feedStudio","dmsStudio","profileStudio","collabStudio","exportStudio","platformConnectStudio"].forEach(id => { const s = el(id); if (s) s.classList.add("hidden"); });
-      ["textStudioBtn","musicStudioBtn","visualStudioBtn","animationStudioBtn","videoStudioBtn","chatStudioBtn","feedStudioBtn","dmsStudioBtn","profileStudioBtn","collabStudioBtn","exportStudioBtn","platformConnectBtn"].forEach(id => { const b = el(id); if (b) { b.classList.remove("active"); b.setAttribute("aria-selected","false"); } });
-      const s = el("streamStudio"), btn = el("streamStudioBtn");
-      if (s) s.classList.remove("hidden");
-      if (btn) { btn.classList.add("active"); btn.setAttribute("aria-selected","true"); }
-      _hideAiPanel();
-      return;
-    }
-
-    if (mode === "export") {
-      ["textStudio","musicStudio","visualStudio","animationStudio","videoStudio","chatStudio","feedStudio","dmsStudio","profileStudio","collabStudio","streamStudio","platformConnectStudio"].forEach(id => { const s = el(id); if (s) s.classList.add("hidden"); });
-      ["textStudioBtn","musicStudioBtn","visualStudioBtn","animationStudioBtn","videoStudioBtn","chatStudioBtn","feedStudioBtn","dmsStudioBtn","profileStudioBtn","collabStudioBtn","streamStudioBtn","platformConnectBtn"].forEach(id => { const b = el(id); if (b) { b.classList.remove("active"); b.setAttribute("aria-selected","false"); } });
-      const s = el("exportStudio"), btn = el("exportStudioBtn");
-      if (s) s.classList.remove("hidden");
-      if (btn) { btn.classList.add("active"); btn.setAttribute("aria-selected","true"); }
-      _hideAiPanel();
-      return;
-    }
-
-    if (mode === "platformConnect") {
-      ["textStudio","musicStudio","visualStudio","animationStudio","videoStudio","chatStudio","feedStudio","dmsStudio","profileStudio","collabStudio","streamStudio","exportStudio"].forEach(id => { const s = el(id); if (s) s.classList.add("hidden"); });
-      ["textStudioBtn","musicStudioBtn","visualStudioBtn","animationStudioBtn","videoStudioBtn","chatStudioBtn","feedStudioBtn","dmsStudioBtn","profileStudioBtn","collabStudioBtn","streamStudioBtn","exportStudioBtn"].forEach(id => { const b = el(id); if (b) { b.classList.remove("active"); b.setAttribute("aria-selected","false"); } });
-      const s = el("platformConnectStudio"), btn = el("platformConnectBtn");
-      if (s) s.classList.remove("hidden");
-      if (btn) { btn.classList.add("active"); btn.setAttribute("aria-selected","true"); }
-      _hideAiPanel();
-      return;
-    }
-
     _prevSS(mode);
   };
 })();
@@ -6040,7 +5991,7 @@ function switchCollabTool(tool) {
     b.classList.toggle("active", active);
     b.setAttribute("aria-selected", String(active));
   });
-  document.querySelectorAll(".collab-tool-pane").forEach(p => {
+  document.querySelectorAll("#collabStudio .collab-tool-pane").forEach(p => {
     p.classList.toggle("hidden", p.id !== `ctool-${tool}`);
   });
 }
@@ -6148,12 +6099,12 @@ async function getCollabSuggestions() {
 
 // ── Stream helpers ────────────────────────────────────────
 function switchStreamTool(tool) {
-  document.querySelectorAll(".stream-tool-btn").forEach(b => {
+  document.querySelectorAll("#streamStudio .stream-tool-btn").forEach(b => {
     const active = b.dataset.stool === tool;
     b.classList.toggle("active", active);
     b.setAttribute("aria-selected", String(active));
   });
-  document.querySelectorAll(".stream-tool-pane").forEach(p => {
+  document.querySelectorAll("#streamStudio .stream-tool-pane").forEach(p => {
     p.classList.toggle("hidden", p.id !== `stool-${tool}`);
   });
 }
@@ -6296,12 +6247,12 @@ const _EXPORT_FORMATS = {
 };
 
 function switchExportTool(tool) {
-  document.querySelectorAll(".export-tool-btn").forEach(b => {
+  document.querySelectorAll("#exportStudio .export-tool-btn").forEach(b => {
     const active = b.dataset.etool === tool;
     b.classList.toggle("active", active);
     b.setAttribute("aria-selected", String(active));
   });
-  document.querySelectorAll(".export-tool-pane").forEach(p => {
+  document.querySelectorAll("#exportStudio .export-tool-pane").forEach(p => {
     p.classList.toggle("hidden", p.id !== `etool-${tool}`);
   });
 }
