@@ -1193,25 +1193,75 @@ document.addEventListener("DOMContentLoaded", () => {
    VISUAL STUDIO
 ══════════════════════════════════════════════ */
 
-// Studio mode switcher
+// Studio mode switcher — unified handler for all studios
+const _ALL_STUDIO_IDS = [
+  "textStudio", "musicStudio", "visualStudio", "animationStudio",
+  "videoStudio", "chatStudio", "feedStudio", "dmsStudio", "profileStudio",
+  "collabStudio", "streamStudio", "exportStudio", "platformConnectStudio"
+];
+const _ALL_STUDIO_BTN_IDS = [
+  "textStudioBtn", "musicStudioBtn", "visualStudioBtn", "animationStudioBtn",
+  "videoStudioBtn", "chatStudioBtn", "feedStudioBtn", "dmsStudioBtn", "profileStudioBtn",
+  "collabStudioBtn", "streamStudioBtn", "exportStudioBtn", "platformConnectStudioBtn"
+];
+
 function switchStudio(mode) {
-  const textStudio = el("textStudio");
-  const visualStudio = el("visualStudio");
-  const textBtn = el("textStudioBtn");
-  const visualBtn = el("visualStudioBtn");
+  // 1. Hide all studios and deactivate all nav buttons
+  _ALL_STUDIO_IDS.forEach(id => {
+    const s = el(id); if (s) s.classList.add("hidden");
+  });
+  _ALL_STUDIO_BTN_IDS.forEach(id => {
+    const b = el(id); if (b) { b.classList.remove("active"); b.setAttribute("aria-selected", "false"); }
+  });
+
+  // 2. Track current studio for Kala Assist context
+  _currentStudio = mode;
+
+  // 3. Map mode to studio/button IDs
+  const _studioMap = {
+    "text":             ["textStudio",             "textStudioBtn"],
+    "music":            ["musicStudio",            "musicStudioBtn"],
+    "visual":           ["visualStudio",           "visualStudioBtn"],
+    "animation":        ["animationStudio",        "animationStudioBtn"],
+    "video":            ["videoStudio",            "videoStudioBtn"],
+    "chat":             ["chatStudio",             "chatStudioBtn"],
+    "feed":             ["feedStudio",             "feedStudioBtn"],
+    "dms":              ["dmsStudio",              "dmsStudioBtn"],
+    "profile":          ["profileStudio",          "profileStudioBtn"],
+    "collab":           ["collabStudio",           "collabStudioBtn"],
+    "stream":           ["streamStudio",           "streamStudioBtn"],
+    "export":           ["exportStudio",           "exportStudioBtn"],
+    "platform-connect": ["platformConnectStudio",  "platformConnectStudioBtn"],
+  };
+
+  const entry = _studioMap[mode];
+  if (entry) {
+    const [studioId, btnId] = entry;
+    const s = el(studioId), b = el(btnId);
+    if (s) s.classList.remove("hidden");
+    if (b) { b.classList.add("active"); b.setAttribute("aria-selected", "true"); }
+  }
+
+  // 4. Mode-specific side effects
   if (mode === "visual") {
-    textStudio.classList.add("hidden");
-    visualStudio.classList.remove("hidden");
-    textBtn.classList.remove("active");
-    visualBtn.classList.add("active");
     if (!_paintInitDone) initPaintCanvas();
     if (!_logoInitDone) initLogoCanvas();
-  } else {
-    textStudio.classList.remove("hidden");
-    visualStudio.classList.add("hidden");
-    textBtn.classList.add("active");
-    visualBtn.classList.remove("active");
   }
+  if (mode === "music") {
+    const ms = el("musicStudio");
+    if (ms && !ms.dataset.init) {
+      ms.dataset.init = "1";
+      initBeatMaker();
+      initChordRef();
+    }
+  }
+  if (mode === "feed")    loadFeed();
+  if (mode === "dms")     loadConversations();
+  if (mode === "profile") loadProfilePage();
+
+  // 5. Show AI panel for text studio only
+  if (mode === "text") _showAiPanel();
+  else _hideAiPanel();
 }
 
 function switchVisualTab(tab) {
@@ -2292,67 +2342,6 @@ function renderVisualAnalysis(d) {
 /* ════════════════════════════════════════════════════════════════════
    MUSIC STUDIO  🎵  (Phase 12 – KalaProducer)
 ════════════════════════════════════════════════════════════════════ */
-
-// ── Studio switcher update ───────────────────────────────────────────────
-// Wrap the original switchStudio to handle the music and chat tabs.
-(function () {
-  const _origSwitchStudio = switchStudio;
-  switchStudio = function (mode) {
-    const musicStudio = el("musicStudio");
-    const musicBtn    = el("musicStudioBtn");
-    const chatStudio  = el("chatStudio");
-    const chatBtn     = el("chatStudioBtn");
-
-    // Always hide music & chat first
-    if (musicStudio) musicStudio.classList.add("hidden");
-    if (musicBtn)    musicBtn.classList.remove("active");
-    if (chatStudio)  chatStudio.classList.add("hidden");
-    if (chatBtn)     chatBtn.classList.remove("active");
-
-    if (mode === "music") {
-      const textStudio   = el("textStudio");
-      const visualStudio = el("visualStudio");
-      const textBtn      = el("textStudioBtn");
-      const visualBtn    = el("visualStudioBtn");
-      if (textStudio)   textStudio.classList.add("hidden");
-      if (visualStudio) visualStudio.classList.add("hidden");
-      if (textBtn)      textBtn.classList.remove("active");
-      if (visualBtn)    visualBtn.classList.remove("active");
-      if (musicStudio) {
-        musicStudio.classList.remove("hidden");
-        if (!musicStudio.dataset.init) {
-          musicStudio.dataset.init = "1";
-          initBeatMaker();
-          initChordRef();
-        }
-      }
-      if (musicBtn) musicBtn.classList.add("active");
-      _hideAiPanel();
-      return;
-    }
-
-    if (mode === "chat") {
-      const textStudio   = el("textStudio");
-      const visualStudio = el("visualStudio");
-      const textBtn      = el("textStudioBtn");
-      const visualBtn    = el("visualStudioBtn");
-      if (textStudio)   textStudio.classList.add("hidden");
-      if (visualStudio) visualStudio.classList.add("hidden");
-      if (textBtn)      textBtn.classList.remove("active");
-      if (visualBtn)    visualBtn.classList.remove("active");
-      if (chatStudio) chatStudio.classList.remove("hidden");
-      if (chatBtn)    chatBtn.classList.add("active");
-      _hideAiPanel();
-      return;
-    }
-
-    // For text and visual studios, show the AI panel
-    if (mode === "text") _showAiPanel();
-    else _hideAiPanel();
-
-    _origSwitchStudio(mode);
-  };
-})();
 
 // ── Music Studio helpers ─────────────────────────────────────────────────
 function setMusicStatus(msg, isErr) {
@@ -4132,36 +4121,7 @@ function escHtml(str) {
    ANIMATION STUDIO  🎬  (Phase 13 – AI Animation Generator)
 ════════════════════════════════════════════════════════════════════ */
 
-// ── Studio switcher: extend to handle animation ────────────────────────────
-(function () {
-  const _prevSwitch = switchStudio;
-  switchStudio = function (mode) {
-    const animStudio = el("animationStudio");
-    const animBtn    = el("animationStudioBtn");
 
-    // Always hide animation first
-    if (animStudio) animStudio.classList.add("hidden");
-    if (animBtn)    animBtn.classList.remove("active");
-
-    if (mode === "animation") {
-      // Hide all other studios
-      ["textStudio", "musicStudio", "visualStudio", "videoStudio", "chatStudio"].forEach(id => {
-        const s = el(id);
-        if (s) s.classList.add("hidden");
-      });
-      ["textStudioBtn", "musicStudioBtn", "visualStudioBtn", "videoStudioBtn", "chatStudioBtn"].forEach(id => {
-        const b = el(id);
-        if (b) b.classList.remove("active");
-      });
-      if (animStudio) animStudio.classList.remove("hidden");
-      if (animBtn)    animBtn.classList.add("active");
-      _hideAiPanel();
-      return;
-    }
-
-    _prevSwitch(mode);
-  };
-})();
 
 // ── Animation tool tab switching ──────────────────────────────────────────
 function switchAnimTool(tool) {
@@ -4392,53 +4352,7 @@ function _renderAnimTimeline(plan) {
    PLATFORM LAYER — Feed, Messages (DMs), Profile Page
 ════════════════════════════════════════════════════════════════════ */
 
-// ── Studio switcher: extend to handle feed / dms / profile ────────────────
-(function () {
-  const _prevSwitch = switchStudio;
-  const _PLATFORM_STUDIOS = ["feedStudio", "dmsStudio", "profileStudio"];
-  const _PLATFORM_BTNS    = ["feedStudioBtn", "dmsStudioBtn", "profileStudioBtn"];
 
-  switchStudio = function (mode) {
-    // Hide platform studios and deactivate their buttons
-    _PLATFORM_STUDIOS.forEach(id => { const s = el(id); if (s) s.classList.add("hidden"); });
-    _PLATFORM_BTNS.forEach(id => { const b = el(id); if (b) { b.classList.remove("active"); b.setAttribute("aria-selected", "false"); } });
-
-    if (mode === "feed") {
-      ["textStudio", "musicStudio", "visualStudio", "animationStudio", "videoStudio", "chatStudio", "dmsStudio", "profileStudio"].forEach(id => { const s = el(id); if (s) s.classList.add("hidden"); });
-      ["textStudioBtn", "musicStudioBtn", "visualStudioBtn", "animationStudioBtn", "videoStudioBtn", "chatStudioBtn", "dmsStudioBtn", "profileStudioBtn"].forEach(id => { const b = el(id); if (b) { b.classList.remove("active"); b.setAttribute("aria-selected", "false"); } });
-      const s = el("feedStudio"), btn = el("feedStudioBtn");
-      if (s) s.classList.remove("hidden");
-      if (btn) { btn.classList.add("active"); btn.setAttribute("aria-selected", "true"); }
-      _hideAiPanel();
-      loadFeed();
-      return;
-    }
-
-    if (mode === "dms") {
-      ["textStudio", "musicStudio", "visualStudio", "animationStudio", "videoStudio", "chatStudio", "feedStudio", "profileStudio"].forEach(id => { const s = el(id); if (s) s.classList.add("hidden"); });
-      ["textStudioBtn", "musicStudioBtn", "visualStudioBtn", "animationStudioBtn", "videoStudioBtn", "chatStudioBtn", "feedStudioBtn", "profileStudioBtn"].forEach(id => { const b = el(id); if (b) { b.classList.remove("active"); b.setAttribute("aria-selected", "false"); } });
-      const s = el("dmsStudio"), btn = el("dmsStudioBtn");
-      if (s) s.classList.remove("hidden");
-      if (btn) { btn.classList.add("active"); btn.setAttribute("aria-selected", "true"); }
-      _hideAiPanel();
-      loadConversations();
-      return;
-    }
-
-    if (mode === "profile") {
-      ["textStudio", "musicStudio", "visualStudio", "animationStudio", "videoStudio", "chatStudio", "feedStudio", "dmsStudio"].forEach(id => { const s = el(id); if (s) s.classList.add("hidden"); });
-      ["textStudioBtn", "musicStudioBtn", "visualStudioBtn", "animationStudioBtn", "videoStudioBtn", "chatStudioBtn", "feedStudioBtn", "dmsStudioBtn"].forEach(id => { const b = el(id); if (b) { b.classList.remove("active"); b.setAttribute("aria-selected", "false"); } });
-      const s = el("profileStudio"), btn = el("profileStudioBtn");
-      if (s) s.classList.remove("hidden");
-      if (btn) { btn.classList.add("active"); btn.setAttribute("aria-selected", "true"); }
-      _hideAiPanel();
-      loadProfilePage();
-      return;
-    }
-
-    _prevSwitch(mode);
-  };
-})();
 
 // ──────────────────────────────────────────────────────────────────────────
 // Feed
@@ -4987,36 +4901,7 @@ function shareProjectInDm(projectId, title, type) {
    VIDEO STUDIO  🎥  (Phase 15 – AI Video Generator)
 ════════════════════════════════════════════════════════════════════ */
 
-// ── Studio switcher: extend to handle video ───────────────────────────────
-(function () {
-  const _prevSwitch = switchStudio;
-  switchStudio = function (mode) {
-    const vs  = el("videoStudio");
-    const btn = el("videoStudioBtn");
 
-    // Always hide video studio first
-    if (vs)  vs.classList.add("hidden");
-    if (btn) { btn.classList.remove("active"); btn.setAttribute("aria-selected", "false"); }
-
-    if (mode === "video") {
-      ["textStudio", "musicStudio", "visualStudio", "animationStudio",
-       "chatStudio", "feedStudio", "dmsStudio", "profileStudio"].forEach(id => {
-        const s = el(id); if (s) s.classList.add("hidden");
-      });
-      ["textStudioBtn", "musicStudioBtn", "visualStudioBtn", "animationStudioBtn",
-       "chatStudioBtn", "feedStudioBtn", "dmsStudioBtn", "profileStudioBtn"].forEach(id => {
-        const b = el(id);
-        if (b) { b.classList.remove("active"); b.setAttribute("aria-selected", "false"); }
-      });
-      if (vs)  vs.classList.remove("hidden");
-      if (btn) { btn.classList.add("active"); btn.setAttribute("aria-selected", "true"); }
-      _hideAiPanel();
-      return;
-    }
-
-    _prevSwitch(mode);
-  };
-})();
 
 // ── State ─────────────────────────────────────────────────────────────────
 let _vsScenes       = [];   // array of scene objects
@@ -5505,14 +5390,7 @@ function toggleKalaAssist() {
   }
 }
 
-// Track current studio for context
-(function () {
-  const _prevSS = switchStudio;
-  switchStudio = function (mode) {
-    _currentStudio = mode;
-    _prevSS(mode);
-  };
-})();
+
 
 async function sendKalaAssist() {
   const input = el("kalaAssistInput");
@@ -5694,54 +5572,11 @@ document.addEventListener("DOMContentLoaded", () => {
 // COLLABORATION, STREAMING & EXPORT STUDIOS
 // ══════════════════════════════════════════════════════════
 
-// ── switchStudio wrapper for new studios ──────────────────
-(function () {
-  const _prevSS = switchStudio;
-  const _NEW_STUDIOS = ["collabStudio", "streamStudio", "exportStudio"];
-  const _NEW_BTNS    = ["collabStudioBtn", "streamStudioBtn", "exportStudioBtn"];
 
-  switchStudio = function (mode) {
-    // Always hide new studios and deactivate their buttons
-    _NEW_STUDIOS.forEach(id => { const s = el(id); if (s) s.classList.add("hidden"); });
-    _NEW_BTNS.forEach(id => { const b = el(id); if (b) { b.classList.remove("active"); b.setAttribute("aria-selected", "false"); } });
-
-    if (mode === "collab") {
-      ["textStudio","musicStudio","visualStudio","animationStudio","videoStudio","chatStudio","feedStudio","dmsStudio","profileStudio","streamStudio","exportStudio"].forEach(id => { const s = el(id); if (s) s.classList.add("hidden"); });
-      ["textStudioBtn","musicStudioBtn","visualStudioBtn","animationStudioBtn","videoStudioBtn","chatStudioBtn","feedStudioBtn","dmsStudioBtn","profileStudioBtn","streamStudioBtn","exportStudioBtn"].forEach(id => { const b = el(id); if (b) { b.classList.remove("active"); b.setAttribute("aria-selected","false"); } });
-      const s = el("collabStudio"), btn = el("collabStudioBtn");
-      if (s) s.classList.remove("hidden");
-      if (btn) { btn.classList.add("active"); btn.setAttribute("aria-selected","true"); }
-      _hideAiPanel();
-      return;
-    }
-
-    if (mode === "stream") {
-      ["textStudio","musicStudio","visualStudio","animationStudio","videoStudio","chatStudio","feedStudio","dmsStudio","profileStudio","collabStudio","exportStudio"].forEach(id => { const s = el(id); if (s) s.classList.add("hidden"); });
-      ["textStudioBtn","musicStudioBtn","visualStudioBtn","animationStudioBtn","videoStudioBtn","chatStudioBtn","feedStudioBtn","dmsStudioBtn","profileStudioBtn","collabStudioBtn","exportStudioBtn"].forEach(id => { const b = el(id); if (b) { b.classList.remove("active"); b.setAttribute("aria-selected","false"); } });
-      const s = el("streamStudio"), btn = el("streamStudioBtn");
-      if (s) s.classList.remove("hidden");
-      if (btn) { btn.classList.add("active"); btn.setAttribute("aria-selected","true"); }
-      _hideAiPanel();
-      return;
-    }
-
-    if (mode === "export") {
-      ["textStudio","musicStudio","visualStudio","animationStudio","videoStudio","chatStudio","feedStudio","dmsStudio","profileStudio","collabStudio","streamStudio"].forEach(id => { const s = el(id); if (s) s.classList.add("hidden"); });
-      ["textStudioBtn","musicStudioBtn","visualStudioBtn","animationStudioBtn","videoStudioBtn","chatStudioBtn","feedStudioBtn","dmsStudioBtn","profileStudioBtn","collabStudioBtn","streamStudioBtn"].forEach(id => { const b = el(id); if (b) { b.classList.remove("active"); b.setAttribute("aria-selected","false"); } });
-      const s = el("exportStudio"), btn = el("exportStudioBtn");
-      if (s) s.classList.remove("hidden");
-      if (btn) { btn.classList.add("active"); btn.setAttribute("aria-selected","true"); }
-      _hideAiPanel();
-      return;
-    }
-
-    _prevSS(mode);
-  };
-})();
 
 // ── Collab helpers ────────────────────────────────────────
 function switchCollabTool(tool) {
-  document.querySelectorAll(".collab-tool-btn").forEach(b => {
+  document.querySelectorAll("#collabStudio .collab-tool-btn").forEach(b => {
     const active = b.dataset.ctool === tool;
     b.classList.toggle("active", active);
     b.setAttribute("aria-selected", String(active));
@@ -6086,34 +5921,7 @@ async function runQualityCheck() {
   }
 }
 
-// ── Platform Connect Studio ───────────────────────────────
-(function () {
-  const _prevSS = switchStudio;
-  const _PC_STUDIO = "platformConnectStudio";
-  const _PC_BTN    = "platformConnectStudioBtn";
 
-  switchStudio = function (mode) {
-    const pcStudio = el(_PC_STUDIO);
-    const pcBtn    = el(_PC_BTN);
-    if (pcStudio) pcStudio.classList.add("hidden");
-    if (pcBtn)    { pcBtn.classList.remove("active"); pcBtn.setAttribute("aria-selected", "false"); }
-
-    if (mode === "platform-connect") {
-      ["textStudio","musicStudio","visualStudio","animationStudio","videoStudio",
-       "chatStudio","feedStudio","dmsStudio","profileStudio","collabStudio","streamStudio","exportStudio"]
-        .forEach(id => { const s = el(id); if (s) s.classList.add("hidden"); });
-      ["textStudioBtn","musicStudioBtn","visualStudioBtn","animationStudioBtn","videoStudioBtn",
-       "chatStudioBtn","feedStudioBtn","dmsStudioBtn","profileStudioBtn","collabStudioBtn","streamStudioBtn","exportStudioBtn"]
-        .forEach(id => { const b = el(id); if (b) { b.classList.remove("active"); b.setAttribute("aria-selected","false"); } });
-      if (pcStudio) pcStudio.classList.remove("hidden");
-      if (pcBtn) { pcBtn.classList.add("active"); pcBtn.setAttribute("aria-selected","true"); }
-      _hideAiPanel();
-      return;
-    }
-
-    _prevSS(mode);
-  };
-})();
 
 function switchPlatformConnectTool(tool) {
   document.querySelectorAll(".collab-tool-btn[data-pctool]").forEach(b => {
