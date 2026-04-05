@@ -5438,7 +5438,11 @@ body.focus-mode #artText {
   padding: .5rem 1rem;
   background: var(--surface-2);
   border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
 }
+.stream-tool-bar::-webkit-scrollbar { display: none; }
 .stream-tool-btn {
   padding: .35rem .85rem;
   border-radius: var(--radius-sm);
@@ -5449,6 +5453,8 @@ body.focus-mode #artText {
   font-size: .82rem;
   font-weight: 500;
   transition: all .15s;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .stream-tool-btn:hover { border-color: var(--accent); color: var(--text); background: var(--accent-glow); }
 .stream-tool-btn.active {
@@ -5471,13 +5477,6 @@ body.focus-mode #artText {
   white-space: pre-wrap;
   font-family: monospace;
 }
-.stream-tool-bar {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-}
-.stream-tool-bar::-webkit-scrollbar { display: none; }
-.stream-tool-btn { white-space: nowrap; flex-shrink: 0; }
 
 /* ══════════════════════════════════════════════════════════
    EXPORT / IMPORT STUDIO
