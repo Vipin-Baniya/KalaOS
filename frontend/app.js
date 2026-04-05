@@ -576,6 +576,8 @@ function toggleUserMenu() {
 function showApp() {
   hide("authOverlay");
   show("appRoot");
+  // Show dashboard as the landing view
+  if (typeof switchStudio === "function") switchStudio("dashboard");
 }
 
 function showAuth() {
@@ -1192,6 +1194,42 @@ document.addEventListener("DOMContentLoaded", () => {
 /* ══════════════════════════════════════════════
    VISUAL STUDIO
 ══════════════════════════════════════════════ */
+
+// Studio mode switcher
+// All known studio panel ids and their sidebar button ids
+const _STUDIO_PANELS = [
+  "dashboardStudio",
+  "textStudio",
+  "visualStudio",
+];
+
+function _setAllStudioBtnsInactive() {
+  document.querySelectorAll(".sidebar-btn[role='tab']").forEach(b => {
+    b.classList.remove("active");
+    b.setAttribute("aria-selected", "false");
+  });
+  // Also the sidebar logo dashboard shortcut
+  const logoBtn = document.querySelector(".sidebar-logo");
+  if (logoBtn) logoBtn.classList.remove("active");
+}
+
+function _setSidebarBtnActive(btnId) {
+  _setAllStudioBtnsInactive();
+  const btn = el(btnId);
+  if (btn) {
+    btn.classList.add("active");
+    btn.setAttribute("aria-selected", "true");
+  }
+}
+
+function _updateDashboardGreeting() {
+  const greet = el("dashboardGreeting");
+  if (!greet) return;
+  const hour = new Date().getHours();
+  const name = (_currentUser && _currentUser.name) ? _currentUser.name : "Artist";
+  const timeStr = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  greet.textContent = `${timeStr}, ${name}`;
+}
 
 // Studio mode switcher — unified handler for all studios
 const _ALL_STUDIO_IDS = [
@@ -2342,6 +2380,72 @@ function renderVisualAnalysis(d) {
 /* ════════════════════════════════════════════════════════════════════
    MUSIC STUDIO  🎵  (Phase 12 – KalaProducer)
 ════════════════════════════════════════════════════════════════════ */
+
+// ── Studio switcher update ───────────────────────────────────────────────
+// Wrap the original switchStudio to handle the music and chat tabs.
+(function () {
+  const _origSwitchStudio = switchStudio;
+  switchStudio = function (mode) {
+    // Always hide dashboard panel when switching to any other studio
+    const _ds = el("dashboardStudio"), _dsb = el("dashboardStudioBtn");
+    if (_ds) _ds.classList.add("hidden");
+    if (_dsb) { _dsb.classList.remove("active"); _dsb.setAttribute("aria-selected", "false"); }
+
+    const musicStudio = el("musicStudio");
+    const musicBtn    = el("musicStudioBtn");
+    const chatStudio  = el("chatStudio");
+    const chatBtn     = el("chatStudioBtn");
+
+    // Always hide music & chat first
+    if (musicStudio) musicStudio.classList.add("hidden");
+    if (musicBtn)    musicBtn.classList.remove("active");
+    if (chatStudio)  chatStudio.classList.add("hidden");
+    if (chatBtn)     chatBtn.classList.remove("active");
+
+    if (mode === "music") {
+      const textStudio   = el("textStudio");
+      const visualStudio = el("visualStudio");
+      const textBtn      = el("textStudioBtn");
+      const visualBtn    = el("visualStudioBtn");
+      if (textStudio)   textStudio.classList.add("hidden");
+      if (visualStudio) visualStudio.classList.add("hidden");
+      if (textBtn)      textBtn.classList.remove("active");
+      if (visualBtn)    visualBtn.classList.remove("active");
+      if (musicStudio) {
+        musicStudio.classList.remove("hidden");
+        if (!musicStudio.dataset.init) {
+          musicStudio.dataset.init = "1";
+          initBeatMaker();
+          initChordRef();
+        }
+      }
+      if (musicBtn) musicBtn.classList.add("active");
+      _hideAiPanel();
+      return;
+    }
+
+    if (mode === "chat") {
+      const textStudio   = el("textStudio");
+      const visualStudio = el("visualStudio");
+      const textBtn      = el("textStudioBtn");
+      const visualBtn    = el("visualStudioBtn");
+      if (textStudio)   textStudio.classList.add("hidden");
+      if (visualStudio) visualStudio.classList.add("hidden");
+      if (textBtn)      textBtn.classList.remove("active");
+      if (visualBtn)    visualBtn.classList.remove("active");
+      if (chatStudio) chatStudio.classList.remove("hidden");
+      if (chatBtn)    chatBtn.classList.add("active");
+      _hideAiPanel();
+      return;
+    }
+
+    // For text and visual studios, show the AI panel
+    if (mode === "text") _showAiPanel();
+    else _hideAiPanel();
+
+    _origSwitchStudio(mode);
+  };
+})();
 
 // ── Music Studio helpers ─────────────────────────────────────────────────
 function setMusicStatus(msg, isErr) {
@@ -4117,10 +4221,83 @@ function escHtml(str) {
     .replace(/"/g, "&quot;");
 }
 
+// ── Document Analysis & Outline ────────────────────────────────
+function tsToggleDocAnalysis() {
+  const panel = el('tsDocAnalysisPanel');
+  if (!panel) return;
+  panel.classList.toggle('hidden');
+}
+
+async function tsAnalyzeDocument() {
+  const textEl = el('artText') || el('textInput') || el('tsTextArea') || document.querySelector('#textStudio textarea');
+  const text = textEl?.value?.trim() || '';
+  if (text.length < 10) { showToast('Write at least 10 characters to analyze'); return; }
+  const result = el('tsDocAnalysisResult');
+  if (result) { result.classList.remove('hidden'); result.textContent = 'Analyzing\u2026'; }
+  try {
+    const resp = await fetch(`${API_BASE}/text-studio/analyze-document`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({text}),
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+    const data = await resp.json();
+    if (result) {
+      result.innerHTML = `
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.5rem">
+          <div class="stat-chip">\u{1F4DD} <strong>${data.word_count}</strong> words</div>
+          <div class="stat-chip">\u{1F4D6} <strong>${data.readability_level}</strong></div>
+          <div class="stat-chip">\u{1F60A} Sentiment: <strong>${data.sentiment}</strong></div>
+          <div class="stat-chip">\u23F1 ~${data.estimated_reading_time_min} min read</div>
+        </div>
+        <div style="margin-top:.5rem"><strong>Keywords:</strong> ${data.keywords.map(k => escHtml(k.word)).join(', ')}</div>
+      `;
+    }
+  } catch(e) { if (result) result.textContent = 'Analysis failed. Try again.'; }
+}
+
+async function tsGenerateOutline() {
+  const textEl = el('artText') || el('textInput') || el('tsTextArea') || document.querySelector('#textStudio textarea');
+  const text = textEl?.value?.trim() || '';
+  if (text.length < 10) { showToast('Write at least 10 characters to generate outline'); return; }
+  const result = el('tsOutlineResult');
+  if (result) { result.classList.remove('hidden'); result.textContent = 'Generating outline\u2026'; }
+  try {
+    const resp = await fetch(`${API_BASE}/text-studio/generate-outline`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({text, depth: 2}),
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+    const data = await resp.json();
+    if (result) {
+      const lines = data.outline.map((s, i) => {
+        let html = `<div style="font-weight:600;margin:.4rem 0 .2rem">\u{1F4CC} ${i+1}. ${escHtml(s.heading)}</div>`;
+        if (s.sub_items?.length) {
+          html += s.sub_items.map(sub => `<div style="padding-left:1.5rem;opacity:.8">&bull; ${escHtml(sub.heading)}</div>`).join('');
+        }
+        return html;
+      });
+      result.innerHTML = `<div><strong>${escHtml(data.title)}</strong> &mdash; ${data.sections} sections</div>${lines.join('')}`;
+    }
+  } catch(e) { if (result) result.textContent = 'Outline generation failed. Try again.'; }
+}
+
+
+
 /* ════════════════════════════════════════════════════════════════════
    ANIMATION STUDIO  🎬  (Phase 13 – AI Animation Generator)
 ════════════════════════════════════════════════════════════════════ */
 
+// ── Studio switcher: extend to handle animation ────────────────────────────
+(function () {
+  const _prevSwitch = switchStudio;
+  switchStudio = function (mode) {
+    // Always hide dashboard panel when switching to any other studio
+    const _ds = el("dashboardStudio"), _dsb = el("dashboardStudioBtn");
+    if (_ds) _ds.classList.add("hidden");
+    if (_dsb) { _dsb.classList.remove("active"); _dsb.setAttribute("aria-selected", "false"); }
+
+    const animStudio = el("animationStudio");
+    const animBtn    = el("animationStudioBtn");
 
 
 // ── Animation tool tab switching ──────────────────────────────────────────
@@ -4348,11 +4525,101 @@ function _renderAnimTimeline(plan) {
   if (empty) empty.classList.add("hidden");
 }
 
+// ── Animation MP4 Export ────────────────────────────────────────
+async function animExportMp4() {
+  const fps = parseInt(el('animFpsSelect')?.value || '24', 10);
+  // Collect frames from timeline or generate demo frames
+  const frames = [];
+  const frameEls = document.querySelectorAll('#animTimeline .anim-frame, #animFrameList .frame-item');
+  if (frameEls.length > 0) {
+    frameEls.forEach((f, i) => frames.push({index: i, duration: 1/fps}));
+  } else {
+    // Demo: 3 frames
+    for (let i = 0; i < 3; i++) frames.push({index: i, duration: 1/fps});
+  }
+  const st = el('animMp4Status');
+  const result = el('animMp4Result');
+  const btn = el('animExportMp4Btn');
+  if (btn) btn.disabled = true;
+  if (st) st.textContent = 'Preparing MP4 export\u2026';
+  const resolution = el('animResSelect')?.value || '1920x1080';
+  try {
+    const resp = await fetch(`${API_BASE}/animation/export-mp4`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({frames, fps, resolution}),
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+    const data = await resp.json();
+    if (result) {
+      result.classList.remove('hidden');
+      result.innerHTML = `<strong>\u2714 MP4 Export Ready</strong><br>
+        Frames: ${data.frame_count} | FPS: ${data.fps} | Duration: ${data.duration_seconds}s<br>
+        Resolution: ${data.resolution} | Codec: ${data.codec}<br>
+        Estimated size: ${data.estimated_size_mb} MB<br>
+        <code style="font-size:.75rem;opacity:.7">${escHtml(data.ffmpeg_command)}</code>`;
+    }
+    if (st) st.textContent = `\u2714 Export prepared \u2014 ${data.duration_seconds}s @ ${data.fps}fps`;
+  } catch(e) {
+    if (st) st.textContent = 'Export preparation failed.';
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
 /* ════════════════════════════════════════════════════════════════════
    PLATFORM LAYER — Feed, Messages (DMs), Profile Page
 ════════════════════════════════════════════════════════════════════ */
+(function () {
+  const _prevSwitch = switchStudio;
+  const _PLATFORM_STUDIOS = ["feedStudio", "dmsStudio", "profileStudio"];
+  const _PLATFORM_BTNS    = ["feedStudioBtn", "dmsStudioBtn", "profileStudioBtn"];
 
+  switchStudio = function (mode) {
+    // Always hide dashboard panel when switching to any other studio
+    const _ds = el("dashboardStudio"), _dsb = el("dashboardStudioBtn");
+    if (_ds) _ds.classList.add("hidden");
+    if (_dsb) { _dsb.classList.remove("active"); _dsb.setAttribute("aria-selected", "false"); }
 
+    // Hide platform studios and deactivate their buttons
+    _PLATFORM_STUDIOS.forEach(id => { const s = el(id); if (s) s.classList.add("hidden"); });
+    _PLATFORM_BTNS.forEach(id => { const b = el(id); if (b) { b.classList.remove("active"); b.setAttribute("aria-selected", "false"); } });
+
+    if (mode === "feed") {
+      ["textStudio", "musicStudio", "visualStudio", "animationStudio", "videoStudio", "chatStudio", "dmsStudio", "profileStudio"].forEach(id => { const s = el(id); if (s) s.classList.add("hidden"); });
+      ["textStudioBtn", "musicStudioBtn", "visualStudioBtn", "animationStudioBtn", "videoStudioBtn", "chatStudioBtn", "dmsStudioBtn", "profileStudioBtn"].forEach(id => { const b = el(id); if (b) { b.classList.remove("active"); b.setAttribute("aria-selected", "false"); } });
+      const s = el("feedStudio"), btn = el("feedStudioBtn");
+      if (s) s.classList.remove("hidden");
+      if (btn) { btn.classList.add("active"); btn.setAttribute("aria-selected", "true"); }
+      _hideAiPanel();
+      loadFeed();
+      return;
+    }
+
+    if (mode === "dms") {
+      ["textStudio", "musicStudio", "visualStudio", "animationStudio", "videoStudio", "chatStudio", "feedStudio", "profileStudio"].forEach(id => { const s = el(id); if (s) s.classList.add("hidden"); });
+      ["textStudioBtn", "musicStudioBtn", "visualStudioBtn", "animationStudioBtn", "videoStudioBtn", "chatStudioBtn", "feedStudioBtn", "profileStudioBtn"].forEach(id => { const b = el(id); if (b) { b.classList.remove("active"); b.setAttribute("aria-selected", "false"); } });
+      const s = el("dmsStudio"), btn = el("dmsStudioBtn");
+      if (s) s.classList.remove("hidden");
+      if (btn) { btn.classList.add("active"); btn.setAttribute("aria-selected", "true"); }
+      _hideAiPanel();
+      loadConversations();
+      return;
+    }
+
+    if (mode === "profile") {
+      ["textStudio", "musicStudio", "visualStudio", "animationStudio", "videoStudio", "chatStudio", "feedStudio", "dmsStudio"].forEach(id => { const s = el(id); if (s) s.classList.add("hidden"); });
+      ["textStudioBtn", "musicStudioBtn", "visualStudioBtn", "animationStudioBtn", "videoStudioBtn", "chatStudioBtn", "feedStudioBtn", "dmsStudioBtn"].forEach(id => { const b = el(id); if (b) { b.classList.remove("active"); b.setAttribute("aria-selected", "false"); } });
+      const s = el("profileStudio"), btn = el("profileStudioBtn");
+      if (s) s.classList.remove("hidden");
+      if (btn) { btn.classList.add("active"); btn.setAttribute("aria-selected", "true"); }
+      _hideAiPanel();
+      loadProfilePage();
+      return;
+    }
+
+    _prevSwitch(mode);
+  };
+})();
 
 // ──────────────────────────────────────────────────────────────────────────
 // Feed
@@ -4901,6 +5168,17 @@ function shareProjectInDm(projectId, title, type) {
    VIDEO STUDIO  🎥  (Phase 15 – AI Video Generator)
 ════════════════════════════════════════════════════════════════════ */
 
+// ── Studio switcher: extend to handle video ───────────────────────────────
+(function () {
+  const _prevSwitch = switchStudio;
+  switchStudio = function (mode) {
+    // Always hide dashboard panel when switching to any other studio
+    const _ds = el("dashboardStudio"), _dsb = el("dashboardStudioBtn");
+    if (_ds) _ds.classList.add("hidden");
+    if (_dsb) { _dsb.classList.remove("active"); _dsb.setAttribute("aria-selected", "false"); }
+
+    const vs  = el("videoStudio");
+    const btn = el("videoStudioBtn");
 
 
 // ── State ─────────────────────────────────────────────────────────────────
@@ -5118,6 +5396,82 @@ function vsExportJson() {
   a.click();
   URL.revokeObjectURL(url);
 }
+
+// ── Video Effects ──────────────────────────────────────────────────────────
+async function vsApplyEffect(effect) {
+  const scenes = vsGetScenesData();
+  if (!scenes.length) { showToast('Add scenes first'); return; }
+  const intensity = parseFloat(el('vsEffectIntensity')?.value || '1.0');
+  const st = el('vsEffectStatus');
+  if (st) st.textContent = `Applying ${effect}…`;
+  // Apply CSS filter preview
+  const previewBg = el('vsPreviewBg');
+  const filterMap = {
+    blur: `blur(${Math.round(intensity*3)}px)`,
+    sharpen: 'contrast(1.4) saturate(1.2)',
+    cinematic: 'contrast(1.2) saturate(0.9) sepia(0.1)',
+    vintage: 'sepia(0.4) saturate(0.8) brightness(0.9)',
+    vhs: 'contrast(1.1) saturate(0.7) hue-rotate(5deg)',
+    bw: 'grayscale(1)',
+    glitch: 'hue-rotate(90deg) invert(0.1)',
+  };
+  if (previewBg) previewBg.style.filter = filterMap[effect] || '';
+  // Highlight active effect button
+  document.querySelectorAll('.effect-btn').forEach(b => b.classList.toggle('active', b.dataset.effect === effect));
+  try {
+    const resp = await fetch(`${API_BASE}/video-studio/apply-effect`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({scenes, effect, intensity}),
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+    const data = await resp.json();
+    if (st) st.textContent = `✔ ${effect} applied (intensity: ${intensity})`;
+  } catch(e) {
+    if (st) st.textContent = `Effect applied (preview mode)`;
+  }
+}
+
+async function vsAiTool(tool) {
+  const scenes = vsGetScenesData();
+  if (!scenes.length) { showToast('Add scenes first'); return; }
+  const st = el('vsAiToolStatus');
+  const result = el('vsAiToolResult');
+  if (st) st.textContent = `Running ${tool.replace('_',' ')}…`;
+  try {
+    const resp = await fetch(`${API_BASE}/video-studio/ai-tool`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({scenes, tool}),
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+    const data = await resp.json();
+    if (result) { result.classList.remove('hidden'); result.textContent = JSON.stringify(data, null, 2); }
+    if (st) st.textContent = `✔ ${tool.replace('_',' ')} complete`;
+  } catch(e) {
+    if (st) st.textContent = `Tool applied (preview mode)`;
+  }
+}
+
+function vsGetScenesData() {
+  const sceneEls = document.querySelectorAll('#vsSceneList .vs-scene-item');
+  if (!sceneEls.length) return [];
+  return Array.from(sceneEls).map((el, i) => ({
+    scene: i+1,
+    text: el.querySelector('.vs-scene-narration')?.textContent || `Scene ${i+1}`,
+  }));
+}
+
+// Hook intensity display
+document.addEventListener('DOMContentLoaded', function () {
+  const vsIntensityInput = el('vsEffectIntensity');
+  if (vsIntensityInput) {
+    vsIntensityInput.addEventListener('input', function() {
+      const v = el('vsEffectIntensityVal');
+      if (v) v.textContent = parseFloat(this.value).toFixed(1);
+    });
+  }
+});
 
 /* ════════════════════════════════════════════════════════════════
    PHASE 16 — Notifications Bell
@@ -5467,6 +5821,9 @@ async function sendKalaAssist() {
    PHASE 16 — Cross-Medium Transform Modal
 ════════════════════════════════════════════════════════════════ */
 
+/** Supported input→output pairs for the cross-medium transform feature. */
+const _TRANSFORM_PAIRS = { text: ["video", "song"], design: ["animation"], music: ["video"] };
+
 function openTransformModal(inputType, outputType) {
   const inSel  = el("transformInputType");
   const outSel = el("transformOutputType");
@@ -5477,13 +5834,27 @@ function openTransformModal(inputType, outputType) {
 }
 
 function updateTransformOptions() {
-  const outType = el("transformOutputType")?.value;
+  const inType  = el("transformInputType")?.value;
+  const outSel  = el("transformOutputType");
+  const outType = outSel?.value;
   const optDiv  = el("transformOptions");
+
+  // Show only valid output types for the selected input
+  if (outSel) {
+    const validOuts = _TRANSFORM_PAIRS[inType] || ["video"];
+    Array.from(outSel.options).forEach(opt => {
+      opt.hidden = !validOuts.includes(opt.value);
+    });
+    // If current selection is invalid, switch to first valid
+    if (!validOuts.includes(outSel.value)) outSel.value = validOuts[0];
+  }
+
   if (!optDiv) return;
-  if (outType === "video") {
+  const currentOut = outSel?.value;
+  if (currentOut === "video") {
     optDiv.innerHTML = `
       <label style="font-size:.82rem;color:var(--text-dim)">Video Style</label>
-      <select id="transformStyleOpt" class="vs-select" style="width:100%;margin-top:.3rem">
+      <select id="transformStyleOpt" class="vs-select select-full" style="margin-top:.3rem">
         <option value="cinematic">Cinematic</option>
         <option value="motivational">Motivational</option>
         <option value="lofi">Lofi</option>
@@ -5491,13 +5862,53 @@ function updateTransformOptions() {
         <option value="cartoon">Cartoon</option>
         <option value="abstract">Abstract</option>
       </select>`;
-  } else if (outType === "song") {
+  } else if (currentOut === "song") {
     optDiv.innerHTML = `
       <label style="font-size:.82rem;color:var(--text-dim)">Genre Hint (optional)</label>
       <input id="transformGenreOpt" class="vs-ai-textarea" style="min-height:unset;padding:.35rem .6rem;margin-top:.3rem" placeholder="e.g. lofi, trap, classical…" />`;
   } else {
     optDiv.innerHTML = "";
   }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   Shared result-card renderer
+   Renders an API response dict as a human-readable card instead of
+   raw JSON.  Falls back to a monospace pre-block for unknown shapes.
+════════════════════════════════════════════════════════════════ */
+function renderResultCard(containerEl, data, title) {
+  if (!containerEl) return;
+  const skipKeys = new Set(["status", "ok"]);
+
+  function valHtml(v) {
+    if (Array.isArray(v)) {
+      if (v.length === 0) return '<em style="color:var(--text-dim)">—</em>';
+      if (typeof v[0] === "object") {
+        return v.map(item => `<div class="src-chip">${esc(JSON.stringify(item))}</div>`).join("");
+      }
+      return `<div class="src-chip-row">${v.map(s => `<span class="src-chip">${esc(String(s))}</span>`).join("")}</div>`;
+    }
+    if (v === null || v === undefined) return '<em style="color:var(--text-dim)">—</em>';
+    if (typeof v === "object") {
+      return `<div class="src-raw">${esc(JSON.stringify(v, null, 2))}</div>`;
+    }
+    const s = String(v);
+    if (s === "true" || s === "pass" || s === "ok") return `<span class="src-val positive">${esc(s)}</span>`;
+    if (s === "false" || s === "fail" || s === "error") return `<span class="src-val negative">${esc(s)}</span>`;
+    return `<span class="src-val">${esc(s)}</span>`;
+  }
+
+  const rows = Object.entries(data)
+    .filter(([k]) => !skipKeys.has(k))
+    .map(([k, v]) => `<div class="src-row"><span class="src-key">${esc(label(k))}</span>${valHtml(v)}</div>`)
+    .join("");
+
+  containerEl.innerHTML = `
+    <div class="studio-result-card">
+      <div class="src-header">${esc(title || "Result")}</div>
+      <div class="src-body">${rows || '<em style="color:var(--text-dim)">No data returned.</em>'}</div>
+    </div>`;
+  containerEl.classList.remove("hidden");
 }
 
 async function runTransform() {
@@ -5507,6 +5918,12 @@ async function runTransform() {
   const statusEl   = el("transformStatus");
   const resultEl   = el("transformResult");
   const btn        = el("transformRunBtn");
+
+  // Client-side supported-pair validation
+  if (!(_TRANSFORM_PAIRS[inputType] || []).includes(outputType)) {
+    if (statusEl) statusEl.textContent = `⚠ Transform from "${inputType}" to "${outputType}" is not supported. Supported: text→video, text→song, design→animation, music→video.`;
+    return;
+  }
 
   if (!data) { if (statusEl) statusEl.textContent = "Please enter content to transform."; return; }
   if (statusEl) statusEl.textContent = "Transforming…";
@@ -5535,36 +5952,20 @@ async function runTransform() {
       if (btn) btn.disabled = false;
       return;
     }
-    if (statusEl) statusEl.textContent = `✓ Transform complete (${outputType})`;
-    if (resultEl) {
-      resultEl.textContent = JSON.stringify(result, null, 2);
-      resultEl.classList.remove("hidden");
-    }
+    if (statusEl) statusEl.textContent = `✓ Transform complete (${inputType} → ${outputType})`;
+    if (resultEl) renderResultCard(resultEl, result, `${label(inputType)} → ${label(outputType)}`);
   } catch (err) {
     if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`;
   }
   if (btn) btn.disabled = false;
 }
 
-// Add Transform button to sidebar nav (inject once DOM is ready)
+function label(str) {
+  return str ? str.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()) : str;
+}
+
+// Kick off initial notif count poll after login
 document.addEventListener("DOMContentLoaded", () => {
-  // Add a "🔀 Transform" item to the sidebar
-  const sidebarNav = document.querySelector(".sidebar-nav");
-  if (sidebarNav) {
-    const divider = document.createElement("hr");
-    divider.style.cssText = "border:none;border-top:1px solid var(--border);margin:.4rem .5rem";
-    sidebarNav.appendChild(divider);
-
-    const btn = document.createElement("button");
-    btn.className = "sidebar-btn";
-    btn.title = "Cross-Medium AI Transform";
-    btn.setAttribute("aria-label", "Cross-Medium AI Transform");
-    btn.innerHTML = `<span class="sidebar-icon" aria-hidden="true">🔀</span><span class="sidebar-label">Transform</span>`;
-    btn.addEventListener("click", () => openTransformModal());
-    sidebarNav.appendChild(btn);
-  }
-
-  // Kick off initial notif count poll after login
   setTimeout(() => { if (_authToken) _pollNotifCount(); }, 3000);
 });
 
@@ -5572,7 +5973,65 @@ document.addEventListener("DOMContentLoaded", () => {
 // COLLABORATION, STREAMING & EXPORT STUDIOS
 // ══════════════════════════════════════════════════════════
 
+// ── switchStudio wrapper for new studios ──────────────────
+(function () {
+  const _prevSS = switchStudio;
+  const _NEW_STUDIOS = ["collabStudio", "streamStudio", "exportStudio", "platformConnectStudio"];
+  const _NEW_BTNS    = ["collabStudioBtn", "streamStudioBtn", "exportStudioBtn", "platformConnectBtn"];
 
+  switchStudio = function (mode) {
+    // Always hide dashboard panel when switching to any other studio
+    const _ds = el("dashboardStudio"), _dsb = el("dashboardStudioBtn");
+    if (_ds) _ds.classList.add("hidden");
+    if (_dsb) { _dsb.classList.remove("active"); _dsb.setAttribute("aria-selected", "false"); }
+
+    // Always hide new studios and deactivate their buttons
+    _NEW_STUDIOS.forEach(id => { const s = el(id); if (s) s.classList.add("hidden"); });
+    _NEW_BTNS.forEach(id => { const b = el(id); if (b) { b.classList.remove("active"); b.setAttribute("aria-selected", "false"); } });
+
+    if (mode === "collab") {
+      ["textStudio","musicStudio","visualStudio","animationStudio","videoStudio","chatStudio","feedStudio","dmsStudio","profileStudio","streamStudio","exportStudio","platformConnectStudio"].forEach(id => { const s = el(id); if (s) s.classList.add("hidden"); });
+      ["textStudioBtn","musicStudioBtn","visualStudioBtn","animationStudioBtn","videoStudioBtn","chatStudioBtn","feedStudioBtn","dmsStudioBtn","profileStudioBtn","streamStudioBtn","exportStudioBtn","platformConnectBtn"].forEach(id => { const b = el(id); if (b) { b.classList.remove("active"); b.setAttribute("aria-selected","false"); } });
+      const s = el("collabStudio"), btn = el("collabStudioBtn");
+      if (s) s.classList.remove("hidden");
+      if (btn) { btn.classList.add("active"); btn.setAttribute("aria-selected","true"); }
+      _hideAiPanel();
+      return;
+    }
+
+    if (mode === "stream") {
+      ["textStudio","musicStudio","visualStudio","animationStudio","videoStudio","chatStudio","feedStudio","dmsStudio","profileStudio","collabStudio","exportStudio","platformConnectStudio"].forEach(id => { const s = el(id); if (s) s.classList.add("hidden"); });
+      ["textStudioBtn","musicStudioBtn","visualStudioBtn","animationStudioBtn","videoStudioBtn","chatStudioBtn","feedStudioBtn","dmsStudioBtn","profileStudioBtn","collabStudioBtn","exportStudioBtn","platformConnectBtn"].forEach(id => { const b = el(id); if (b) { b.classList.remove("active"); b.setAttribute("aria-selected","false"); } });
+      const s = el("streamStudio"), btn = el("streamStudioBtn");
+      if (s) s.classList.remove("hidden");
+      if (btn) { btn.classList.add("active"); btn.setAttribute("aria-selected","true"); }
+      _hideAiPanel();
+      return;
+    }
+
+    if (mode === "export") {
+      ["textStudio","musicStudio","visualStudio","animationStudio","videoStudio","chatStudio","feedStudio","dmsStudio","profileStudio","collabStudio","streamStudio","platformConnectStudio"].forEach(id => { const s = el(id); if (s) s.classList.add("hidden"); });
+      ["textStudioBtn","musicStudioBtn","visualStudioBtn","animationStudioBtn","videoStudioBtn","chatStudioBtn","feedStudioBtn","dmsStudioBtn","profileStudioBtn","collabStudioBtn","streamStudioBtn","platformConnectBtn"].forEach(id => { const b = el(id); if (b) { b.classList.remove("active"); b.setAttribute("aria-selected","false"); } });
+      const s = el("exportStudio"), btn = el("exportStudioBtn");
+      if (s) s.classList.remove("hidden");
+      if (btn) { btn.classList.add("active"); btn.setAttribute("aria-selected","true"); }
+      _hideAiPanel();
+      return;
+    }
+
+    if (mode === "platformConnect") {
+      ["textStudio","musicStudio","visualStudio","animationStudio","videoStudio","chatStudio","feedStudio","dmsStudio","profileStudio","collabStudio","streamStudio","exportStudio"].forEach(id => { const s = el(id); if (s) s.classList.add("hidden"); });
+      ["textStudioBtn","musicStudioBtn","visualStudioBtn","animationStudioBtn","videoStudioBtn","chatStudioBtn","feedStudioBtn","dmsStudioBtn","profileStudioBtn","collabStudioBtn","streamStudioBtn","exportStudioBtn"].forEach(id => { const b = el(id); if (b) { b.classList.remove("active"); b.setAttribute("aria-selected","false"); } });
+      const s = el("platformConnectStudio"), btn = el("platformConnectBtn");
+      if (s) s.classList.remove("hidden");
+      if (btn) { btn.classList.add("active"); btn.setAttribute("aria-selected","true"); }
+      _hideAiPanel();
+      return;
+    }
+
+    _prevSS(mode);
+  };
+})();
 
 // ── Collab helpers ────────────────────────────────────────
 function switchCollabTool(tool) {
@@ -5604,7 +6063,7 @@ async function createCollabWorkspace() {
     const data = await resp.json();
     if (!resp.ok) { if (statusEl) statusEl.textContent = `Error: ${data.detail || "Failed"}`; return; }
     if (statusEl) statusEl.textContent = `✓ Workspace created! ID: ${data.workspace_id}`;
-    if (resultEl) { resultEl.textContent = JSON.stringify(data, null, 2); resultEl.classList.remove("hidden"); }
+    renderResultCard(resultEl, data, "Workspace Created");
     // Pre-fill the invite and activity workspace ID
     const invEl = el("collabInviteWorkspaceId");
     const actEl = el("collabActivityWorkspaceId");
@@ -5633,7 +6092,7 @@ async function inviteCollaborator() {
     const data = await resp.json();
     if (!resp.ok) { if (statusEl) statusEl.textContent = `Error: ${data.detail || "Failed"}`; return; }
     if (statusEl) statusEl.textContent = `✓ ${user_email} invited as ${role}`;
-    if (resultEl) { resultEl.textContent = JSON.stringify(data, null, 2); resultEl.classList.remove("hidden"); }
+    renderResultCard(resultEl, data, "Invite Sent");
   } catch (err) {
     if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`;
   }
@@ -5681,7 +6140,7 @@ async function getCollabSuggestions() {
     const data = await resp.json();
     if (!resp.ok) { if (statusEl) statusEl.textContent = `Error: ${data.detail || "Failed"}`; return; }
     if (statusEl) statusEl.textContent = "✓ AI suggestions ready";
-    if (resultEl) { resultEl.textContent = JSON.stringify(data, null, 2); resultEl.classList.remove("hidden"); }
+    renderResultCard(resultEl, data, "AI Suggestions");
   } catch (err) {
     if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`;
   }
@@ -5721,7 +6180,7 @@ async function setupStream() {
     // Pre-fill analytics stream ID
     const analEl = el("streamAnalyticsId");
     if (analEl) analEl.value = data.stream_id;
-    if (resultEl) { resultEl.textContent = JSON.stringify(data, null, 2); resultEl.classList.remove("hidden"); }
+    renderResultCard(resultEl, data, "Stream Configuration");
   } catch (err) {
     if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`;
   }
@@ -5740,7 +6199,7 @@ async function loadStreamAnalytics() {
     const data = await resp.json();
     if (!resp.ok) { if (statusEl) statusEl.textContent = `Error: ${data.detail || "Failed"}`; return; }
     if (statusEl) statusEl.textContent = `✓ Analytics loaded — peak: ${data.peak_viewers} viewers`;
-    if (resultEl) { resultEl.textContent = JSON.stringify(data, null, 2); resultEl.classList.remove("hidden"); }
+    renderResultCard(resultEl, data, "Stream Analytics");
   } catch (err) {
     if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`;
   }
@@ -5763,11 +6222,69 @@ async function generateStreamOverlay() {
     const data = await resp.json();
     if (!resp.ok) { if (statusEl) statusEl.textContent = `Error: ${data.detail || "Failed"}`; return; }
     if (statusEl) statusEl.textContent = "✓ Overlay config generated";
-    if (resultEl) { resultEl.textContent = JSON.stringify(data, null, 2); resultEl.classList.remove("hidden"); }
+    renderResultCard(resultEl, data, "Overlay Configuration");
   } catch (err) {
     if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`;
   }
 }
+
+// ── Now Playing Bar ──────────────────────────────────────────────
+(function initNowPlaying() {
+  const DEMO_QUEUE = [
+    {title: 'Cosmic Dreams', artist: 'KalaOS Artist', duration: 213},
+    {title: 'Night City Beat', artist: 'ProducerX', duration: 187},
+    {title: 'Solar Waves', artist: 'Wavecraft', duration: 244},
+    {title: 'Digital Rain', artist: 'ByteBeats', duration: 198},
+    {title: 'Neon Soul', artist: 'SynthPop', duration: 221},
+  ];
+  let queueIndex = 0;
+  let isPlaying = false;
+  let isShuffle = false;
+  let isRepeat = false;
+  let progressTimer = null;
+  let currentProgress = 0;
+
+  function loadTrack(index) {
+    queueIndex = Math.max(0, Math.min(index, DEMO_QUEUE.length-1));
+    const track = DEMO_QUEUE[queueIndex];
+    const tn = el('npTrackName'); if (tn) tn.textContent = track.title;
+    const an = el('npArtistName'); if (an) an.textContent = track.artist;
+    const dur = el('npDuration'); if (dur) dur.textContent = formatTime(track.duration);
+    currentProgress = 0;
+    const pb = el('npProgressBar'); if (pb) { pb.max = track.duration; pb.value = 0; }
+    const ct = el('npCurrentTime'); if (ct) ct.textContent = '0:00';
+  }
+
+  function formatTime(s) { return `${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,'0')}`; }
+
+  window.npTogglePlay = function() {
+    isPlaying = !isPlaying;
+    const btn = el('npPlayPauseBtn');
+    if (btn) btn.textContent = isPlaying ? '\u23F8' : '\u25B6';
+    if (isPlaying) {
+      progressTimer = setInterval(() => {
+        const track = DEMO_QUEUE[queueIndex];
+        currentProgress = Math.min(currentProgress + 1, track.duration);
+        const pb = el('npProgressBar'); if (pb) pb.value = currentProgress;
+        const ct = el('npCurrentTime'); if (ct) ct.textContent = formatTime(currentProgress);
+        if (currentProgress >= track.duration) {
+          isRepeat ? (currentProgress = 0) : window.npNextTrack();
+        }
+      }, 1000);
+    } else {
+      clearInterval(progressTimer);
+    }
+  };
+  window.npPrevTrack = function() { clearInterval(progressTimer); isPlaying = false; const b=el('npPlayPauseBtn'); if(b) b.textContent='\u25B6'; loadTrack(isShuffle ? Math.floor(Math.random()*DEMO_QUEUE.length) : queueIndex-1 < 0 ? DEMO_QUEUE.length-1 : queueIndex-1); };
+  window.npNextTrack = function() { clearInterval(progressTimer); isPlaying = false; const b=el('npPlayPauseBtn'); if(b) b.textContent='\u25B6'; loadTrack(isShuffle ? Math.floor(Math.random()*DEMO_QUEUE.length) : (queueIndex+1) % DEMO_QUEUE.length); };
+  window.npToggleShuffle = function() { isShuffle = !isShuffle; const b=el('npShuffleBtn'); if(b) b.style.opacity=isShuffle?'1':'.5'; };
+  window.npToggleRepeat = function() { isRepeat = !isRepeat; const b=el('npRepeatBtn'); if(b) b.style.opacity=isRepeat?'1':'.5'; };
+  window.npSeek = function(v) { currentProgress = parseInt(v); const ct=el('npCurrentTime'); if(ct) ct.textContent=formatTime(currentProgress); };
+  window.npSetVolume = function(v) { /* Web Audio volume control placeholder */ };
+
+  document.addEventListener('DOMContentLoaded', () => loadTrack(0));
+  setTimeout(() => loadTrack(0), 300);
+})();
 
 // ── Export helpers ────────────────────────────────────────
 const _EXPORT_FORMATS = {
@@ -5816,7 +6333,7 @@ async function prepareExport() {
     const data = await resp.json();
     if (!resp.ok) { if (statusEl) statusEl.textContent = `Error: ${data.detail || "Failed"}`; return; }
     if (statusEl) statusEl.textContent = `✓ Export ready — ${data.format?.toUpperCase()} (${data.estimated_size_mb} MB)`;
-    if (resultEl) { resultEl.textContent = JSON.stringify(data, null, 2); resultEl.classList.remove("hidden"); }
+    renderResultCard(resultEl, data, "Export Details");
   } catch (err) {
     if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`;
   }
@@ -5839,7 +6356,7 @@ async function importFromUrl() {
     const data = await resp.json();
     if (!resp.ok) { if (statusEl) statusEl.textContent = `Error: ${data.detail || "Failed"}`; return; }
     if (statusEl) statusEl.textContent = `✓ Imported ${data.detected_format?.toUpperCase() || "file"} → ${studio} studio`;
-    if (resultEl) { resultEl.textContent = JSON.stringify(data, null, 2); resultEl.classList.remove("hidden"); }
+    renderResultCard(resultEl, data, "Import Result");
   } catch (err) {
     if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`;
   }
@@ -5891,7 +6408,7 @@ async function runBatchExport() {
     const data = await resp.json();
     if (!resp.ok) { if (statusEl) statusEl.textContent = `Error: ${data.detail || "Failed"}`; return; }
     if (statusEl) statusEl.textContent = `✓ Batch export: ${data.total_items} items, ${data.estimated_total_size_mb} MB total`;
-    if (resultEl) { resultEl.textContent = JSON.stringify(data, null, 2); resultEl.classList.remove("hidden"); }
+    renderResultCard(resultEl, data, "Batch Export");
   } catch (err) {
     if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`;
   }
@@ -5915,6 +6432,36 @@ async function runQualityCheck() {
     const data = await resp.json();
     if (!resp.ok) { if (statusEl) statusEl.textContent = `Error: ${data.detail || "Failed"}`; return; }
     if (statusEl) statusEl.textContent = `✓ Quality score: ${data.quality_score}/100 (Grade ${data.grade})`;
+    renderResultCard(resultEl, data, "Quality Report");
+  } catch (err) {
+    if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`;
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+// PLATFORM CONNECT STUDIO
+// ══════════════════════════════════════════════════════════
+
+const _PC_USER_ID = () => (_currentUser && _currentUser.id) ? _currentUser.id : "demo_user";
+
+async function pcConnectPlatform(platform) {
+  const statusEl = el("pcConnectStatus");
+  const resultEl = el("pcConnectResult");
+  if (statusEl) statusEl.textContent = `Connecting to ${platform}…`;
+  if (resultEl) resultEl.classList.add("hidden");
+  try {
+    const oauthResp = await fetch(`${API_BASE}/platform-connect/oauth-url?platform=${encodeURIComponent(platform)}&user_id=${encodeURIComponent(_PC_USER_ID())}`);
+    const oauthData = await oauthResp.json();
+    if (!oauthResp.ok) { if (statusEl) statusEl.textContent = `Error: ${oauthData.detail || "Failed"}`; return; }
+
+    const connectResp = await fetch(`${API_BASE}/platform-connect/connect`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ platform, user_id: _PC_USER_ID(), auth_code: oauthData.state }),
+    });
+    const data = await connectResp.json();
+    if (!connectResp.ok) { if (statusEl) statusEl.textContent = `Error: ${data.detail || "Failed"}`; return; }
+    if (statusEl) statusEl.textContent = `✓ Connected to ${platform} as @${data.username}`;
     if (resultEl) { resultEl.textContent = JSON.stringify(data, null, 2); resultEl.classList.remove("hidden"); }
   } catch (err) {
     if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`;
@@ -6111,4 +6658,378 @@ async function getRoyaltyReport() {
     if (statusEl) statusEl.textContent = `✓ Total earnings: $${data.total_earnings}`;
     if (resultEl) { resultEl.textContent = JSON.stringify(data, null, 2); resultEl.classList.remove("hidden"); }
   } catch (err) { if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`; }
+
+
+async function pcLoadAnalytics() {
+  const platform = el("pcAnalyticsPlatform")?.value || "all";
+  const statusEl = el("pcAnalyticsStatus");
+  const resultEl = el("pcAnalyticsResult");
+  if (statusEl) statusEl.textContent = "Loading analytics…";
+  if (resultEl) resultEl.classList.add("hidden");
+  try {
+    const resp = await fetch(`${API_BASE}/platform-connect/analytics/${encodeURIComponent(_PC_USER_ID())}?platform=${encodeURIComponent(platform)}`);
+    const data = await resp.json();
+    if (!resp.ok) { if (statusEl) statusEl.textContent = `Error: ${data.detail || "Failed"}`; return; }
+    if (statusEl) statusEl.textContent = `✓ Analytics loaded — ${data.total_plays.toLocaleString()} total plays`;
+    if (resultEl) { resultEl.textContent = JSON.stringify(data, null, 2); resultEl.classList.remove("hidden"); }
+  } catch (err) {
+    if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`;
+  }
+}
+
+async function pcGenerateEPK() {
+  const artist_name = el("pcEpkArtistName")?.value?.trim();
+  const genre       = el("pcEpkGenre")?.value?.trim();
+  const bio         = el("pcEpkBio")?.value?.trim();
+  const statusEl    = el("pcEpkStatus");
+  const resultEl    = el("pcEpkResult");
+  if (!artist_name) { if (statusEl) statusEl.textContent = "Please enter an artist name."; return; }
+  if (!genre)       { if (statusEl) statusEl.textContent = "Please enter a genre."; return; }
+  if (!bio)         { if (statusEl) statusEl.textContent = "Please enter a bio."; return; }
+  if (statusEl) statusEl.textContent = "Generating EPK…";
+  if (resultEl) resultEl.classList.add("hidden");
+  try {
+    const resp = await fetch(`${API_BASE}/platform-connect/epk`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: _PC_USER_ID(), artist_name, genre, bio }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) { if (statusEl) statusEl.textContent = `Error: ${data.detail || "Failed"}`; return; }
+    if (statusEl) statusEl.textContent = `✓ EPK generated for ${data.artist_name}`;
+    if (resultEl) { resultEl.textContent = JSON.stringify(data, null, 2); resultEl.classList.remove("hidden"); }
+  } catch (err) {
+    if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`;
+  }
+}
+
+async function pcGetOptimalTime() {
+  const genre         = el("pcReleaseGenre")?.value?.trim();
+  const target_region = el("pcReleaseRegion")?.value || "global";
+  const statusEl      = el("pcReleaseStatus");
+  const resultEl      = el("pcReleaseResult");
+  if (!genre) { if (statusEl) statusEl.textContent = "Please enter a genre."; return; }
+  if (statusEl) statusEl.textContent = "Calculating optimal release time…";
+  if (resultEl) resultEl.classList.add("hidden");
+  try {
+    const resp = await fetch(`${API_BASE}/platform-connect/optimal-release?genre=${encodeURIComponent(genre)}&target_region=${encodeURIComponent(target_region)}`);
+    const data = await resp.json();
+    if (!resp.ok) { if (statusEl) statusEl.textContent = `Error: ${data.detail || "Failed"}`; return; }
+    if (statusEl) statusEl.textContent = `✓ Best day: ${data.optimal_day} at ${data.optimal_time_utc} UTC`;
+    if (resultEl) { resultEl.textContent = JSON.stringify(data, null, 2); resultEl.classList.remove("hidden"); }
+  } catch (err) {
+    if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`;
+  }
+}
+
+async function pcDistribute() {
+  const platforms = Array.from(document.querySelectorAll("input[name='distPlatform']:checked")).map(c => c.value);
+  const title     = el("pcDistTitle")?.value?.trim();
+  const type      = el("pcDistType")?.value || "audio";
+  const desc      = el("pcDistDesc")?.value?.trim() || "";
+  const statusEl  = el("pcDistStatus");
+  const resultEl  = el("pcDistResult");
+  if (!platforms.length) { if (statusEl) statusEl.textContent = "Please select at least one platform."; return; }
+  if (!title)            { if (statusEl) statusEl.textContent = "Please enter a content title."; return; }
+  if (statusEl) statusEl.textContent = "Distributing content…";
+  if (resultEl) resultEl.classList.add("hidden");
+  try {
+    const resp = await fetch(`${API_BASE}/platform-connect/distribute`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: _PC_USER_ID(), platforms, content: { title, type, description: desc } }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) { if (statusEl) statusEl.textContent = `Error: ${data.detail || "Failed"}`; return; }
+    if (statusEl) statusEl.textContent = `✓ Queued for ${data.queued} platform${data.queued !== 1 ? "s" : ""}`;
+    if (resultEl) { resultEl.textContent = JSON.stringify(data, null, 2); resultEl.classList.remove("hidden"); }
+  } catch (err) {
+    if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`;
+  }
+}
+
+// ── Sampler Pads ──────────────────────────────────────────────────────────
+(function initSampler() {
+  const PAD_COUNT = 16;
+  const BANK_LABELS = {
+    drums:      ['Kick','Snare','Hi-Hat','Open HH','Clap','Tom Hi','Tom Mid','Tom Lo','Rim','Cowbell','Crash','Ride','Shaker','Tambourine','Conga Hi','Conga Lo'],
+    percussion: ['Clave','Guiro','Maracas','Cabasa','Agogo Hi','Agogo Lo','Vibraslap','Wood Blk','Bell Tree','Finger Snap','Hand Clap','Slap','Pop','Click','Tick','Beep'],
+    bass:       ['Bass 1','Bass 2','Sub Bass','Pluck','Stab','Muted','Palm','Slap Bass','Pop Bass','Fuzz','Octave','Chord','Arp Up','Arp Dn','Walk','Root'],
+    synth:      ['Lead 1','Lead 2','Pad 1','Pad 2','Pluck','Stab','Chord','Arp','Bell','Key','Organ','Brass','Sweep','Rise','Drop','Zap'],
+    vocals:     ['Aaah','Oooh','Hey!','Yeah!','Uh!','Oh!','Woo!','Clap','Snap','Stomp','Grunt','Breath','Vox 1','Vox 2','Choir','Harmony'],
+    fx:         ['Riser','Crash','Downlift','Swoosh','Impact','Whoosh','Zap','Glitch','Reverse','Vinyl','Tape','Noise','Wind','Rain','Thunder','Space'],
+  };
+  let currentBank = 'drums';
+  let padLabels = [...BANK_LABELS.drums];
+  let isPlaying = false;
+  let currentStep = 0;
+  let stepTimer = null;
+  let padActive = Array(PAD_COUNT).fill(false);
+
+  window.samplerLoadBank = function(bank) {
+    currentBank = bank;
+    padLabels = [...(BANK_LABELS[bank] || BANK_LABELS.drums)];
+    renderSamplerGrid();
+    const st = el('samplerStatus');
+    if (st) st.textContent = `Loaded ${bank} bank`;
+  };
+
+  function renderSamplerGrid() {
+    const grid = el('samplerGrid');
+    if (!grid) return;
+    grid.innerHTML = '';
+    for (let i = 0; i < PAD_COUNT; i++) {
+      const pad = document.createElement('button');
+      pad.className = 'sampler-pad' + (padActive[i] ? ' active' : '');
+      pad.id = `samplerPad${i}`;
+      pad.setAttribute('data-pad', i);
+      pad.setAttribute('aria-label', padLabels[i]);
+      pad.innerHTML = `<span class="pad-label">${padLabels[i]}</span><span class="pad-num">${i+1}</span>`;
+      pad.addEventListener('mousedown', () => {
+        padActive[i] = !padActive[i];
+        pad.classList.toggle('active', padActive[i]);
+        padTrigger(i);
+      });
+      grid.appendChild(pad);
+    }
+  }
+
+  function padTrigger(i) {
+    const pad = el(`samplerPad${i}`);
+    if (!pad) return;
+    pad.classList.add('triggered');
+    setTimeout(() => pad.classList.remove('triggered'), 150);
+    const st = el('samplerStatus');
+    if (st) st.textContent = `▶ ${padLabels[i]}`;
+  }
+
+  window.samplerStartStop = function() {
+    isPlaying = !isPlaying;
+    const btn = el('samplerPlayBtn');
+    if (btn) btn.textContent = isPlaying ? '⏹ Stop' : '▶ Play';
+    if (isPlaying) runSequencer(); else { clearTimeout(stepTimer); currentStep = 0; }
+  };
+
+  function runSequencer() {
+    if (!isPlaying) return;
+    const bpm = parseInt(el('samplerBpm')?.value || '120', 10);
+    const interval = (60 / bpm / 4) * 1000;
+    document.querySelectorAll('.sampler-pad').forEach((p, i) => p.classList.toggle('step-active', i === currentStep));
+    if (padActive[currentStep]) padTrigger(currentStep);
+    currentStep = (currentStep + 1) % PAD_COUNT;
+    stepTimer = setTimeout(runSequencer, interval);
+  }
+
+  window.samplerClearAll = function() {
+    padActive = Array(PAD_COUNT).fill(false);
+    renderSamplerGrid();
+    isPlaying = false;
+    clearTimeout(stepTimer);
+    const btn = el('samplerPlayBtn');
+    if (btn) btn.textContent = '▶ Play';
+  };
+
+  document.addEventListener('DOMContentLoaded', () => {
+    if (el('samplerGrid')) renderSamplerGrid();
+  });
+  setTimeout(() => { if (el('samplerGrid') && el('samplerGrid').children.length === 0) renderSamplerGrid(); }, 500);
+})();
+
+// ── Virtual Keyboard ──────────────────────────────────────────────────────
+(function initVirtualKeyboard() {
+  const WHITE_KEYS = ['C','D','E','F','G','A','B'];
+  const BLACK_KEY_POSITIONS = [0,1,3,4,5]; // after which white key index
+  let octave = 4;
+  let instrument = 'piano';
+  let reverb = 20;
+  let volume = 80;
+  let isRecording = false;
+  let recording = [];
+  let recordStart = null;
+  let playbackTimer = null;
+
+  const NOTE_FREQS = {
+    'C': 261.63, 'C#': 277.18, 'D': 293.66, 'D#': 311.13,
+    'E': 329.63, 'F': 349.23, 'F#': 369.99, 'G': 392.00,
+    'G#': 415.30, 'A': 440.00, 'A#': 466.16, 'B': 493.88
+  };
+
+  function getFreq(note, octave) {
+    const base = NOTE_FREQS[note] || 440;
+    return base * Math.pow(2, octave - 4);
+  }
+
+  function playNote(note, oct) {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+      osc.connect(gainNode);
+      gainNode.connect(ctx.destination);
+      const waveTypes = { piano: 'triangle', organ: 'square', strings: 'sawtooth', synth: 'sawtooth', bass: 'triangle', marimba: 'sine' };
+      osc.type = waveTypes[instrument] || 'triangle';
+      osc.frequency.setValueAtTime(getFreq(note, oct), ctx.currentTime);
+      const vol = volume / 100 * 0.3;
+      gainNode.gain.setValueAtTime(vol, ctx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.8 + reverb / 200);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.8 + reverb / 200);
+    } catch(e) {}
+    if (isRecording) {
+      const t = Date.now() - (recordStart || Date.now());
+      recording.push({note, oct, time: t});
+    }
+    highlightKey(note, oct);
+    const st = el('keyboardStatus');
+    if (st) st.textContent = `♪ ${note}${oct}`;
+  }
+
+  function highlightKey(note, oct) {
+    const keyId = `pianoKey${note.replace('#','s')}${oct}`;
+    const k = el(keyId);
+    if (!k) return;
+    k.classList.add('pressed');
+    setTimeout(() => k.classList.remove('pressed'), 200);
+  }
+
+  function renderKeyboard() {
+    const kb = el('pianoKeyboard');
+    if (!kb) return;
+    kb.innerHTML = '';
+    [octave, octave + 1].forEach(o => {
+      const octDiv = document.createElement('div');
+      octDiv.className = 'piano-octave';
+      octDiv.style.cssText = 'position:relative;display:inline-flex;';
+      WHITE_KEYS.forEach((note, wi) => {
+        const key = document.createElement('button');
+        key.className = 'piano-key white-key';
+        key.id = `pianoKey${note}${o}`;
+        key.setAttribute('aria-label', `${note}${o}`);
+        key.innerHTML = `<span class="key-label">${note}</span>`;
+        key.addEventListener('mousedown', (e) => { e.preventDefault(); playNote(note, o); });
+        octDiv.appendChild(key);
+        if (BLACK_KEY_POSITIONS.includes(wi)) {
+          const sharpNote = note + '#';
+          const bkey = document.createElement('button');
+          bkey.className = 'piano-key black-key';
+          bkey.id = `pianoKey${sharpNote.replace('#','s')}${o}`;
+          bkey.setAttribute('aria-label', `${sharpNote}${o}`);
+          bkey.addEventListener('mousedown', (e) => { e.preventDefault(); playNote(sharpNote, o); });
+          octDiv.appendChild(bkey);
+        }
+      });
+      kb.appendChild(octDiv);
+    });
+  }
+
+  window.keyboardOctaveDown = function() {
+    if (octave > 1) { octave--; const d = el('keyboardOctaveDisplay'); if (d) d.textContent = octave; renderKeyboard(); }
+  };
+  window.keyboardOctaveUp = function() {
+    if (octave < 7) { octave++; const d = el('keyboardOctaveDisplay'); if (d) d.textContent = octave; renderKeyboard(); }
+  };
+  window.keyboardSetInstrument = function(v) { instrument = v; };
+  window.keyboardSetReverb = function(v) { reverb = parseInt(v, 10); };
+  window.keyboardSetVolume = function(v) { volume = parseInt(v, 10); };
+
+  window.keyboardToggleRecord = function() {
+    isRecording = !isRecording;
+    const btn = el('keyboardRecordBtn');
+    if (isRecording) {
+      recording = []; recordStart = Date.now();
+      if (btn) btn.style.color = '#f00';
+      const st = el('keyboardStatus'); if (st) st.textContent = '⏺ Recording...';
+    } else {
+      if (btn) btn.style.color = '';
+      const st = el('keyboardStatus'); if (st) st.textContent = `Recorded ${recording.length} notes`;
+    }
+  };
+
+  window.keyboardPlayRecording = function() {
+    if (!recording.length) return;
+    clearTimeout(playbackTimer);
+    recording.forEach(({note, oct, time}) => {
+      setTimeout(() => playNote(note, oct), time);
+    });
+  };
+
+  document.addEventListener('keydown', function(e) {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    const noteMap = {
+      'a':'C','w':'C#','s':'D','e':'D#','d':'E','f':'F','t':'F#',
+      'g':'G','y':'G#','h':'A','u':'A#','j':'B','k':'C'
+    };
+    const note = noteMap[e.key.toLowerCase()];
+    if (note) {
+      // 'k' maps to C one octave above the current octave (wraps the keyboard span)
+      const targetOctave = (e.key.toLowerCase() === 'k') ? octave + 1 : octave;
+      playNote(note, targetOctave);
+    }
+    if (e.key === '+' || e.key === '=') keyboardOctaveUp();
+    if (e.key === '-') keyboardOctaveDown();
+  });
+
+  document.addEventListener('DOMContentLoaded', () => { if (el('pianoKeyboard')) renderKeyboard(); });
+  setTimeout(() => { if (el('pianoKeyboard') && el('pianoKeyboard').children.length === 0) renderKeyboard(); }, 500);
+})();
+
+// ── 3D Studio ──────────────────────────────────────────────────────────────
+
+async function vs3dGenerate() {
+  const prompt = el('vs3dPrompt')?.value?.trim();
+  if (!prompt) { showToast('Enter a scene description'); return; }
+  const style = el('vs3dStyle')?.value || 'realistic';
+  const btn = el('vs3dGenerateBtn');
+  const st = el('vs3dStatus');
+  if (btn) btn.disabled = true;
+  if (st) st.textContent = 'Generating 3D scene…';
+  try {
+    const resp = await fetch(`${API_BASE}/visual-studio/generate-3d-scene`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({prompt, style, objects: []}),
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+    const data = await resp.json();
+    const preview = el('vs3dPreview');
+    const canvas = el('vs3dCanvas');
+    const config = el('vs3dConfig');
+    if (preview) preview.classList.remove('hidden');
+    if (canvas) {
+      canvas.style.background = data.scene?.background_color || '#0a0a1a';
+      canvas.innerHTML = `<div style="text-align:center;color:#fff"><div style="font-size:3rem">🎲</div><div style="opacity:.7;margin-top:.5rem">${style} scene</div><div style="font-size:.8rem;opacity:.5;margin-top:.25rem">${data.objects?.length || 0} objects</div></div>`;
+    }
+    if (config) config.textContent = JSON.stringify({lighting: data.lighting, material: data.material, camera: data.camera}, null, 2);
+    if (st) st.textContent = `✔ Scene generated — ${data.objects?.length || 0} objects, ${style} style`;
+  } catch(e) {
+    if (st) st.textContent = 'Generation failed. Check your connection.';
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+// ── AI Photo Edit ──────────────────────────────────────────────────────────
+
+async function vsPhotoAiEdit(operation) {
+  const url = el('vsPhotoAiUrl')?.value?.trim() || 'https://example.com/photo.jpg';
+  const st = el('vsPhotoAiStatus');
+  const result = el('vsPhotoAiResult');
+  const opLabels = {remove_bg:'Removing background', upscale:'Upscaling', colorize:'Colorizing', denoise:'Denoising'};
+  if (st) st.textContent = `${opLabels[operation] || operation}…`;
+  try {
+    const resp = await fetch(`${API_BASE}/visual-studio/ai-photo-edit`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({image_url: url, operation, options: {}}),
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+    const data = await resp.json();
+    if (result) {
+      result.classList.remove('hidden');
+      result.innerHTML = `<div><strong>✔ ${data.operation.replace('_',' ')}</strong></div>
+        <div>Result: ${data.result_url}</div>
+        <div>Processing: ${data.processing_time_ms}ms | Status: ${data.status}</div>`;
+    }
+    if (st) st.textContent = `✔ ${operation.replace('_',' ')} complete`;
+  } catch(e) {
+    if (st) st.textContent = 'Processing failed. Check your connection.';
+  }
 }

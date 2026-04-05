@@ -557,6 +557,7 @@ pip install -r requirements.txt
 pytest ../tests/ -v
 ```
 
+
 All **574 tests** should pass. The test suite covers every endpoint and every kalacore module with unit and integration tests, including auth registration/login/reset, session expiry, profile updates, password changes, logout (token revocation), and account deletion.
 
 > **Worker testing:** The Cloudflare Worker (`worker/`) runs in the Workers runtime and cannot be tested with pytest.  Use `wrangler dev` for local testing against a local D1 instance, or `wrangler d1 execute --local` to inspect the database.

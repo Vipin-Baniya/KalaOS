@@ -245,3 +245,36 @@ def generate_animation_plan(
         "export_formats": ["mp4", "gif", "webm"],
         "creative_score": creative_score,
     }
+
+
+def prepare_mp4_export(frames: list, fps: int = 24, resolution: str = "1920x1080") -> dict:
+    """Prepare an MP4 export configuration for the animation."""
+    from datetime import datetime, timezone
+    _VALID_FPS = {12, 24, 30, 60}
+    _VALID_RESOLUTIONS = {"640x480", "1280x720", "1920x1080", "3840x2160"}
+    if fps not in _VALID_FPS:
+        raise ValueError(f"Invalid fps '{fps}'. Must be one of: {sorted(_VALID_FPS)}")
+    if resolution not in _VALID_RESOLUTIONS:
+        raise ValueError(f"Invalid resolution '{resolution}'. Must be one of: {sorted(_VALID_RESOLUTIONS)}")
+    if not frames:
+        raise ValueError("frames list must not be empty")
+    frame_count = len(frames)
+    duration_seconds = round(frame_count / fps, 2)
+    # Parse resolution
+    width, height = map(int, resolution.split('x'))
+    return {
+        "frame_count": frame_count,
+        "fps": fps,
+        "resolution": resolution,
+        "width": width,
+        "height": height,
+        "duration_seconds": duration_seconds,
+        "codec": "H.264",
+        "container": "MP4",
+        "bitrate_kbps": 5000 if width >= 1920 else 2500 if width >= 1280 else 1000,
+        "ffmpeg_command": f"ffmpeg -r {fps} -i frame_%04d.png -c:v libx264 -pix_fmt yuv420p -s {resolution} output.mp4",
+        "estimated_size_mb": round(frame_count * 0.1 * (5000 if width >= 1920 else 2500 if width >= 1280 else 1000) / 8000, 1),
+        "export_url": f"https://kalaos.com/exports/animation_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.mp4",
+        "prepared_at": datetime.now(timezone.utc).isoformat(),
+        "status": "ready",
+    }
