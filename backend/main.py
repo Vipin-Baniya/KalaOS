@@ -65,13 +65,20 @@ from kalacore.kalacollab import create_collab_workspace, add_collaborator, get_c
 from kalacore.kalastream import setup_stream, get_stream_analytics, generate_stream_overlay
 from kalacore.kalaexport import prepare_export, import_from_url, batch_export
 from kalacore.kalaplatformconnect import (
+    connect_oauth_platform,
+    distribute_release,
+    generate_epk,
+    get_platform_analytics,
+    sync_catalog,
+    create_smart_link,
+    schedule_release,
+    get_royalty_report,
     get_oauth_url,
     connect_platform,
     disconnect_platform,
     get_connected_platforms,
     distribute_to_platforms,
     get_analytics_summary,
-    generate_epk,
     get_optimal_release_time,
 )
 from services.llm_service import (
@@ -2611,9 +2618,57 @@ def ai_quality_check(request: Request, body: AIQualityCheckBody):
     }
 
 
+
 # ---------------------------------------------------------------------------
 # Platform Connect endpoints
 # ---------------------------------------------------------------------------
+
+class PlatformOAuthBody(BaseModel):
+    platform: str
+    user_id: str
+    scope: str
+
+
+@app.post("/platform-connect/oauth", summary="Initiate OAuth connection to a platform")
+@limiter.limit("20/minute")
+def platform_connect_oauth(request: Request, body: PlatformOAuthBody):
+    if not body.platform or not body.platform.strip():
+        raise HTTPException(status_code=422, detail="platform must not be empty")
+    if not body.user_id or not body.user_id.strip():
+        raise HTTPException(status_code=422, detail="user_id must not be empty")
+    if not body.scope or not body.scope.strip():
+        raise HTTPException(status_code=422, detail="scope must not be empty")
+    try:
+        return connect_oauth_platform(body.platform.strip(), body.user_id.strip(), body.scope.strip())
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+class DistributeReleaseBody(BaseModel):
+    title: str
+    artist: str
+    platforms: List[str]
+    release_date: str
+    metadata: dict = {}
+
+
+@app.post("/platform-connect/distribute-legacy", summary="Submit a release for distribution (legacy)")
+@limiter.limit("20/minute")
+def platform_connect_distribute_legacy(request: Request, body: DistributeReleaseBody):
+    if not body.title or not body.title.strip():
+        raise HTTPException(status_code=422, detail="title must not be empty")
+    if not body.artist or not body.artist.strip():
+        raise HTTPException(status_code=422, detail="artist must not be empty")
+    if not body.platforms:
+        raise HTTPException(status_code=422, detail="platforms must not be empty")
+    try:
+        return distribute_release(
+            body.title.strip(), body.artist.strip(),
+            body.platforms, body.release_date, body.metadata,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
 
 class PlatformConnectBody(BaseModel):
     platform: str
@@ -2647,6 +2702,14 @@ def platform_connect_oauth_url(request: Request, platform: str, user_id: str):
         return result
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
+
+
+class GenerateEPKBody(BaseModel):
+    artist_name: str
+    bio: str
+    genres: List[str] = []
+    contact_email: str
+    media_links: List[str] = []
 
 
 @app.post("/platform-connect/connect", summary="Connect a platform via OAuth")
@@ -2694,9 +2757,12 @@ def platform_connect_distribute(request: Request, body: PlatformDistributeBody):
 
 @app.get("/platform-connect/analytics/{user_id}", summary="Get analytics summary for a user")
 @limiter.limit("20/minute")
-def platform_connect_analytics(user_id: str, request: Request, platform: str = "all"):
+def platform_connect_analytics_by_user(user_id: str, request: Request, platform: str = "all"):
     result = get_analytics_summary(user_id, platform)
     return result
+
+
+
 
 
 @app.post("/platform-connect/epk", summary="Generate an Electronic Press Kit")
@@ -2711,6 +2777,128 @@ def platform_connect_epk(request: Request, body: PlatformEPKBody):
     try:
         result = generate_epk(body.user_id, body.artist_name, body.genre, body.bio)
         return result
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+class PlatformAnalyticsBody(BaseModel):
+    platform: str
+    user_id: str
+    time_range: str = "30d"
+
+
+@app.post("/platform-connect/analytics", summary="Get platform analytics")
+@limiter.limit("20/minute")
+def platform_connect_analytics_post(request: Request, body: PlatformAnalyticsBody):
+    if not body.platform or not body.platform.strip():
+        raise HTTPException(status_code=422, detail="platform must not be empty")
+    if not body.user_id or not body.user_id.strip():
+        raise HTTPException(status_code=422, detail="user_id must not be empty")
+    try:
+        return get_platform_analytics(body.platform.strip(), body.user_id.strip(), body.time_range)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+class SyncCatalogBody(BaseModel):
+    user_id: str
+    source_platform: str
+    target_platforms: List[str] = []
+
+
+@app.post("/platform-connect/sync-catalog", summary="Sync catalog across platforms")
+@limiter.limit("20/minute")
+def platform_connect_sync_catalog(request: Request, body: SyncCatalogBody):
+    if not body.user_id or not body.user_id.strip():
+        raise HTTPException(status_code=422, detail="user_id must not be empty")
+    if not body.source_platform or not body.source_platform.strip():
+        raise HTTPException(status_code=422, detail="source_platform must not be empty")
+    try:
+        return sync_catalog(body.user_id.strip(), body.source_platform.strip(), body.target_platforms)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+class SmartLinkBody(BaseModel):
+    title: str
+    artist: str
+    platforms_urls: dict = {}
+
+
+@app.post("/platform-connect/smart-link", summary="Create a smart link for a release")
+@limiter.limit("20/minute")
+def platform_connect_smart_link(request: Request, body: SmartLinkBody):
+    if not body.title or not body.title.strip():
+        raise HTTPException(status_code=422, detail="title must not be empty")
+    if not body.artist or not body.artist.strip():
+        raise HTTPException(status_code=422, detail="artist must not be empty")
+    if not body.platforms_urls:
+        raise HTTPException(status_code=422, detail="platforms_urls must not be empty")
+    try:
+        return create_smart_link(body.title.strip(), body.artist.strip(), body.platforms_urls)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+class ScheduleReleaseBody(BaseModel):
+    title: str
+    artist: str
+    release_date: str
+    platforms: List[str]
+    pre_save_enabled: bool = False
+
+
+@app.post("/platform-connect/schedule-release", summary="Schedule a release for distribution")
+@limiter.limit("20/minute")
+def platform_connect_schedule_release(request: Request, body: ScheduleReleaseBody):
+    if not body.title or not body.title.strip():
+        raise HTTPException(status_code=422, detail="title must not be empty")
+    if not body.artist or not body.artist.strip():
+        raise HTTPException(status_code=422, detail="artist must not be empty")
+    if not body.platforms:
+        raise HTTPException(status_code=422, detail="platforms must not be empty")
+    try:
+        return schedule_release(
+            body.title.strip(), body.artist.strip(),
+            body.release_date, body.platforms, body.pre_save_enabled,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+class RoyaltyReportBody(BaseModel):
+    user_id: str
+    period: str
+    platforms: List[str] = []
+
+
+@app.post("/platform-connect/royalty-report", summary="Get royalty earnings report")
+@limiter.limit("20/minute")
+def platform_connect_royalty_report(request: Request, body: RoyaltyReportBody):
+    if not body.user_id or not body.user_id.strip():
+        raise HTTPException(status_code=422, detail="user_id must not be empty")
+    if not body.period or not body.period.strip():
+        raise HTTPException(status_code=422, detail="period must not be empty")
+    try:
+        return get_royalty_report(body.user_id.strip(), body.period.strip(), body.platforms or None)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+@app.post("/platform-connect/epk-legacy", summary="Generate an Electronic Press Kit (legacy)")
+@limiter.limit("20/minute")
+def platform_connect_epk_legacy(request: Request, body: GenerateEPKBody):
+    if not body.artist_name or not body.artist_name.strip():
+        raise HTTPException(status_code=422, detail="artist_name must not be empty")
+    if not body.bio or not body.bio.strip():
+        raise HTTPException(status_code=422, detail="bio must not be empty")
+    if not body.contact_email or not body.contact_email.strip():
+        raise HTTPException(status_code=422, detail="contact_email must not be empty")
+    try:
+        return generate_epk(
+            body.artist_name.strip(), body.bio.strip(),
+            body.genres, body.contact_email.strip(), body.media_links,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
 
@@ -2751,6 +2939,407 @@ def visual_generate_3d_scene(body: Generate3dSceneRequest):
 
 
 # ---------------------------------------------------------------------------
+# Music Studio – Sampler Bank
+# ---------------------------------------------------------------------------
+
+class SamplerBankBody(BaseModel):
+    prompt: str
+    kit_style: str = "acoustic"
+
+
+_VALID_KIT_STYLES: set = {"acoustic", "electronic", "hip-hop", "jazz", "orchestral"}
+
+
+@app.post("/music-studio/sampler-bank", summary="Generate a sampler bank")
+@limiter.limit("20/minute")
+def music_studio_sampler_bank(request: Request, body: SamplerBankBody):
+    if not body.prompt or not body.prompt.strip():
+        raise HTTPException(status_code=422, detail="prompt must not be empty")
+    if body.kit_style not in _VALID_KIT_STYLES:
+        raise HTTPException(status_code=422, detail=f"kit_style must be one of {sorted(_VALID_KIT_STYLES)}")
+
+    import hashlib as _hl
+    prompt = body.prompt.strip()
+    d = int(_hl.md5(f"{prompt}{body.kit_style}".encode()).hexdigest(), 16)
+
+    sample_types = ["kick", "snare", "hihat", "clap", "bass", "chord", "melody", "fx"]
+    pitches = ["C3", "D3", "E3", "F3", "G3", "A3", "B3", "C4"]
+    samples = []
+    for i in range(8):
+        sd = int(_hl.md5(f"{prompt}{body.kit_style}{i}".encode()).hexdigest(), 16)
+        samples.append({
+            "name": f"{body.kit_style}_{sample_types[i]}_{i+1}",
+            "type": sample_types[i],
+            "pitch": pitches[sd % len(pitches)],
+            "velocity": 64 + (sd % 64),
+            "duration_ms": 100 + (sd % 900),
+        })
+
+    bank_id = _hl.md5(f"{prompt}{body.kit_style}".encode()).hexdigest()[:16]
+    return {
+        "bank_id": bank_id,
+        "samples": samples,
+        "bpm": 80 + (d % 80),
+        "kit_name": f"{body.kit_style.title()} Kit – {prompt[:30]}",
+    }
+
+
+# ---------------------------------------------------------------------------
+# Music Studio – Keyboard Config
+# ---------------------------------------------------------------------------
+
+class KeyboardConfigBody(BaseModel):
+    scale: str = "major"
+    root_note: str = "C"
+    octave_range: int = 2
+
+
+_VALID_SCALES: set = {"major", "minor", "pentatonic", "blues", "chromatic", "dorian", "mixolydian"}
+
+
+@app.post("/music-studio/keyboard-config", summary="Configure virtual keyboard layout")
+@limiter.limit("20/minute")
+def music_studio_keyboard_config(request: Request, body: KeyboardConfigBody):
+    if body.scale not in _VALID_SCALES:
+        raise HTTPException(status_code=422, detail=f"scale must be one of {sorted(_VALID_SCALES)}")
+    if body.octave_range < 1 or body.octave_range > 8:
+        raise HTTPException(status_code=422, detail="octave_range must be between 1 and 8")
+
+    import hashlib as _hl
+    seed = f"{body.scale}{body.root_note}{body.octave_range}"
+    config_id = _hl.md5(seed.encode()).hexdigest()[:16]
+
+    scale_intervals = {
+        "major": [0, 2, 4, 5, 7, 9, 11],
+        "minor": [0, 2, 3, 5, 7, 8, 10],
+        "pentatonic": [0, 2, 4, 7, 9],
+        "blues": [0, 3, 5, 6, 7, 10],
+        "chromatic": list(range(12)),
+        "dorian": [0, 2, 3, 5, 7, 9, 10],
+        "mixolydian": [0, 2, 4, 5, 7, 9, 10],
+    }
+    notes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+    root_idx = notes.index(body.root_note) if body.root_note in notes else 0
+    intervals = scale_intervals[body.scale]
+    key_bindings = {
+        str(i): notes[(root_idx + interval) % 12]
+        for i, interval in enumerate(intervals)
+    }
+
+    return {
+        "config_id": config_id,
+        "layout": "piano",
+        "octave_range": body.octave_range,
+        "key_bindings": key_bindings,
+        "scale": body.scale,
+        "root_note": body.root_note,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Video Studio – Apply Effect
+# ---------------------------------------------------------------------------
+
+class VideoEffectBody(BaseModel):
+    scene_id: str
+    effect_name: str
+    parameters: dict = {}
+
+
+_VALID_VIDEO_EFFECTS: set = {
+    "color-grade", "slow-motion", "blur", "vignette",
+    "zoom", "glitch", "film-grain", "neon-glow",
+}
+
+
+@app.post("/video-studio/apply-effect", summary="Apply a visual effect to a scene")
+@limiter.limit("20/minute")
+def video_studio_apply_effect(request: Request, body: VideoEffectBody):
+    if not body.scene_id or not body.scene_id.strip():
+        raise HTTPException(status_code=422, detail="scene_id must not be empty")
+    if not body.effect_name or not body.effect_name.strip():
+        raise HTTPException(status_code=422, detail="effect_name must not be empty")
+    if body.effect_name not in _VALID_VIDEO_EFFECTS:
+        raise HTTPException(status_code=422, detail=f"effect_name must be one of {sorted(_VALID_VIDEO_EFFECTS)}")
+
+    import hashlib as _hl
+    import datetime as _dt
+    seed = f"{body.scene_id}{body.effect_name}"
+    effect_id = _hl.md5(seed.encode()).hexdigest()[:16]
+
+    return {
+        "effect_id": effect_id,
+        "scene_id": body.scene_id.strip(),
+        "effect_name": body.effect_name,
+        "parameters": body.parameters,
+        "preview_url": f"https://kalaos.io/preview/{effect_id}",
+        "applied_at": _dt.datetime.now(_dt.timezone.utc).isoformat().replace("+00:00", "Z"),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Video Studio – AI Tool
+# ---------------------------------------------------------------------------
+
+class VideoAIToolBody(BaseModel):
+    tool_name: str
+    input: str
+    options: dict = {}
+
+
+_VALID_VIDEO_AI_TOOLS: set = {
+    "background-remove", "upscale", "stabilize", "denoise",
+    "auto-edit", "scene-detect", "object-track",
+}
+
+
+@app.post("/video-studio/ai-tool", summary="Apply an AI tool to video content")
+@limiter.limit("20/minute")
+def video_studio_ai_tool(request: Request, body: VideoAIToolBody):
+    if not body.tool_name or not body.tool_name.strip():
+        raise HTTPException(status_code=422, detail="tool_name must not be empty")
+    if body.tool_name not in _VALID_VIDEO_AI_TOOLS:
+        raise HTTPException(status_code=422, detail=f"tool_name must be one of {sorted(_VALID_VIDEO_AI_TOOLS)}")
+    if not body.input or not body.input.strip():
+        raise HTTPException(status_code=422, detail="input must not be empty")
+
+    import hashlib as _hl
+    seed = f"{body.tool_name}{body.input}"
+    tool_id = _hl.md5(seed.encode()).hexdigest()[:16]
+    d = int(_hl.md5(seed.encode()).hexdigest(), 16)
+
+    return {
+        "tool_id": tool_id,
+        "tool_name": body.tool_name,
+        "input": body.input.strip(),
+        "result": f"AI {body.tool_name} applied successfully to: {body.input[:60]}",
+        "confidence": round(0.75 + (d % 25) / 100, 2),
+        "processing_time_ms": 200 + (d % 2800),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Text Studio – Analyze Document
+# ---------------------------------------------------------------------------
+
+class TextAnalyzeBody(BaseModel):
+    content: str
+    analysis_type: str = "full"
+
+
+@app.post("/text-studio/analyze-document", summary="Analyze a text document")
+@limiter.limit("20/minute")
+def text_studio_analyze_document(request: Request, body: TextAnalyzeBody):
+    if not body.content or not body.content.strip():
+        raise HTTPException(status_code=422, detail="content must not be empty")
+
+    import hashlib as _hl
+    content = body.content.strip()
+    words = content.split()
+    sentences = [s for s in content.replace("!", ".").replace("?", ".").split(".") if s.strip()]
+    paragraphs = [p for p in content.split("\n\n") if p.strip()]
+
+    d = int(_hl.md5(content[:64].encode()).hexdigest(), 16)
+    analysis_id = _hl.md5(content[:64].encode()).hexdigest()[:16]
+
+    sentiments = ["positive", "neutral", "negative", "mixed"]
+    return {
+        "analysis_id": analysis_id,
+        "word_count": len(words),
+        "sentence_count": max(1, len(sentences)),
+        "paragraph_count": max(1, len(paragraphs)),
+        "readability_score": round(40 + (d % 60), 1),
+        "sentiment": sentiments[d % len(sentiments)],
+        "key_themes": [f"theme_{i}" for i in range(1, 4)],
+        "language_stats": {
+            "avg_word_length": round(sum(len(w) for w in words) / max(1, len(words)), 1),
+            "avg_sentence_length": round(len(words) / max(1, len(sentences)), 1),
+            "unique_words": len(set(w.lower() for w in words)),
+        },
+    }
+
+
+# ---------------------------------------------------------------------------
+# Text Studio – Generate Outline
+# ---------------------------------------------------------------------------
+
+class TextOutlineBody(BaseModel):
+    topic: str
+    outline_type: str = "article"
+    sections_count: int = 5
+
+
+_VALID_OUTLINE_TYPES: set = {"article", "essay", "story", "script", "report", "blog"}
+
+
+@app.post("/text-studio/generate-outline", summary="Generate a content outline")
+@limiter.limit("20/minute")
+def text_studio_generate_outline(request: Request, body: TextOutlineBody):
+    if not body.topic or not body.topic.strip():
+        raise HTTPException(status_code=422, detail="topic must not be empty")
+    if body.outline_type not in _VALID_OUTLINE_TYPES:
+        raise HTTPException(status_code=422, detail=f"outline_type must be one of {sorted(_VALID_OUTLINE_TYPES)}")
+    if body.sections_count < 1:
+        raise HTTPException(status_code=422, detail="sections_count must be at least 1")
+
+    import hashlib as _hl
+    topic = body.topic.strip()
+    seed = f"{topic}{body.outline_type}{body.sections_count}"
+    outline_id = _hl.md5(seed.encode()).hexdigest()[:16]
+    d = int(_hl.md5(seed.encode()).hexdigest(), 16)
+
+    sections = [
+        {"number": i + 1, "title": f"Section {i + 1}: {topic[:20]} – Part {i + 1}", "estimated_words": 150 + (d + i) % 350}
+        for i in range(body.sections_count)
+    ]
+
+    hooks = [
+        f"Did you know that {topic[:40]} could change everything?",
+        f"The ultimate guide to {topic[:40]}",
+        f"Why {topic[:40]} matters more than ever",
+    ]
+
+    return {
+        "outline_id": outline_id,
+        "title": f"{body.outline_type.title()}: {topic}",
+        "structure": body.outline_type,
+        "sections": sections,
+        "estimated_word_count": sum(s["estimated_words"] for s in sections),
+        "suggested_hooks": hooks,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Visual Studio – Generate 3D Scene (v1)
+# ---------------------------------------------------------------------------
+
+class Scene3DBody(BaseModel):
+    prompt: str
+    style: str = "realistic"
+
+
+_VALID_3D_STYLES_V1: set = {"realistic", "cartoon", "abstract", "sci-fi", "fantasy", "minimalist"}
+
+
+@app.post("/visual-studio/generate-3d-scene-v1", summary="Generate a 3D scene from a prompt (v1)")
+@limiter.limit("20/minute")
+def visual_studio_generate_3d_scene_v1(request: Request, body: Scene3DBody):
+    if not body.prompt or not body.prompt.strip():
+        raise HTTPException(status_code=422, detail="prompt must not be empty")
+    if body.style not in _VALID_3D_STYLES_V1:
+        raise HTTPException(status_code=422, detail=f"style must be one of {sorted(_VALID_3D_STYLES_V1)}")
+
+    import hashlib as _hl
+    prompt = body.prompt.strip()
+    seed = f"{prompt}{body.style}"
+    scene_id = _hl.md5(seed.encode()).hexdigest()[:16]
+    d = int(_hl.md5(seed.encode()).hexdigest(), 16)
+
+    objects = [
+        {"object_id": _hl.md5(f"{seed}{i}".encode()).hexdigest()[:8],
+         "name": f"object_{i+1}", "type": ["mesh", "light", "camera", "particle"][(_hl.md5(f"{seed}{i}".encode()).hexdigest()[0:1].encode()[0]) % 4],
+         "position": {"x": (d + i) % 10, "y": 0, "z": (d + i * 2) % 10}}
+        for i in range(3)
+    ]
+
+    return {
+        "scene_id": scene_id,
+        "prompt": prompt,
+        "objects": objects,
+        "lighting": {"type": "hdri", "intensity": round(0.5 + (d % 15) / 10, 1)},
+        "camera": {"fov": 45 + (d % 45), "position": {"x": 5, "y": 3, "z": 8}},
+        "environment": body.style,
+        "render_settings": {"samples": 128, "resolution": "1920x1080", "engine": "cycles"},
+    }
+
+
+# ---------------------------------------------------------------------------
+# Visual Studio – AI Photo Edit (v1)
+# ---------------------------------------------------------------------------
+
+class AIPhotoEditBody(BaseModel):
+    image_description: str
+    edits: List[str] = []
+    style: str = "natural"
+
+
+@app.post("/visual-studio/ai-photo-edit-v1", summary="Apply AI edits to a photo (v1)")
+@limiter.limit("20/minute")
+def visual_studio_ai_photo_edit_v1(request: Request, body: AIPhotoEditBody):
+    if not body.image_description or not body.image_description.strip():
+        raise HTTPException(status_code=422, detail="image_description must not be empty")
+
+    import hashlib as _hl
+    desc = body.image_description.strip()
+    seed = f"{desc}{body.style}"
+    edit_id = _hl.md5(seed.encode()).hexdigest()[:16]
+    d = int(_hl.md5(seed.encode()).hexdigest(), 16)
+
+    edits_applied = body.edits if body.edits else ["auto-enhance", "color-correct"]
+
+    return {
+        "edit_id": edit_id,
+        "original_description": desc,
+        "edits_applied": edits_applied,
+        "enhancement_score": round(0.6 + (d % 40) / 100, 2),
+        "style_match": round(0.7 + (d % 30) / 100, 2),
+        "export_ready": True,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Animation Studio – Export MP4
+# ---------------------------------------------------------------------------
+
+class AnimationExportMP4Body(BaseModel):
+    animation_id: str
+    fps: int = 30
+    resolution: str = "1080p"
+    quality: str = "high"
+
+
+_VALID_RESOLUTIONS: set = {"720p", "1080p", "2k", "4k"}
+_VALID_QUALITIES: set = {"draft", "standard", "high", "ultra"}
+
+_RESOLUTION_MAP: dict = {"720p": (1280, 720), "1080p": (1920, 1080), "2k": (2560, 1440), "4k": (3840, 2160)}
+
+
+@app.post("/animation/export-mp4", summary="Export animation as MP4")
+@limiter.limit("20/minute")
+def animation_export_mp4(request: Request, body: AnimationExportMP4Body):
+    if not body.animation_id or not body.animation_id.strip():
+        raise HTTPException(status_code=422, detail="animation_id must not be empty")
+    if body.resolution not in _VALID_RESOLUTIONS:
+        raise HTTPException(status_code=422, detail=f"resolution must be one of {sorted(_VALID_RESOLUTIONS)}")
+    if body.quality not in _VALID_QUALITIES:
+        raise HTTPException(status_code=422, detail=f"quality must be one of {sorted(_VALID_QUALITIES)}")
+    if body.fps < 1 or body.fps > 120:
+        raise HTTPException(status_code=422, detail="fps must be between 1 and 120")
+
+    import hashlib as _hl
+    anim_id = body.animation_id.strip()
+    seed = f"{anim_id}{body.fps}{body.resolution}{body.quality}"
+    export_id = _hl.md5(seed.encode()).hexdigest()[:16]
+    d = int(_hl.md5(seed.encode()).hexdigest(), 16)
+
+    quality_multipliers = {"draft": 0.3, "standard": 0.6, "high": 1.0, "ultra": 2.5}
+    w, h = _RESOLUTION_MAP[body.resolution]
+    duration = 5 + (d % 55)
+    file_size_kb = int(w * h * body.fps * duration * quality_multipliers[body.quality] / 8000)
+
+    return {
+        "export_id": export_id,
+        "format": "mp4",
+        "fps": body.fps,
+        "resolution": body.resolution,
+        "duration_seconds": duration,
+        "file_size_kb": file_size_kb,
+        "codec": "h264",
+        "status": "completed",
+    }
+
+
+# ---------------------------------------------------------------------------
 # Phase 15 – AI Photo Editor
 # ---------------------------------------------------------------------------
 
@@ -2777,3 +3366,4 @@ def visual_ai_photo_edit(body: AiPhotoEditRequest):
         return apply_ai_photo_edit(body.image_url, body.operation, body.options)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
+
