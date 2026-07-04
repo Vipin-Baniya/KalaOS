@@ -371,9 +371,41 @@
           <span class="sidebar-icon" aria-hidden="true">📐</span>
           <span class="sidebar-label">Templates</span>
         </button>
+        <button class="sidebar-btn" onclick="openWorkspaceSuggestions()" title="AI Workspace Suggestions" aria-label="AI Workspace Suggestions">
+          <span class="sidebar-icon" aria-hidden="true">🧠</span>
+          <span class="sidebar-label">AI Suggestions</span>
+        </button>
 
-        <!-- Transform -->
+        <!-- Shortcuts & Transform -->
         <div class="sidebar-divider"></div>
+        <button class="sidebar-btn" onclick="openWorkspaceHealth()" title="Workspace Health Score" aria-label="Workspace Health Score">
+          <span class="sidebar-icon" aria-hidden="true">🏥</span>
+          <span class="sidebar-label">Health</span>
+        </button>
+        <button class="sidebar-btn" onclick="openWorkspaceFavorites()" title="Favorite Workspaces" aria-label="Favorite Workspaces">
+          <span class="sidebar-icon" aria-hidden="true">⭐</span>
+          <span class="sidebar-label">Favorites</span>
+        </button>
+        <button class="sidebar-btn" onclick="openWorkspaceAnalytics()" title="Workspace Analytics" aria-label="Workspace Analytics">
+          <span class="sidebar-icon" aria-hidden="true">📊</span>
+          <span class="sidebar-label">Analytics</span>
+        </button>
+        <button class="sidebar-btn" onclick="openWorkspaceSearch()" title="Search Workspaces (Ctrl+K)" aria-label="Search Workspaces">
+          <span class="sidebar-icon" aria-hidden="true">🔍</span>
+          <span class="sidebar-label">Search</span>
+        </button>
+        <button class="sidebar-btn" onclick="openWorkspaceRecommendations()" title="Workspace Recommendations" aria-label="Workspace Recommendations">
+          <span class="sidebar-icon" aria-hidden="true">✨</span>
+          <span class="sidebar-label">Recommendations</span>
+        </button>
+        <button class="sidebar-btn" onclick="openWorkspaceSharing()" title="Workspace Sharing" aria-label="Workspace Sharing">
+          <span class="sidebar-icon" aria-hidden="true">🔐</span>
+          <span class="sidebar-label">Sharing</span>
+        </button>
+        <button class="sidebar-btn" onclick="openShortcutManager()" title="Keyboard Shortcuts" aria-label="Keyboard Shortcuts">
+          <span class="sidebar-icon" aria-hidden="true">⌨️</span>
+          <span class="sidebar-label">Shortcuts</span>
+        </button>
         <button class="sidebar-btn" id="transformSidebarBtn" onclick="openTransformModal()" title="Cross-Medium AI Transform" aria-label="Cross-Medium AI Transform">
           <span class="sidebar-icon" aria-hidden="true">🔀</span>
           <span class="sidebar-label">Transform</span>
@@ -397,6 +429,23 @@
           <p class="dashboard-greeting" id="dashboardGreeting">Good day, Artist</p>
           <h1 class="dashboard-title">Welcome to KalaOS Studio</h1>
           <p class="dashboard-subtitle">Your AI-native creative workspace. Pick a studio and start making something extraordinary.</p>
+          <div style="margin-top:.8rem;display:flex;gap:.6rem;flex-wrap:wrap">
+            <button class="btn-primary" onclick="openWorkspaceSuggestions()" style="font-size:.85rem;padding:.5rem 1.1rem">
+              🧠 AI Workspace Suggestions
+            </button>
+            <button class="btn-ghost" onclick="openWorkspaceRecommendations()" style="font-size:.85rem;padding:.5rem 1.1rem">
+              ✨ Smart Recommendations
+            </button>
+          </div>
+        </div>
+
+        <!-- Smart Workspace Recommendations (dashboard inline) -->
+        <div class="wsrec-dashboard-section">
+          <div class="wsrec-dashboard-header">
+            <span class="wsrec-dashboard-title">✨ Smart Workspace Recommendations</span>
+            <button class="btn-ghost" style="font-size:.75rem;padding:.25rem .55rem" onclick="wshRenderRecommendations('wsRecDashList')">&#8635; Refresh</button>
+          </div>
+          <div id="wsRecDashList" class="wsrec-list wsrec-list-inline"></div>
         </div>
 
         <div class="dashboard-stats" id="dashboardStats">
@@ -2979,6 +3028,110 @@
 
   </div><!-- /app-body -->
 
+  <!-- Workspace Health Score Panel -->
+  <div id="wshHealthPanel" class="hidden" role="dialog" aria-modal="true" aria-label="Workspace Health Score" onclick="if(event.target===this)closeWorkspaceHealth()">
+    <div class="wsh-health-modal">
+      <div class="wsh-health-modal-header">
+        <span class="wsh-health-modal-title">🏥 Workspace Health Score</span>
+        <button class="btn-icon-round" onclick="closeWorkspaceHealth()" aria-label="Close">✕</button>
+      </div>
+      <div id="wshHealthContent" class="wsh-health-content"></div>
+    </div>
+  </div>
+
+  <!-- Favorite Workspaces Panel -->
+  <div id="wsfPanel" class="hidden" role="dialog" aria-modal="true" aria-label="Favorite Workspaces" onclick="if(event.target===this)closeWorkspaceFavorites()">
+    <div class="wsf-modal">
+      <div class="wsf-modal-header">
+        <span class="wsf-modal-title">⭐ Favorite Workspaces</span>
+        <button class="btn-icon-round" onclick="closeWorkspaceFavorites()" aria-label="Close">✕</button>
+      </div>
+      <div id="wsfContent" class="wsf-content"></div>
+    </div>
+  </div>
+
+  <!-- Workspace Analytics Panel -->
+  <div id="wsaPanel" class="hidden" role="dialog" aria-modal="true" aria-label="Workspace Analytics" onclick="if(event.target===this)closeWorkspaceAnalytics()">
+    <div class="wsa-modal">
+      <div class="wsa-modal-header">
+        <span class="wsa-modal-title">📊 Workspace Analytics</span>
+        <button class="btn-icon-round" onclick="closeWorkspaceAnalytics()" aria-label="Close">✕</button>
+      </div>
+      <div id="wsaContent" class="wsa-content"></div>
+    </div>
+  </div>
+
+  <!-- Global Workspace Search Panel -->
+  <div id="wssPanel" class="hidden" role="dialog" aria-modal="true" aria-label="Search Workspaces" onclick="if(event.target===this)closeWorkspaceSearch()">
+    <div class="wss-modal">
+      <div class="wss-modal-header">
+        <span class="wss-modal-icon" aria-hidden="true">🔍</span>
+        <input type="search" id="wssInput" class="wss-input" placeholder="Search by name, tags, or description…"
+          autocomplete="off" aria-label="Search workspaces"
+          oninput="_wssOnInput(this.value)"
+          onkeydown="_wssOnKeydown(event)" />
+        <button class="btn-icon-round" onclick="closeWorkspaceSearch()" aria-label="Close">✕</button>
+      </div>
+      <div id="wssList" class="wss-list" aria-live="polite" role="listbox"></div>
+      <div class="wss-footer">↑↓ navigate &nbsp;·&nbsp; Enter to open &nbsp;·&nbsp; Esc to close &nbsp;·&nbsp; <kbd>Ctrl+K</kbd> to toggle</div>
+    </div>
+  </div>
+
+  <!-- Workspace Recommendations Panel -->
+  <div id="wsRecPanel" class="hidden" role="dialog" aria-modal="true" aria-label="Workspace Recommendations" onclick="if(event.target===this)closeWorkspaceRecommendations()">
+    <div class="wsrec-modal">
+      <div class="wsrec-modal-header">
+        <span class="wsrec-modal-title">✨ Smart Workspace Recommendations</span>
+        <div style="display:flex;gap:.4rem;align-items:center">
+          <button class="btn-ghost" style="font-size:.75rem;padding:.25rem .6rem" onclick="wshResetRecommendations();wshRenderRecommendations('wsRecList')">&#8635; Reset</button>
+          <button class="btn-icon-round" onclick="closeWorkspaceRecommendations()" aria-label="Close">✕</button>
+        </div>
+      </div>
+      <p class="wsrec-modal-hint">Personalised workspace layouts based on your studio activity. Dismiss any you don’t need.</p>
+      <div id="wsRecList" class="wsrec-list"></div>
+    </div>
+  </div>
+
+  <!-- Workspace Sharing Panel -->
+  <div id="wshPanel" class="hidden" role="dialog" aria-modal="true" aria-label="Workspace Sharing" onclick="if(event.target===this)closeWorkspaceSharing()">
+    <div class="wsh-modal">
+      <div class="wsh-modal-header">
+        <span class="wsh-modal-title">🔐 Workspace Sharing</span>
+        <button class="btn-icon-round" onclick="closeWorkspaceSharing()" aria-label="Close">✕</button>
+      </div>
+      <div id="wshContent"></div>
+    </div>
+  </div>
+
+  <!-- Keyboard Shortcut Manager Panel -->
+  <div id="ksPanel" class="hidden" role="dialog" aria-modal="true" aria-label="Keyboard Shortcut Manager" onclick="if(event.target===this)closeShortcutManager()">
+    <div class="ks-modal">
+      <div class="ks-modal-header">
+        <span class="ks-modal-title">⌨️ Keyboard Shortcuts</span>
+        <div class="ks-modal-actions">
+          <button class="btn-ghost small" onclick="ksResetAll()" title="Reset all to defaults">↺ Reset all</button>
+          <button class="btn-icon-round" onclick="closeShortcutManager()" aria-label="Close">✕</button>
+        </div>
+      </div>
+      <div id="ksShortcutList" class="ks-shortcut-list" aria-live="polite"></div>
+    </div>
+  </div>
+
+  <!-- AI Workspace Suggestions Panel -->
+  <div id="wsSuggestionsPanel" class="ws-suggestions-overlay hidden" role="dialog" aria-modal="true" aria-label="AI Workspace Suggestions" onclick="if(event.target===this)closeWorkspaceSuggestions()">
+    <div class="ws-suggestions-panel">
+      <div class="ws-suggestions-header">
+        <span class="ws-suggestions-title">🧠 AI Workspace Suggestions</span>
+        <button class="btn-icon-round" onclick="closeWorkspaceSuggestions()" aria-label="Close suggestions">✕</button>
+      </div>
+      <p class="ws-suggestions-hint">Personalised tips based on how you use KalaOS. Apply or dismiss each one individually.</p>
+      <div id="wsSuggestionsList" class="ws-suggestions-list" aria-live="polite"></div>
+      <div class="ws-suggestions-footer">
+        <button class="btn-ghost small" onclick="wsResetDismissed()" title="Restore dismissed suggestions">↺ Reset dismissed</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Template Preview Modal -->
   <div id="templatePreviewModal" class="template-preview-modal hidden" role="dialog" aria-modal="true" aria-label="Template Preview">
     <div class="template-preview-card">
@@ -3082,5 +3235,12 @@
 <script src="session-restore.js"></script>
 <script src="app.js"></script>
 <script src="templates.js"></script>
+<script src="workspace_suggestions.js"></script>
+<script src="workspace_sharing.js"></script>
+<script src="workspace_health.js"></script>
+<script src="workspace_favorites.js"></script>
+<script src="workspace_analytics.js"></script>
+<script src="workspace_search.js"></script>
+<script src="keyboard_shortcuts.js"></script>
 </body>
 </html>
