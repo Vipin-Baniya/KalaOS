@@ -8,9 +8,10 @@ services:
       - "8000:8000"
     environment:
       - OLLAMA_HOST=http://ollama:11434
-      # Set a stable secret so session tokens survive restarts.
-      # Generate one with: python -c "import secrets; print(secrets.token_hex(32))"
-      - KALA_SECRET=${KALA_SECRET:-change-me-in-production}
+      # Set a stable secret so session tokens survive restarts across deployments.
+      # In production, generate one with: python -c "import secrets; print(secrets.token_hex(32))"
+      # If unset, each process restart uses a random secret, invalidating all existing tokens.
+      - KALA_SECRET=${KALA_SECRET}
       # Restrict CORS to your frontend origin in production, e.g.:
       # - KALA_CORS_ORIGINS=https://studio.example.com
       - KALA_CORS_ORIGINS=${KALA_CORS_ORIGINS:-*}
