@@ -108,6 +108,12 @@ def _db_init() -> None:
                     expires_at INTEGER NOT NULL
                 )
             """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS revoked_tokens (
+                    token_sig  TEXT PRIMARY KEY,
+                    expires_at INTEGER NOT NULL
+                )
+            """)
             # Migration: add new user columns.
             # _MIGRATION_COLS values are hardcoded source constants (not user input).
             # Column names are validated against an alphanumeric+underscore whitelist
@@ -142,6 +148,25 @@ def _db_delete_user(email: str) -> None:
     with _db_lock:
         with _get_db() as conn:
             conn.execute("DELETE FROM users WHERE email = ?", (email,))
+
+
+def _db_revoke_token(token_sig: str, exp: int) -> None:
+    with _db_lock:
+        with _get_db() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO revoked_tokens (token_sig, expires_at) VALUES (?,?)",
+                (token_sig, exp)
+            )
+
+
+def _db_clean_revoked_tokens() -> None:
+    """Remove expired revoked tokens from database."""
+    with _db_lock:
+        with _get_db() as conn:
+            conn.execute(
+                "DELETE FROM revoked_tokens WHERE expires_at <= ?",
+                (int(time.time()),)
+            )
 
 
 def _db_clear_users() -> None:
@@ -220,7 +245,8 @@ _revoked_lock = threading.Lock()
 
 
 def _revoke_token(token: str, exp: int) -> None:
-    """Add a token's signature to the revocation list until its natural expiry."""
+    """Add a token's signature to the revocation list until its natural expiry.
+    Persists to database so revocation survives process restart."""
     sig = token.rsplit(":", 1)[-1]  # use the HMAC signature as the key
     with _revoked_lock:
         _REVOKED_TOKENS[sig] = exp
@@ -229,13 +255,26 @@ def _revoke_token(token: str, exp: int) -> None:
         expired = [k for k, v in _REVOKED_TOKENS.items() if v <= now]
         for k in expired:
             del _REVOKED_TOKENS[k]
+    # Persist to database (outside of in-memory lock to avoid deadlock)
+    _db_revoke_token(sig, exp)
+    _db_clean_revoked_tokens()
 
 
 def _is_revoked(token: str) -> bool:
     sig = token.rsplit(":", 1)[-1]
+    # Check in-memory cache first (fast path)
     with _revoked_lock:
         exp = _REVOKED_TOKENS.get(sig)
-    return exp is not None and int(time.time()) <= exp
+    if exp is not None and int(time.time()) <= exp:
+        return True
+    # Check database in case token was revoked before this process started
+    with _db_lock:
+        with _get_db() as conn:
+            row = conn.execute(
+                "SELECT expires_at FROM revoked_tokens WHERE token_sig = ?",
+                (sig,)
+            ).fetchone()
+    return row is not None and int(time.time()) <= row[0]
 
 
 def _bootstrap() -> None:
@@ -253,6 +292,13 @@ def _bootstrap() -> None:
                 (now,),
             ):
                 dict.__setitem__(_RESET_TOKENS, row["token"], dict(row))
+            # Load revoked tokens from database so revocation survives restart
+            for row in conn.execute(
+                "SELECT token_sig, expires_at FROM revoked_tokens WHERE expires_at > ?",
+                (now,),
+            ):
+                with _revoked_lock:
+                    _REVOKED_TOKENS[row["token_sig"]] = row["expires_at"]
 
 
 _bootstrap()
