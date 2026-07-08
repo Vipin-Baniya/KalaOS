@@ -1547,20 +1547,18 @@ def auth_login(request: Request, body: AuthLoginRequest):
 @limiter.limit(_forgot_limit)
 def auth_forgot(request: Request, body: AuthForgotRequest):
     """
-    Generate a password-reset token.  When KALA_SMTP_HOST is configured the
-    token is emailed and the response omits it (recommended for production).
-    Always responds with success regardless of whether the email exists.
+    Generate a password-reset token. When KALA_SMTP_HOST is configured, the
+    token is emailed to the user. For development (SMTP unconfigured), it is
+    logged to the console instead of returned in the response. Never expose
+    the token in HTTP responses to avoid leaking it in logs/history.
+    Always responds with success regardless of whether the email exists
+    (prevents user enumeration).
     """
     token = auth_service.request_password_reset(body.email)
+    if not auth_service.SMTP_CONFIGURED:
+        _logger.warning(f"Password reset token for {body.email}: {token}")
     resp: dict = {"success": True}
-    if auth_service.SMTP_CONFIGURED:
-        resp["note"] = "If that email exists, a reset link has been sent."
-    else:
-        resp["reset_token"] = token
-        resp["note"] = (
-            "In production this token would be emailed to you. "
-            "Copy it and use /auth/reset-password."
-        )
+    resp["note"] = "If that email exists, a reset link has been sent."
     return resp
 
 
