@@ -125,9 +125,10 @@ limiter = Limiter(key_func=get_remote_address, default_limits=[])
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# Allow all origins in development; restrict in production via the
-# KALA_CORS_ORIGINS environment variable (comma-separated list).
-_cors_origins = _os.environ.get("KALA_CORS_ORIGINS", "*").split(",")
+# CORS defaults to disabled (empty origin list) for security.
+# Explicitly set KALA_CORS_ORIGINS in production to a comma-separated list
+# of trusted frontend origins, e.g. "https://studio.example.com".
+_cors_origins = _os.environ.get("KALA_CORS_ORIGINS", "").split(",") if _os.environ.get("KALA_CORS_ORIGINS") else []
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
