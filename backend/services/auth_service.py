@@ -82,8 +82,15 @@ _db_lock = threading.Lock()
 
 
 def _get_db() -> sqlite3.Connection:
+    db_existed = os.path.exists(_DB_PATH)
     conn = sqlite3.connect(_DB_PATH, check_same_thread=False)
     conn.row_factory = sqlite3.Row
+    if not db_existed:
+        # Restrict the newly-created database file to owner read/write only.
+        # sqlite3.connect() creates the file with umask-derived permissions
+        # (commonly 0o644), which leaves credentials and session tokens
+        # world-readable on multi-user hosts.
+        os.chmod(_DB_PATH, 0o600)
     return conn
 
 
