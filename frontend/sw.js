@@ -2,7 +2,7 @@
    KalaOS Service Worker — offline-first Studio shell
    ============================================================ */
 
-// Bumped from v1 → v2: the fetch handler below now uses a static-asset
+// Bumped from v1 to v2: the fetch handler below now uses a static-asset
 // allowlist instead of an API-prefix blocklist (see the fetch listener).
 // Bumping the name forces activate() to delete the old "kalaos-v1"
 // cache bucket outright, purging any token-bearing API responses that
@@ -43,18 +43,18 @@ self.addEventListener("activate", (event) => {
 
    Previously this used a blocklist of known backend path prefixes
    (/auth/, /deep-analysis, etc.) and cache-first'd anything that didn't
-   match. That list didn't cover every backend route — endpoints like
+   match. That list didn't cover every backend route: endpoints like
    /projects, /messages, /conversations, /notifications, and /jobs (which
    pass the session token as a query parameter, per this app's auth
    convention) fell through to the cache-first branch, so their
-   responses — and the token embedded in the cached request URL — were
+   responses, and the token embedded in the cached request URL, were
    written to Cache Storage and persisted after logout.
 
    Flipping to an allowlist of the precached shell files removes that
    gap: only files this service worker explicitly precached (or a
    handful of common static-asset extensions) are ever cache-first'd or
    written to the cache. Every other same-origin or cross-origin
-   request — including any current or future backend route — goes
+   request, including any current or future backend route, goes
    straight to the network and is never cached. */
 
 const STATIC_ASSET_EXTENSIONS = /\.(css|js|json|svg|png|jpg|jpeg|gif|ico|woff2?|ttf)$/;
@@ -74,7 +74,7 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(request.url);
 
   if (request.method === "GET" && url.origin === self.location.origin && isPrecachedShellAsset(url)) {
-    // App shell / static assets — cache-first with background refresh.
+    // App shell / static assets: cache-first with background refresh.
     event.respondWith(
       caches.match(request).then((cached) => {
         const networkFetch = fetch(request).then((resp) => {
@@ -90,7 +90,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Everything else (all backend/API calls) — network-only, never cached.
+  // Everything else (all backend/API calls): network-only, never cached.
   event.respondWith(
     fetch(request).catch(() =>
       new Response(JSON.stringify({ detail: "You appear to be offline." }), {
