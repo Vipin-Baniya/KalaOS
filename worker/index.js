@@ -15,6 +15,12 @@ function errorResponse(message, status = 400) {
   return jsonResponse({ error: message }, status);
 }
 
+function isAuthorized(request, env) {
+  // No key configured → auth disabled (local/dev deployments without a secret set).
+  if (!env.KALAOS_API_KEY) return true;
+  return request.headers.get("X-API-Key") === env.KALAOS_API_KEY;
+}
+
 export default {
   async fetch(request, env) {
     // Handle CORS preflight
@@ -23,6 +29,14 @@ export default {
     }
 
     const url = new URL(request.url);
+    const isArtworksApi =
+      url.pathname === "/api/analyze" ||
+      url.pathname === "/api/artworks" ||
+      /^\/api\/artworks\/\d+$/.test(url.pathname);
+
+    if (isArtworksApi && !isAuthorized(request, env)) {
+      return errorResponse("Unauthorized", 401);
+    }
 
     // POST /api/analyze — save artwork text to D1 and return confirmation
     if (url.pathname === "/api/analyze" && request.method === "POST") {
