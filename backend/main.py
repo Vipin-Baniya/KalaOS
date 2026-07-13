@@ -652,6 +652,9 @@ def temporal_endpoint(request: AnalyseRequest):
 # Phase 8 – Kala-LLM: Deep Analysis (unified pipeline)
 # ---------------------------------------------------------------------------
 
+DEEP_ANALYSIS_MAX_TEXT_LENGTH = 10_000
+
+
 class DeepAnalysisRequest(BaseModel):
     text: str
     art_domain: ArtDomain = "general"
@@ -664,6 +667,10 @@ class DeepAnalysisRequest(BaseModel):
     def text_must_not_be_empty(cls, v: str) -> str:
         if not v.strip():
             raise ValueError("text must not be empty")
+        if len(v) > DEEP_ANALYSIS_MAX_TEXT_LENGTH:
+            raise ValueError(
+                f"text must not exceed {DEEP_ANALYSIS_MAX_TEXT_LENGTH:,} characters"
+            )
         return v
 
 
