@@ -435,6 +435,9 @@ def login(email: str, password: str) -> str:
     return _make_session_token(email)
 
 
+_FORGOT_PASSWORD_MIN_SECONDS = 0.5
+
+
 def request_password_reset(email: str) -> str:
     """
     Generate a password-reset token.  Always returns a token string (or an
@@ -444,7 +447,13 @@ def request_password_reset(email: str) -> str:
     When KALA_SMTP_HOST is set the token is emailed to the user and an empty
     string is returned; the API endpoint should omit the token from the response
     in that case.
+
+    The registered-email path does strictly more work (token storage, and
+    optionally an SMTP round-trip) than the unregistered-email path, which
+    otherwise leaks account existence via response-time measurement. Padding
+    to a fixed minimum duration closes that timing side-channel.
     """
+    start = time.monotonic()
     email = email.strip().lower()
     token = secrets.token_urlsafe(32)
     if email in _USERS:
@@ -454,7 +463,14 @@ def request_password_reset(email: str) -> str:
         }
         if SMTP_CONFIGURED:
             _send_reset_email(email, token)
-            return ""   # token delivered by email; don't expose it in the response
+            token = ""   # token delivered by email; don't expose it in the response
+
+    elapsed = time.monotonic() - start
+    remaining = _FORGOT_PASSWORD_MIN_SECONDS - elapsed
+    if remaining > 0:
+        time.sleep(remaining)
+
+    return token
     return token
 
 
