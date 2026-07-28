@@ -442,6 +442,33 @@ def login(email: str, password: str) -> str:
     return _make_session_token(email)
 
 
+def refresh_token(old_token: str) -> str:
+    """
+    Generate a new access token from a valid existing token.
+    Automatically blacklists the old token to prevent token replay attacks.
+
+    Args:
+        old_token: Current valid session token
+
+    Returns:
+        New session token
+
+    Raises:
+        ValueError: If the token is invalid or expired
+    """
+    # Verify the old token is valid
+    email = _verify_session_token(old_token)
+    if not email:
+        raise ValueError("Invalid or expired session token.")
+
+    # Blacklist the old token to prevent its use after refresh
+    # This prevents token replay attacks if the old token is stolen
+    logout(old_token)
+
+    # Generate a new token for the same user
+    return _make_session_token(email)
+
+
 _FORGOT_PASSWORD_MIN_SECONDS = 0.5
 
 

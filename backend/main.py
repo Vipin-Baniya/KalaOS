@@ -1528,6 +1528,10 @@ class AuthDeleteAccountRequest(BaseModel):
     password: str
 
 
+class AuthRefreshTokenRequest(BaseModel):
+    token: str  # Current access token
+
+
 @app.post("/auth/register", summary="Register a new artist account")
 @limiter.limit(_register_limit)
 def auth_register(request: Request, body: AuthRegisterRequest):
@@ -1547,6 +1551,25 @@ def auth_login(request: Request, body: AuthLoginRequest):
         token = auth_service.login(body.email, body.password)
         user  = auth_service.get_user(token)
         return {"success": True, "token": token, "user": user}
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail=str(exc))
+
+
+@app.post("/auth/refresh", summary="Refresh access token and blacklist old token")
+@limiter.limit(_login_limit)
+def auth_refresh(request: Request, body: AuthRefreshTokenRequest):
+    """
+    Generate a new access token from a valid existing token.
+    The old token is automatically blacklisted to prevent replay attacks.
+
+    This endpoint allows users to rotate their access tokens without
+    requiring password re-authentication, while maintaining security by
+    ensuring the old token can no longer be used.
+    """
+    try:
+        new_token = auth_service.refresh_token(body.token)
+        user = auth_service.get_user(new_token)
+        return {"success": True, "token": new_token, "user": user}
     except ValueError as exc:
         raise HTTPException(status_code=401, detail=str(exc))
 
