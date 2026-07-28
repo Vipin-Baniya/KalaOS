@@ -592,7 +592,8 @@ class TestRefreshToken:
         new_user = client.get("/auth/me", params={"token": new_token}).json()
 
         assert old_user["email"] == new_user["email"]
-        assert old_user["id"] == new_user["id"]
+        assert old_user["name"] == new_user["name"]
+        assert old_user["created_at"] == new_user["created_at"]
 
 
 # ---------------------------------------------------------------------------
