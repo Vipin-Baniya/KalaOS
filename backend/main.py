@@ -33,7 +33,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from slowapi.util import get_remote_address
 from typing import List, Literal, Optional
 
 logger = logging.getLogger(__name__)
@@ -106,6 +105,52 @@ assert set(ArtDomain.__args__) == set(ART_DOMAINS.keys()), (  # type: ignore[att
     "ArtDomain Literal and ART_DOMAINS keys are out of sync — update both together."
 )
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Rate Limiting – Secure IP extraction preventing X-Forwarded-For spoofing
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Comma-separated list of proxy IPs that are trusted to set X-Forwarded-For.
+# If empty/not set, X-Forwarded-For is ignored (use direct connection IP only).
+_TRUSTED_PROXIES = set(
+    ip.strip()
+    for ip in _os.environ.get("KALA_TRUSTED_PROXIES", "").split(",")
+    if ip.strip()
+)
+
+
+def get_client_ip(request: Request) -> str:
+    """
+    Extract the client's real IP address, safely handling X-Forwarded-For headers.
+
+    Security:
+    - Only trust X-Forwarded-For if the immediate peer (request.client.host)
+      is in KALA_TRUSTED_PROXIES
+    - Falls back to direct connection IP if header is untrusted
+    - Validates IP format before returning
+
+    Mitigates attacks where an attacker rotates X-Forwarded-For to bypass per-IP
+    rate limiting.
+    """
+    # Get the immediate peer's IP (the proxy or direct client)
+    peer_ip = request.client.host if request.client else "unknown"
+
+    # Only check X-Forwarded-For if we have a trusted proxy list AND
+    # the immediate peer is in that list
+    if _TRUSTED_PROXIES and peer_ip in _TRUSTED_PROXIES:
+        # X-Forwarded-For is a comma-separated list; we want the first (original client)
+        forwarded_for = request.headers.get("X-Forwarded-For", "").strip()
+        if forwarded_for:
+            # Take the first IP in the list (leftmost = original client)
+            client_ip = forwarded_for.split(",")[0].strip()
+            # Basic validation: if it looks like an IP, use it
+            if client_ip and ("." in client_ip or ":" in client_ip):
+                return client_ip
+
+    # Fall back to direct connection IP if X-Forwarded-For is untrusted or missing
+    return peer_ip
+
+
 app = FastAPI(
     title="KalaOS API",
     description=(
@@ -116,12 +161,14 @@ app = FastAPI(
 )
 app.include_router(jobs_router)
 
-# Rate limiter — keyed by client IP.  Limits are configurable via env vars
-# (useful for lowering limits in production or raising them in tests).
+# Rate limiter — keyed by client IP (securely extracted from X-Forwarded-For).
+# Only trusts X-Forwarded-For headers from IPs in KALA_TRUSTED_PROXIES env var.
+# For authenticated endpoints, configure rate limiting with per-user keys to prevent bypass.
+# Limits are configurable via env vars (useful for lowering limits in production or raising them in tests).
 _login_limit    = _os.environ.get("KALA_RATE_LIMIT_LOGIN",    "10/minute")
 _forgot_limit   = _os.environ.get("KALA_RATE_LIMIT_FORGOT",   "5/minute")
 _register_limit = _os.environ.get("KALA_RATE_LIMIT_REGISTER", "5/minute")
-limiter = Limiter(key_func=get_remote_address, default_limits=[])
+limiter = Limiter(key_func=get_client_ip, default_limits=[])
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
