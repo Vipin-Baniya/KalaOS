@@ -1564,7 +1564,7 @@ def auth_forgot(request: Request, body: AuthForgotRequest):
     """
     token = auth_service.request_password_reset(body.email)
     if not auth_service.SMTP_CONFIGURED:
-        _logger.warning(f"Password reset token for {body.email}: {token}")
+        logger.warning(f"Password reset token for {body.email}: {token}")
     resp: dict = {"success": True}
     resp["note"] = "If that email exists, a reset link has been sent."
     return resp
