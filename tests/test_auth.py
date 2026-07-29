@@ -142,6 +142,65 @@ class TestLogin:
         })
         assert resp.status_code == 200
 
+    def test_login_user_enumeration_prevention(self, client):
+        """
+        Verify login prevents user enumeration by returning same error
+        for non-existent email and wrong password.
+
+        Security requirement: Attackers must not be able to distinguish
+        whether an email is registered or the password is wrong.
+        """
+        # Register a user for comparison
+        self._register(client)
+
+        # Test 1: Non-existent email
+        resp_nonexistent = client.post("/auth/login", json={
+            "email": "doesnotexist@example.com",
+            "password": "wrongpassword"
+        })
+        assert resp_nonexistent.status_code == 401
+        error_nonexistent = resp_nonexistent.json()["detail"]
+
+        # Test 2: Registered email with wrong password
+        resp_wrongpass = client.post("/auth/login", json={
+            "email": "user@example.com",
+            "password": "wrongpassword"
+        })
+        assert resp_wrongpass.status_code == 401
+        error_wrongpass = resp_wrongpass.json()["detail"]
+
+        # Both should return the same error message
+        # (generic "Invalid email or password" message)
+        assert error_nonexistent == error_wrongpass, (
+            f"Error messages differ, enabling user enumeration:\n"
+            f"  Nonexistent email: {error_nonexistent}\n"
+            f"  Wrong password: {error_wrongpass}"
+        )
+
+    def test_login_enumeration_same_status_code(self, client):
+        """
+        Verify both non-existent email and wrong password return 401,
+        preventing status-code-based enumeration.
+        """
+        self._register(client)
+
+        # Non-existent email
+        resp1 = client.post("/auth/login", json={
+            "email": "doesnotexist@example.com",
+            "password": "x"
+        })
+        assert resp1.status_code == 401
+
+        # Wrong password
+        resp2 = client.post("/auth/login", json={
+            "email": "user@example.com",
+            "password": "wrongpassword"
+        })
+        assert resp2.status_code == 401
+
+        # Both return same status code (no enumeration via status code)
+        assert resp1.status_code == resp2.status_code
+
 
 # ---------------------------------------------------------------------------
 # Forgot / Reset password
