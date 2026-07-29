@@ -33,10 +33,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from slowapi.util import get_remote_address
 from typing import List, Literal, Optional
 
 logger = logging.getLogger(__name__)
+
+try:  # Runtime from backend/ working directory
+    from utils.rate_limiting import get_rate_limit_key
+except ImportError:  # Package-style runtime
+    from backend.utils.rate_limiting import get_rate_limit_key
 
 from kalacore.pattern_engine import analyze
 from kalacore.art_genome import build_art_genome
@@ -116,12 +120,13 @@ app = FastAPI(
 )
 app.include_router(jobs_router)
 
-# Rate limiter — keyed by client IP.  Limits are configurable via env vars
-# (useful for lowering limits in production or raising them in tests).
+# Rate limiter — keyed by client IP with secure X-Forwarded-For validation.
+# Limits are configurable via env vars (useful for lowering limits in production or raising them in tests).
+# Trusted proxies can be configured via KALA_TRUSTED_PROXIES environment variable (comma-separated IPs).
 _login_limit    = _os.environ.get("KALA_RATE_LIMIT_LOGIN",    "10/minute")
 _forgot_limit   = _os.environ.get("KALA_RATE_LIMIT_FORGOT",   "5/minute")
 _register_limit = _os.environ.get("KALA_RATE_LIMIT_REGISTER", "5/minute")
-limiter = Limiter(key_func=get_remote_address, default_limits=[])
+limiter = Limiter(key_func=get_rate_limit_key, default_limits=[])
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
