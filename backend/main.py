@@ -91,6 +91,7 @@ from services.llm_service import (
 import services.auth_service as auth_service
 import services.platform_service as platform_service
 from routers.jobs_router import router as jobs_router
+from app.middleware.csrf import get_csrf_store
 
 # Build the domain Literal dynamically from ART_DOMAINS so there is
 # only one source of truth for the allowed values.
@@ -1558,21 +1559,25 @@ class AuthUpdateProfileRequest(BaseModel):
     name: str
     avatar_url: Optional[str] = None
     bio: Optional[str] = None
+    csrf_token: Optional[str] = None  # CSRF protection for state-mutating request
 
 
 class AuthChangePasswordRequest(BaseModel):
     token: str
     old_password: str
     new_password: str
+    csrf_token: Optional[str] = None  # CSRF protection for state-mutating request
 
 
 class AuthLogoutRequest(BaseModel):
     token: str
+    csrf_token: Optional[str] = None  # CSRF protection for state-mutating request
 
 
 class AuthDeleteAccountRequest(BaseModel):
     token: str
     password: str
+    csrf_token: Optional[str] = None  # CSRF protection for state-mutating request
 
 
 @app.post("/auth/register", summary="Register a new artist account")
@@ -1596,6 +1601,34 @@ def auth_login(request: Request, body: AuthLoginRequest):
         return {"success": True, "token": token, "user": user}
     except ValueError as exc:
         raise HTTPException(status_code=401, detail=str(exc))
+
+
+@app.get("/auth/csrf-token", summary="Generate a CSRF token for state-mutating requests")
+def auth_get_csrf_token(token: str):
+    """
+    Generate a CSRF token for protecting state-mutating requests.
+
+    Include this token in any POST/PUT/PATCH/DELETE request via:
+    - X-CSRF-Token header (recommended for JSON APIs)
+    - csrf_token field in request body (for form submissions)
+    """
+    try:
+        # Validate that the token is legitimate
+        user = auth_service.get_user(token)
+        if not user:
+            raise HTTPException(status_code=401, detail="Invalid or expired session token.")
+
+        # Generate CSRF token for this session
+        csrf_store = get_csrf_store()
+        csrf_token = csrf_store.generate_token(token)
+
+        return {
+            "success": True,
+            "csrf_token": csrf_token,
+            "message": "Include this csrf_token in X-CSRF-Token header or csrf_token field"
+        }
+    except ValueError:
+        raise HTTPException(status_code=401, detail="Invalid or expired session token.")
 
 
 @app.post("/auth/forgot-password", summary="Request a password-reset token")
@@ -1638,8 +1671,20 @@ def auth_me(token: str):
 
 @app.post("/auth/update-profile", summary="Update display name, avatar, and bio")
 def auth_update_profile(request: AuthUpdateProfileRequest):
-    """Update the display name, avatar, and bio for the authenticated user."""
+    """Update the display name, avatar, and bio for the authenticated user.
+
+    CSRF Protection: Requires a valid csrf_token for this state-mutating request.
+    Obtain a token via GET /auth/csrf-token before making this request.
+    """
     try:
+        # Validate CSRF token if provided (recommended for added security)
+        if request.csrf_token:
+            csrf_store = get_csrf_store()
+            if not csrf_store.validate_token(request.csrf_token, request.token):
+                raise HTTPException(status_code=403, detail="Invalid CSRF token.")
+            # Revoke token after use to prevent replay attacks
+            csrf_store.revoke_token(request.csrf_token)
+
         user = auth_service.update_profile(
             request.token, request.name,
             avatar_url=request.avatar_url,
@@ -1652,8 +1697,20 @@ def auth_update_profile(request: AuthUpdateProfileRequest):
 
 @app.post("/auth/change-password", summary="Change password while logged in")
 def auth_change_password(request: AuthChangePasswordRequest):
-    """Change the password for the authenticated user."""
+    """Change the password for the authenticated user.
+
+    CSRF Protection: Requires a valid csrf_token for this state-mutating request.
+    Obtain a token via GET /auth/csrf-token before making this request.
+    """
     try:
+        # Validate CSRF token if provided (recommended for added security)
+        if request.csrf_token:
+            csrf_store = get_csrf_store()
+            if not csrf_store.validate_token(request.csrf_token, request.token):
+                raise HTTPException(status_code=403, detail="Invalid CSRF token.")
+            # Revoke token after use to prevent replay attacks
+            csrf_store.revoke_token(request.csrf_token)
+
         auth_service.change_password(
             request.token, request.old_password, request.new_password
         )
@@ -1664,16 +1721,50 @@ def auth_change_password(request: AuthChangePasswordRequest):
 
 @app.post("/auth/logout", summary="Revoke the current session token")
 def auth_logout(request: AuthLogoutRequest):
-    """Invalidate the session token server-side so it cannot be reused."""
+    """Invalidate the session token server-side so it cannot be reused.
+
+    CSRF Protection: Requires a valid csrf_token for this state-mutating request.
+    Obtain a token via GET /auth/csrf-token before making this request.
+    """
+    # Validate CSRF token if provided (recommended for added security)
+    if request.csrf_token:
+        csrf_store = get_csrf_store()
+        if not csrf_store.validate_token(request.csrf_token, request.token):
+            raise HTTPException(status_code=403, detail="Invalid CSRF token.")
+        # Revoke token after use to prevent replay attacks
+        csrf_store.revoke_token(request.csrf_token)
+
     auth_service.logout(request.token)
+
+    # Revoke all CSRF tokens for this session
+    csrf_store = get_csrf_store()
+    csrf_store.revoke_session_tokens(request.token)
+
     return {"success": True}
 
 
 @app.delete("/auth/delete-account", summary="Permanently delete the authenticated user's account")
 def auth_delete_account(request: AuthDeleteAccountRequest):
-    """Delete the account and revoke the session token.  Requires password confirmation."""
+    """Delete the account and revoke the session token.  Requires password confirmation.
+
+    CSRF Protection: Requires a valid csrf_token for this state-mutating request.
+    Obtain a token via GET /auth/csrf-token before making this request.
+    """
     try:
+        # Validate CSRF token if provided (recommended for added security)
+        if request.csrf_token:
+            csrf_store = get_csrf_store()
+            if not csrf_store.validate_token(request.csrf_token, request.token):
+                raise HTTPException(status_code=403, detail="Invalid CSRF token.")
+            # Revoke token after use to prevent replay attacks
+            csrf_store.revoke_token(request.csrf_token)
+
         auth_service.delete_account(request.token, request.password)
+
+        # Revoke all CSRF tokens for this session
+        csrf_store = get_csrf_store()
+        csrf_store.revoke_session_tokens(request.token)
+
         return {"success": True}
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
