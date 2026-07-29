@@ -1511,6 +1511,7 @@ class AuthUpdateProfileRequest(BaseModel):
     name: str
     avatar_url: Optional[str] = None
     bio: Optional[str] = None
+    csrf_token: Optional[str] = None  # CSRF protection for state-mutating operation
 
 
 class AuthChangePasswordRequest(BaseModel):
@@ -1564,7 +1565,7 @@ def auth_forgot(request: Request, body: AuthForgotRequest):
     """
     token = auth_service.request_password_reset(body.email)
     if not auth_service.SMTP_CONFIGURED:
-        _logger.warning(f"Password reset token for {body.email}: {token}")
+        logger.warning(f"Password reset token for {body.email}: {token}")
     resp: dict = {"success": True}
     resp["note"] = "If that email exists, a reset link has been sent."
     return resp
@@ -1589,10 +1590,36 @@ def auth_me(token: str):
     return user
 
 
+@app.get("/auth/csrf-token", summary="Generate a CSRF token for state-mutating operations")
+def auth_csrf_token(token: str):
+    """
+    Generate a CSRF token to prevent cross-site request forgery.
+    Required for profile update and other state-mutating operations.
+
+    Token is valid for 1 hour and single-use.
+    """
+    try:
+        csrf_token = auth_service.generate_csrf_token(token)
+        return {"success": True, "csrf_token": csrf_token}
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail=str(exc))
+
+
 @app.post("/auth/update-profile", summary="Update display name, avatar, and bio")
 def auth_update_profile(request: AuthUpdateProfileRequest):
-    """Update the display name, avatar, and bio for the authenticated user."""
+    """
+    Update the display name, avatar, and bio for the authenticated user.
+    Requires valid CSRF token for protection against cross-site form submission attacks.
+    """
     try:
+        # Validate CSRF token to prevent cross-site form submission attacks
+        if request.csrf_token:
+            if not auth_service.validate_csrf_token(request.csrf_token, request.token):
+                raise ValueError("Invalid or expired CSRF token.")
+        else:
+            # CSRF token is required for this state-mutating operation
+            raise ValueError("CSRF token is required for profile update.")
+
         user = auth_service.update_profile(
             request.token, request.name,
             avatar_url=request.avatar_url,

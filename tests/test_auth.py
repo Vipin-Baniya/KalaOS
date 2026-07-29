@@ -523,6 +523,145 @@ class TestDeleteAccount:
 
 
 # ---------------------------------------------------------------------------
+# CSRF Protection for Profile Updates
+# ---------------------------------------------------------------------------
+
+class TestCsrfProtection:
+    def _setup(self, client):
+        """Register and login a test user, return token."""
+        client.post("/auth/register", json={
+            "email": "csrf@example.com",
+            "password": "password123",
+            "name": "CSRF Test",
+        })
+        resp = client.post("/auth/login", json={
+            "email": "csrf@example.com",
+            "password": "password123",
+        })
+        return resp.json()["token"]
+
+    def test_csrf_token_generation(self, client):
+        """Verify CSRF token can be generated for valid session."""
+        token = self._setup(client)
+        resp = client.get("/auth/csrf-token", params={"token": token})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["success"] is True
+        assert "csrf_token" in data
+        assert len(data["csrf_token"]) > 20
+
+    def test_csrf_token_invalid_session(self, client):
+        """Verify CSRF token generation fails with invalid session."""
+        resp = client.get("/auth/csrf-token", params={"token": "invalid.token"})
+        assert resp.status_code == 401
+        assert "Invalid or expired" in resp.json()["detail"]
+
+    def test_profile_update_requires_csrf_token(self, client):
+        """Verify profile update fails without CSRF token."""
+        token = self._setup(client)
+        resp = client.post("/auth/update-profile", json={
+            "token": token,
+            "name": "Updated Name",
+        })
+        assert resp.status_code == 400
+        assert "CSRF token is required" in resp.json()["detail"]
+
+    def test_profile_update_with_valid_csrf_token(self, client):
+        """Verify profile update succeeds with valid CSRF token."""
+        token = self._setup(client)
+
+        # Get CSRF token
+        csrf_resp = client.get("/auth/csrf-token", params={"token": token})
+        csrf_token = csrf_resp.json()["csrf_token"]
+
+        # Update profile with CSRF token
+        resp = client.post("/auth/update-profile", json={
+            "token": token,
+            "csrf_token": csrf_token,
+            "name": "Updated Name",
+        })
+        assert resp.status_code == 200
+        assert resp.json()["success"] is True
+        assert resp.json()["user"]["name"] == "Updated Name"
+
+    def test_csrf_token_invalid_after_use(self, client):
+        """Verify CSRF tokens are single-use (cannot be reused)."""
+        token = self._setup(client)
+
+        # Get CSRF token
+        csrf_resp = client.get("/auth/csrf-token", params={"token": token})
+        csrf_token = csrf_resp.json()["csrf_token"]
+
+        # First use should succeed
+        resp1 = client.post("/auth/update-profile", json={
+            "token": token,
+            "csrf_token": csrf_token,
+            "name": "First Update",
+        })
+        assert resp1.status_code == 200
+
+        # Second use with same token should fail
+        resp2 = client.post("/auth/update-profile", json={
+            "token": token,
+            "csrf_token": csrf_token,
+            "name": "Second Update",
+        })
+        assert resp2.status_code == 400
+        assert "Invalid or expired CSRF token" in resp2.json()["detail"]
+
+    def test_csrf_token_invalid_token_rejected(self, client):
+        """Verify invalid CSRF tokens are rejected."""
+        token = self._setup(client)
+        resp = client.post("/auth/update-profile", json={
+            "token": token,
+            "csrf_token": "invalid.csrf.token",
+            "name": "Updated Name",
+        })
+        assert resp.status_code == 400
+        assert "Invalid or expired CSRF token" in resp.json()["detail"]
+
+    def test_csrf_token_protects_against_cross_session_use(self, client):
+        """Verify CSRF tokens from one session cannot be used in another."""
+        # Create two users
+        client.post("/auth/register", json={
+            "email": "user1@example.com",
+            "password": "password123",
+            "name": "User 1",
+        })
+        client.post("/auth/register", json={
+            "email": "user2@example.com",
+            "password": "password123",
+            "name": "User 2",
+        })
+
+        # Login both users
+        token1 = client.post("/auth/login", json={
+            "email": "user1@example.com",
+            "password": "password123",
+        }).json()["token"]
+
+        token2 = client.post("/auth/login", json={
+            "email": "user2@example.com",
+            "password": "password123",
+        }).json()["token"]
+
+        # Get CSRF token for user1
+        csrf_token_1 = client.get(
+            "/auth/csrf-token",
+            params={"token": token1}
+        ).json()["csrf_token"]
+
+        # Try to use user1's CSRF token with user2's session
+        resp = client.post("/auth/update-profile", json={
+            "token": token2,
+            "csrf_token": csrf_token_1,
+            "name": "Hacked Name",
+        })
+        assert resp.status_code == 400
+        assert "Invalid or expired CSRF token" in resp.json()["detail"]
+
+
+# ---------------------------------------------------------------------------
 # Rate-limiting is applied to /auth/register
 # ---------------------------------------------------------------------------
 

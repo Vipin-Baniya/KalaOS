@@ -403,6 +403,79 @@ def _verify_session_token(token: str) -> Optional[str]:
 
 
 # ---------------------------------------------------------------------------
+# CSRF Token Management
+# Stores CSRF tokens per user session to prevent cross-site form submission attacks.
+# Entries: { token: (email, expires_at_unix_int) }
+# ---------------------------------------------------------------------------
+_CSRF_TOKENS: dict = {}
+_csrf_lock = threading.Lock()
+_CSRF_TOKEN_TTL = 3600  # CSRF tokens expire after 1 hour
+
+
+def generate_csrf_token(session_token: str) -> str:
+    """
+    Generate a CSRF token for a session.
+    CSRF tokens are single-use and expire after 1 hour.
+
+    Args:
+        session_token: Valid session token
+
+    Returns:
+        CSRF token string
+
+    Raises:
+        ValueError: If session token is invalid
+    """
+    email = _verify_session_token(session_token)
+    if not email:
+        raise ValueError("Invalid or expired session token.")
+
+    # Generate a cryptographically secure CSRF token
+    csrf_token = secrets.token_urlsafe(32)
+    exp = int(time.time()) + _CSRF_TOKEN_TTL
+
+    with _csrf_lock:
+        _CSRF_TOKENS[csrf_token] = (email, exp)
+        # Prune expired tokens while we have the lock
+        now = int(time.time())
+        expired = [k for k, v in _CSRF_TOKENS.items() if v[1] <= now]
+        for k in expired:
+            del _CSRF_TOKENS[k]
+
+    return csrf_token
+
+
+def validate_csrf_token(csrf_token: str, session_token: str) -> bool:
+    """
+    Validate a CSRF token for a given session.
+    CSRF tokens are single-use — they are deleted after validation.
+
+    Args:
+        csrf_token: CSRF token to validate
+        session_token: Session token to validate against
+
+    Returns:
+        True if valid, False otherwise
+    """
+    email = _verify_session_token(session_token)
+    if not email:
+        return False
+
+    with _csrf_lock:
+        token_data = _CSRF_TOKENS.pop(csrf_token, None)
+
+    if token_data is None:
+        return False
+
+    token_email, exp = token_data
+    # Check expiration and email match
+    if int(time.time()) > exp or token_email != email:
+        return False
+
+    return True
+
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
