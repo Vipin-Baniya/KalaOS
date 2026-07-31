@@ -93,6 +93,27 @@ class TestRegister:
         assert resp.status_code == 400
         assert "8 characters" in resp.json()["detail"]
 
+    def test_register_name_too_long(self, client):
+        resp = client.post("/auth/register", json={
+            "email": "toolong@example.com",
+            "password": "securepassword",
+            "name": "x" * 101,  # 101 characters (exceeds max 100)
+        })
+        assert resp.status_code == 400
+        assert "100 characters" in resp.json()["detail"]
+
+    def test_register_name_html_escaped(self, client):
+        resp = client.post("/auth/register", json={
+            "email": "htmlname@example.com",
+            "password": "securepassword",
+            "name": "<script>alert('xss')</script>",
+        })
+        assert resp.status_code == 200
+        # Verify the name is HTML-escaped in response
+        stored_name = resp.json()["user"]["name"]
+        assert "<script>" not in stored_name
+        assert "&lt;script&gt;" in stored_name
+
 
 # ---------------------------------------------------------------------------
 # Login
@@ -399,6 +420,27 @@ class TestUpdateProfile:
     def test_update_invalid_token_rejected(self, client):
         resp = client.post("/auth/update-profile", json={"token": "bogus", "name": "X"})
         assert resp.status_code == 400
+
+    def test_update_name_too_long(self, client):
+        token = self._setup(client)
+        resp = client.post("/auth/update-profile", json={
+            "token": token,
+            "name": "x" * 101,  # 101 characters (exceeds max 100)
+        })
+        assert resp.status_code == 400
+        assert "100 characters" in resp.json()["detail"]
+
+    def test_update_name_html_escaped(self, client):
+        token = self._setup(client)
+        resp = client.post("/auth/update-profile", json={
+            "token": token,
+            "name": "<img src=x onerror=\"alert('xss')\">",
+        })
+        assert resp.status_code == 200
+        # Verify the name is HTML-escaped in response
+        stored_name = resp.json()["user"]["name"]
+        assert "<img" not in stored_name
+        assert "&lt;img" in stored_name
 
 
 # ---------------------------------------------------------------------------
