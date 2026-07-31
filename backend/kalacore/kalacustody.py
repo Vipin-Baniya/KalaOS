@@ -13,6 +13,7 @@ Philosophy
 
 Functions
 ---------
+compute_fingerprint             – deterministic SHA-256 fingerprint from text + artist name
 generate_artistic_fingerprint   – deterministic structural description of a piece
 create_custody_record           – structured authorship record (no external DB)
 assess_artistic_lineage         – which traditions does this piece draw from?
@@ -21,6 +22,7 @@ build_legacy_annotation         – future-facing documentation of artistic inte
 
 Public API
 ----------
+compute_fingerprint(text, artist_name) → str
 custody(text, pattern_analysis, art_genome_dict, existential_data) → dict
 """
 
@@ -84,6 +86,27 @@ _TRADITION_SIGNALS: Dict[str, Dict[str, Any]] = {
 # ---------------------------------------------------------------------------
 # 1. Artistic Fingerprint
 # ---------------------------------------------------------------------------
+
+def compute_fingerprint(text: str, artist_name: str) -> str:
+    """
+    Compute a deterministic artistic fingerprint combining text and artist name.
+
+    Uses SHA-256 to ensure the fingerprint is identical across Python restarts
+    (unlike the built-in hash() which is randomized via PYTHONHASHSEED).
+    This is essential for verifying custody records and artistic lineage.
+
+    Parameters
+    ----------
+    text          : the artwork text content
+    artist_name   : the artist's declared name
+
+    Returns
+    -------
+    str: 64-character hex SHA-256 hash of "{text}:{artist_name}"
+    """
+    raw = f"{text}:{artist_name}".encode("utf-8")
+    return hashlib.sha256(raw).hexdigest()
+
 
 def generate_artistic_fingerprint(
     text: str,
