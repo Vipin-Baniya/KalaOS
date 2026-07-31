@@ -16,6 +16,7 @@ from kalacore.pattern_engine import analyze
 from kalacore.art_genome import build_art_genome
 from kalacore.existential import analyze_existential
 from kalacore.kalacustody import (
+    compute_fingerprint,
     generate_artistic_fingerprint,
     create_custody_record,
     assess_artistic_lineage,
@@ -448,6 +449,51 @@ class TestFlow:
 # ===========================================================================
 # PHASE 6 — KALACUSTODY
 # ===========================================================================
+
+class TestComputeFingerprint:
+    def test_returns_string(self):
+        result = compute_fingerprint("test text", "artist")
+        assert isinstance(result, str)
+
+    def test_returns_64_char_hex(self):
+        result = compute_fingerprint("test text", "artist")
+        assert len(result) == 64
+        assert all(c in "0123456789abcdef" for c in result)
+
+    def test_deterministic_same_input(self):
+        text = "A poem of lines"
+        artist = "Test Poet"
+        r1 = compute_fingerprint(text, artist)
+        r2 = compute_fingerprint(text, artist)
+        assert r1 == r2
+
+    def test_different_text_different_hash(self):
+        r1 = compute_fingerprint("poem one", "artist")
+        r2 = compute_fingerprint("poem two", "artist")
+        assert r1 != r2
+
+    def test_different_artist_different_hash(self):
+        text = "same text"
+        r1 = compute_fingerprint(text, "artist one")
+        r2 = compute_fingerprint(text, "artist two")
+        assert r1 != r2
+
+    def test_empty_text_produces_hash(self):
+        result = compute_fingerprint("", "artist")
+        assert len(result) == 64
+
+    def test_utf8_text_supported(self):
+        result = compute_fingerprint("café", "artiste")
+        assert isinstance(result, str)
+        assert len(result) == 64
+
+    def test_special_chars_supported(self):
+        text = "Line 1\nLine 2\tTabbed"
+        artist = "<html>tag</html>"
+        result = compute_fingerprint(text, artist)
+        assert isinstance(result, str)
+        assert len(result) == 64
+
 
 class TestGenerateArtisticFingerprint:
     def test_returns_required_keys(self):
