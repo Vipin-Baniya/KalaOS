@@ -8,6 +8,7 @@ These are not optional settings — they are architectural constants that
 govern every feature of the platform.
 """
 
+import unicodedata
 from typing import List, NamedTuple
 
 
@@ -66,6 +67,56 @@ _IMITATION_TRIGGERS = (
 MAX_TEXT_LENGTH = 50_000  # characters
 
 
+_HOMOGLYPH_MAP = {
+    # Cyrillic lookalikes for Latin letters (common bypass attempts)
+    'а': 'a',  # U+0430 Cyrillic → U+0061 Latin
+    'е': 'e',  # U+0435 Cyrillic → U+0065 Latin
+    'о': 'o',  # U+043E Cyrillic → U+006F Latin
+    'р': 'p',  # U+0440 Cyrillic → U+0070 Latin
+    'с': 'c',  # U+0441 Cyrillic → U+0063 Latin
+    'у': 'y',  # U+0443 Cyrillic → U+0079 Latin
+    'х': 'x',  # U+0445 Cyrillic → U+0078 Latin
+    'А': 'A',  # U+0410 Cyrillic → U+0041 Latin
+    'Е': 'E',  # U+0415 Cyrillic → U+0045 Latin
+    'О': 'O',  # U+041E Cyrillic → U+004F Latin
+    'Р': 'P',  # U+0420 Cyrillic → U+0050 Latin
+    'С': 'C',  # U+0421 Cyrillic → U+0043 Latin
+    'У': 'Y',  # U+0423 Cyrillic → U+0059 Latin
+    'Х': 'X',  # U+0425 Cyrillic → U+0058 Latin
+}
+
+
+def _normalize_for_screening(text: str) -> str:
+    """
+    Normalize text to prevent Unicode homoglyph and zero-width character bypasses.
+
+    Applies:
+    1. NFKC normalization: converts compatibility characters
+    2. Homoglyph mapping: converts Cyrillic lookalikes to Latin equivalents
+    3. Zero-width character removal: strips characters in Unicode category 'Cf'
+       (e.g., zero-width joiners, zero-width non-joiners, etc.)
+
+    This ensures that visually identical strings (even with hidden characters or
+    Unicode lookalikes) are normalized to the same canonical form.
+    """
+    # NFKC: Compatibility decomposition, then composition
+    normalized = unicodedata.normalize("NFKC", text)
+
+    # Map homoglyphs: convert known lookalikes to their canonical forms
+    homoglyph_replaced = "".join(
+        _HOMOGLYPH_MAP.get(c, c) for c in normalized
+    )
+
+    # Remove zero-width and other format characters (Unicode category Cf)
+    # This strips: zero-width joiner, zero-width non-joiner, zero-width space, etc.
+    cleaned = "".join(
+        c for c in homoglyph_replaced
+        if unicodedata.category(c) != "Cf"
+    )
+
+    return cleaned
+
+
 def check_request(text: str) -> List[EthicsViolation]:
     """
     Run ethical guardrail checks on a user-supplied text before processing.
@@ -99,9 +150,10 @@ def check_request(text: str) -> List[EthicsViolation]:
         ))
 
     # Check 2: imitation request
-    lower = text.lower()
+    # Normalize text to prevent Unicode homoglyph and zero-width character bypasses
+    normalized = _normalize_for_screening(text).lower()
     for trigger in _IMITATION_TRIGGERS:
-        if trigger in lower:
+        if trigger in normalized:
             violations.append(EthicsViolation(
                 code="IMITATION_REQUEST",
                 message=(
