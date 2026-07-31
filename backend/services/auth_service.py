@@ -35,10 +35,13 @@ Security notes
   exists (prevents user enumeration).
 * logout() adds the token to a short-lived revocation list (TTL = remaining
   token lifetime) so it cannot be reused even before its natural expiry.
+* User names: validated for length (max 100 chars) and HTML-escaped before
+  storage to prevent XSS attacks and database overflow errors.
 """
 
 import hashlib
 import hmac
+import html
 import logging
 import os
 import secrets
@@ -69,6 +72,9 @@ _SMTP_USER = os.environ.get("KALA_SMTP_USER", "")
 _SMTP_PASS = os.environ.get("KALA_SMTP_PASS", "")
 _SMTP_FROM = os.environ.get("KALA_SMTP_FROM", "") or _SMTP_USER
 _APP_URL   = os.environ.get("KALA_APP_URL", "http://localhost:8000")
+
+# Profile validation
+_MAX_NAME_LEN = 100
 
 # Consumers can check this to decide whether to expose the reset token in the response.
 SMTP_CONFIGURED: bool = bool(_SMTP_HOST)
@@ -417,10 +423,15 @@ def register(email: str, password: str, name: str,
     if email in _USERS:
         raise ValueError("An account with this email already exists.")
 
+    name = name.strip() or email.split("@")[0]
+    if len(name) > _MAX_NAME_LEN:
+        raise ValueError(f"Name must not exceed {_MAX_NAME_LEN} characters.")
+    name = html.escape(name)
+
     pw_hash, pw_salt = _hash_password(password)
     _USERS[email] = {
         "email":      email,
-        "name":       name.strip() or email.split("@")[0],
+        "name":       name,
         "pw_hash":    pw_hash,
         "pw_salt":    pw_salt,
         "created_at": int(time.time()),
@@ -533,6 +544,9 @@ def update_profile(token: str, name: str,
     name = name.strip()
     if not name:
         raise ValueError("Name must not be empty.")
+    if len(name) > _MAX_NAME_LEN:
+        raise ValueError(f"Name must not exceed {_MAX_NAME_LEN} characters.")
+    name = html.escape(name)
     user = dict(_USERS[email])
     user["name"] = name
     if avatar_url is not None:
