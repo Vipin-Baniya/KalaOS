@@ -702,6 +702,19 @@ def temporal_endpoint(request: AnalyseRequest):
 
 DEEP_ANALYSIS_MAX_TEXT_LENGTH = 10_000
 
+# Allowlist of Ollama models that clients can request
+# Prevents model substitution attacks via arbitrary filesystem paths
+ALLOWED_MODELS = frozenset({
+    "llama3",      # Meta's Llama 3
+    "mistral",     # Mistral 7B
+    "gemma",       # Google Gemma
+    "llama2",      # Meta's Llama 2
+    "codellama",   # Code-focused Llama variant
+    "neural-chat", # Intel's Neural Chat
+    "starling",    # Starling LM
+    "dolphin",     # Dolphin Mixtral
+})
+
 
 class DeepAnalysisRequest(BaseModel):
     text: str
@@ -718,6 +731,16 @@ class DeepAnalysisRequest(BaseModel):
         if len(v) > DEEP_ANALYSIS_MAX_TEXT_LENGTH:
             raise ValueError(
                 f"text must not exceed {DEEP_ANALYSIS_MAX_TEXT_LENGTH:,} characters"
+            )
+        return v
+
+    @field_validator("model")
+    @classmethod
+    def model_must_be_allowed(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in ALLOWED_MODELS:
+            raise ValueError(
+                f"Unsupported model: {v}. "
+                f"Allowed models: {', '.join(sorted(ALLOWED_MODELS))}"
             )
         return v
 
@@ -902,6 +925,16 @@ class WritingAssistRequest(BaseModel):
         if v not in _VALID_ASSIST_ACTIONS:
             raise ValueError(
                 f"action must be one of: {', '.join(sorted(_VALID_ASSIST_ACTIONS))}"
+            )
+        return v
+
+    @field_validator("model")
+    @classmethod
+    def model_must_be_allowed(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in ALLOWED_MODELS:
+            raise ValueError(
+                f"Unsupported model: {v}. "
+                f"Allowed models: {', '.join(sorted(ALLOWED_MODELS))}"
             )
         return v
 
