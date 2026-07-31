@@ -220,21 +220,35 @@ function _hideAiPanel() {
    AUTH SYSTEM
 ══════════════════════════════════════════════ */
 
-function _loadSession() {
-  _authToken   = localStorage.getItem("kala-auth-token") || null;
-  _currentUser = JSON.parse(localStorage.getItem("kala-current-user") || "null");
+async function _loadSession() {
+  // Session token is stored in HttpOnly cookie (managed by browser, not accessible to JS).
+  // User info is stored only in memory for security (not in localStorage).
+  // On page reload, attempt to restore session from the HttpOnly cookie via /auth/me.
+  _authToken   = null;
+  _currentUser = null;
+
+  try {
+    // Try to restore session from HttpOnly cookie (sent automatically with the request)
+    const resp = await fetch(`${API_BASE}/auth/me`);
+    if (resp.ok) {
+      const user = await resp.json();
+      _currentUser = user;
+      // Token is in the HttpOnly cookie; we don't have access to it from JS
+      // Subsequent API calls will include the cookie automatically
+    }
+  } catch (err) {
+    // No active session or fetch failed — user will need to log in
+    console.debug("Session not restored:", err.message);
+  }
 }
 
 function _saveSession(token, user) {
+  // Store both token and user info in memory for the current session.
+  // The token from the login response is used in API calls within this session.
+  // The HttpOnly cookie is set by the server and sent automatically by the browser.
   _authToken   = token;
   _currentUser = user;
-  if (token) {
-    localStorage.setItem("kala-auth-token", token);
-    localStorage.setItem("kala-current-user", JSON.stringify(user));
-  } else {
-    localStorage.removeItem("kala-auth-token");
-    localStorage.removeItem("kala-current-user");
-  }
+  // Note: Do NOT store token or user in localStorage — that's vulnerable to XSS.
 }
 
 function _updateUserUI() {
@@ -1176,10 +1190,10 @@ function arcBar(score) {
    Initialisation
 ══════════════════════════════════════════════ */
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
   loadSavedTheme();
   initPWA();
-  _loadSession();
+  await _loadSession();  // Restore session from HttpOnly cookie
   _updateUserUI();
   _restoreSidebar();
 
