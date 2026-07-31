@@ -28,7 +28,7 @@ POST /video-studio/generate-script – Phase 15 AI Video Generator: text prompt 
 import logging
 import os as _os
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Response, Cookie
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -1593,11 +1593,32 @@ def auth_register(request: Request, body: AuthRegisterRequest):
 
 @app.post("/auth/login", summary="Login and receive a session token")
 @limiter.limit(_login_limit)
-def auth_login(request: Request, body: AuthLoginRequest):
-    """Validate credentials and return a signed session token."""
+def auth_login(request: Request, body: AuthLoginRequest, response: Response):
+    """Validate credentials, set HttpOnly cookie, and return session token.
+
+    The token is provided in the response for immediate use in API calls.
+    Additionally, an HttpOnly cookie 'kala_session' is set for:
+    - Automatic inclusion in subsequent requests (browser-managed)
+    - Session recovery after page reload (via /auth/me endpoint)
+    - XSS-proof storage (JavaScript cannot access HttpOnly cookies)
+
+    Clients should store the returned token in memory only, not in localStorage.
+    """
     try:
         token = auth_service.login(body.email, body.password)
         user  = auth_service.get_user(token)
+
+        # Set HttpOnly cookie with 30-day max_age
+        response.set_cookie(
+            key="kala_session",
+            value=token,
+            httponly=True,
+            secure=True,
+            samesite="lax",
+            max_age=30 * 24 * 3600,  # 30 days
+        )
+
+        # Return token for use in memory (not for localStorage storage)
         return {"success": True, "token": token, "user": user}
     except ValueError as exc:
         raise HTTPException(status_code=401, detail=str(exc))
@@ -1660,10 +1681,23 @@ def auth_reset(request: AuthResetRequest):
         raise HTTPException(status_code=400, detail=str(exc))
 
 
-@app.get("/auth/me", summary="Get current user from session token")
-def auth_me(token: str):
-    """Return public user info for a valid session token."""
-    user = auth_service.get_user(token)
+@app.get("/auth/me", summary="Get current user from session token or cookie")
+def auth_me(token: str = None, kala_session: str = Cookie(None)):
+    """Return public user info for a valid session token or HttpOnly cookie.
+
+    Supports two methods for providing the session token:
+    1. Query parameter: ?token=<token> (for backward compatibility)
+    2. HttpOnly cookie: kala_session (browser-managed, XSS-proof)
+
+    Prefers the query parameter if both are present.
+    """
+    # Use query parameter token if provided, otherwise use cookie
+    session_token = token or kala_session
+
+    if not session_token:
+        raise HTTPException(status_code=401, detail="No session token provided.")
+
+    user = auth_service.get_user(session_token)
     if not user:
         raise HTTPException(status_code=401, detail="Invalid or expired token.")
     return user
