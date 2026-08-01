@@ -576,6 +576,38 @@ def change_password(token: str, old_password: str, new_password: str) -> None:
     _USERS[email] = updated    # triggers SQLite sync
 
 
+def refresh_token(token: str) -> str:
+    """
+    Validate the current session token, revoke it, and issue a new one for the same user.
+
+    This prevents stolen tokens from remaining valid: when a legitimate user
+    refreshes their session, the old token is immediately blacklisted.
+
+    Raises ValueError if the token is invalid or expired.
+    """
+    email = _verify_session_token(token)
+    if not email:
+        raise ValueError("Invalid or expired session token.")
+
+    # Extract expiry from the old token so we can revoke it
+    try:
+        idx = token.rfind(":")
+        if idx < 0:
+            raise ValueError("Malformed token.")
+        payload = token[:idx]
+        parts = payload.split(":")
+        if len(parts) < 4:
+            raise ValueError("Malformed token.")
+        exp = int(parts[3])
+        # Revoke the old token to prevent token reuse attacks
+        _revoke_token(token, exp)
+    except (ValueError, IndexError):
+        raise ValueError("Failed to process token refresh.")
+
+    # Issue a new token for the same user
+    return _make_session_token(email)
+
+
 def logout(token: str) -> None:
     """Revoke a session token so it cannot be used again before its natural expiry.
 

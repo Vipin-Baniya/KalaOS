@@ -560,6 +560,58 @@ class TestLogout:
 
 
 # ---------------------------------------------------------------------------
+# /auth/refresh
+# ---------------------------------------------------------------------------
+
+class TestRefresh:
+    def _setup(self, client):
+        client.post("/auth/register", json={
+            "email": "refresh@example.com",
+            "password": "password123",
+            "name": "Refresh",
+        })
+        resp = client.post("/auth/login", json={
+            "email": "refresh@example.com",
+            "password": "password123",
+        })
+        return resp.json()["token"]
+
+    def test_refresh_returns_new_token(self, client):
+        old_token = self._setup(client)
+        resp = client.post("/auth/refresh", json={"token": old_token})
+        assert resp.status_code == 200
+        assert resp.json()["success"] is True
+        new_token = resp.json()["token"]
+        assert new_token != old_token
+
+    def test_new_token_is_valid(self, client):
+        old_token = self._setup(client)
+        resp = client.post("/auth/refresh", json={"token": old_token})
+        new_token = resp.json()["token"]
+        resp = client.get(f"/auth/me?token={new_token}")
+        assert resp.status_code == 200
+        assert resp.json()["email"] == "refresh@example.com"
+
+    def test_old_token_invalid_after_refresh(self, client):
+        old_token = self._setup(client)
+        client.post("/auth/refresh", json={"token": old_token})
+        resp = client.get(f"/auth/me?token={old_token}")
+        assert resp.status_code == 401
+
+    def test_invalid_token_rejected(self, client):
+        resp = client.post("/auth/refresh", json={"token": "bogus-token"})
+        assert resp.status_code == 401
+        assert "Invalid or expired" in resp.json()["detail"]
+
+    def test_refresh_preserves_user_identity(self, client):
+        old_token = self._setup(client)
+        resp = client.post("/auth/refresh", json={"token": old_token})
+        user = resp.json()["user"]
+        assert user["email"] == "refresh@example.com"
+        assert user["name"] == "Refresh"
+
+
+# ---------------------------------------------------------------------------
 # /auth/delete-account
 # ---------------------------------------------------------------------------
 
