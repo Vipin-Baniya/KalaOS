@@ -1607,6 +1607,10 @@ class AuthLogoutRequest(BaseModel):
     csrf_token: Optional[str] = None  # CSRF protection for state-mutating request
 
 
+class AuthRefreshRequest(BaseModel):
+    token: str
+
+
 class AuthDeleteAccountRequest(BaseModel):
     token: str
     password: str
@@ -1653,6 +1657,39 @@ def auth_login(request: Request, body: AuthLoginRequest, response: Response):
 
         # Return token for use in memory (not for localStorage storage)
         return {"success": True, "token": token, "user": user}
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail=str(exc))
+
+
+@app.post("/auth/refresh", summary="Refresh session token and invalidate old token")
+@limiter.limit("30/minute")
+def auth_refresh(request: Request, body: AuthRefreshRequest, response: Response):
+    """
+    Validate the current session token, revoke it, and issue a new one for the same user.
+
+    This endpoint implements secure token rotation: when a user calls refresh, the old
+    token is immediately blacklisted and cannot be reused. This prevents stolen tokens
+    from remaining valid for their full lifetime.
+
+    The new token is returned in the response and updated in the HttpOnly cookie
+    for browser-based clients.
+
+    Returns: new access token and updated user info
+    """
+    try:
+        new_token = auth_service.refresh_token(body.token)
+        user = auth_service.get_user(new_token)
+
+        response.set_cookie(
+            key="kala_session",
+            value=new_token,
+            httponly=True,
+            secure=True,
+            samesite="lax",
+            max_age=30 * 24 * 3600,
+        )
+
+        return {"success": True, "token": new_token, "user": user}
     except ValueError as exc:
         raise HTTPException(status_code=401, detail=str(exc))
 
