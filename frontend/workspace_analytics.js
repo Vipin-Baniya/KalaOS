@@ -131,7 +131,7 @@ function _wsaRenderDashboard() {
   const stats = wsaGetAllStats();
 
   if (stats.length === 0) {
-    container.innerHTML = `
+    container.textContent = `
       <div class="wsa-empty">
         <span class="wsa-empty-icon">📊</span>
         <p>No workspace activity yet.</p>

@@ -233,7 +233,7 @@ function _wsHealthRenderOverview() {
   const all = wshComputeAllHealth();
 
   if (all.length === 0) {
-    container.innerHTML = `
+    container.textContent = `
       <div class="wsh-health-empty">
         <span class="wsh-health-empty-icon">🏥</span>
         <p>No active workspaces to analyse.</p>
