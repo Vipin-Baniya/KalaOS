@@ -30,8 +30,9 @@ import os as _os
 
 from fastapi import FastAPI, HTTPException, Request, Response, Cookie
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel, Field, field_validator
-from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from typing import List, Literal, Optional
 
@@ -92,6 +93,13 @@ import services.auth_service as auth_service
 import services.platform_service as platform_service
 from routers.jobs_router import router as jobs_router
 from app.middleware.csrf import get_csrf_store
+
+from app.exception_handlers import (
+    http_exception_handler,
+    validation_exception_handler,
+    rate_limit_exception_handler,
+    unhandled_exception_handler,
+)
 
 # Build the domain Literal dynamically from ART_DOMAINS so there is
 # only one source of truth for the allowed values.
@@ -171,7 +179,25 @@ _forgot_limit   = _os.environ.get("KALA_RATE_LIMIT_FORGOT",   "5/minute")
 _register_limit = _os.environ.get("KALA_RATE_LIMIT_REGISTER", "5/minute")
 limiter = Limiter(key_func=get_client_ip, default_limits=[])
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_exception_handler(
+    HTTPException,
+    http_exception_handler,
+)
+
+app.add_exception_handler(
+    RequestValidationError,
+    validation_exception_handler,
+)
+
+app.add_exception_handler(
+    RateLimitExceeded,
+    rate_limit_exception_handler,
+)
+
+app.add_exception_handler(
+    Exception,
+    unhandled_exception_handler,
+)
 
 # CORS defaults to disabled (empty origin list) for security.
 # Explicitly set KALA_CORS_ORIGINS in production to a comma-separated list
