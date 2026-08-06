@@ -983,9 +983,9 @@ def generate_image_concept(prompt: str, style: str = "digital art") -> Dict[str,
         f'<rect x="0" y="430" width="512" height="82" fill="{bg1}" fill-opacity="0.85"/>'
         f'<text x="256" y="456" font-family="Inter,system-ui,sans-serif" font-size="13"'
         f' font-weight="600" fill="{c1}" text-anchor="middle" opacity="0.9">'
-        f"&#x2726; KalaOS AI Image</text>"
+        f"CONCEPT PLACEHOLDER</text>"
         f'<text x="256" y="474" font-family="Inter,system-ui,sans-serif" font-size="10"'
-        f' fill="{c2}" text-anchor="middle" opacity="0.8">{safe_style}</text>'
+        f' fill="{c2}" text-anchor="middle" opacity="0.8">{safe_style} preview</text>'
         f'<text x="256" y="494" font-family="Inter,system-ui,sans-serif" font-size="9"'
         f' fill="white" text-anchor="middle" opacity="0.6">{safe_prompt}</text>'
         f'<line x1="40" y1="510" x2="472" y2="510" stroke="{c1}" stroke-width="0.5" opacity="0.3"/>'
@@ -997,12 +997,14 @@ def generate_image_concept(prompt: str, style: str = "digital art") -> Dict[str,
     return {
         "prompt": prompt,
         "style": clean_style,
-        "description": description,
+        "description": "Concept placeholder (not a generated image). " + description,
         "palette": [c1, c2, c3],
         "image_data": f"data:image/svg+xml;base64,{svg_b64}",
         "width": 512,
         "height": 512,
         "theme": theme_key,
+        "is_placeholder": True,
+        "mode": "concept_preview",
     }
 
 

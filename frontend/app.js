@@ -1658,7 +1658,7 @@ async function dcGenerateAI() {
   const style  = styleSelect ? styleSelect.value : "digital art";
 
   genBtn.disabled = true;
-  genBtn.textContent = "⏳ Generating…";
+  genBtn.textContent = "Generating concept…";
   hide(resultDiv);
 
   try {
@@ -1672,39 +1672,45 @@ async function dcGenerateAI() {
       throw new Error(err.detail || `HTTP ${resp.status}`);
     }
     const data = await resp.json();
+    const isPlaceholder = data.is_placeholder !== false || data.mode === "concept_preview";
 
-    // Add generated image to canvas
+    // Add concept preview to canvas (labelled)
     fabric.Image.fromURL(data.image_data, function(img) {
       const maxW = _dcCanvas.getWidth() * 0.55;
       if (img.width > maxW) img.scale(maxW / img.width);
       img.set({ left: 40, top: 40, selectable: true });
+      if (isPlaceholder) {
+        img.set({ opacity: 0.95 });
+      }
       _dcCanvas.add(img);
       _dcCanvas.setActiveObject(img);
       _dcCanvas.renderAll();
     });
 
-    // Show result info
     const swatches = data.palette.map(c =>
       `<span class="dc-ai-swatch" style="background:${c}" title="${c}"></span>`
     ).join("");
 
+    const label = isPlaceholder
+      ? `<span style="display:inline-block;margin-bottom:.35rem;padding:.15rem .45rem;border:1px solid currentColor;font-size:.72rem;letter-spacing:.04em">CONCEPT PLACEHOLDER</span><br/>`
+      : "";
+
     resultDiv.innerHTML = `
       <div class="dc-ai-preview">
-        <img src="${data.image_data}" alt="AI concept" />
+        <img src="${data.image_data}" alt="${isPlaceholder ? 'Concept placeholder' : 'Generated image'}" />
         <div class="dc-ai-desc">
-          <strong>${data.theme}</strong> · ${data.style}<br/>
+          ${label}
+          <strong>${data.theme}</strong> · ${data.style}${isPlaceholder ? ' · preview only' : ''}<br/>
           <span style="opacity:.8">${data.description}</span>
           <div class="dc-ai-palette">${swatches}<span style="font-size:.72rem;opacity:.7;margin-left:.3rem">Palette</span></div>
         </div>
       </div>`;
     show(resultDiv);
-
   } catch (err) {
-    resultDiv.innerHTML = `<span style="color:var(--error,#f87171)">⚠ ${err.message}</span>`;
-    show(resultDiv);
+    alert("Concept preview failed: " + (err.message || err));
   } finally {
     genBtn.disabled = false;
-    genBtn.textContent = "✦ Generate & Add to Canvas";
+    genBtn.textContent = "Generate concept preview";
   }
 }
 
@@ -4306,19 +4312,6 @@ async function tsGenerateOutline() {
    ANIMATION STUDIO  🎬  (Phase 13 – AI Animation Generator)
 ════════════════════════════════════════════════════════════════════ */
 
-// ── Studio switcher: extend to handle animation ────────────────────────────
-(function () {
-  const _prevSwitch = switchStudio;
-  switchStudio = function (mode) {
-    // Always hide dashboard panel when switching to any other studio
-    const _ds = el("dashboardStudio"), _dsb = el("dashboardStudioBtn");
-    if (_ds) _ds.classList.add("hidden");
-    if (_dsb) { _dsb.classList.remove("active"); _dsb.setAttribute("aria-selected", "false"); }
-
-    const animStudio = el("animationStudio");
-    const animBtn    = el("animationStudioBtn");
-
-
 // ── Animation tool tab switching ──────────────────────────────────────────
 function switchAnimTool(tool) {
   document.querySelectorAll(".anim-tool-btn").forEach(b => {
@@ -5186,19 +5179,6 @@ function shareProjectInDm(projectId, title, type) {
 /* ════════════════════════════════════════════════════════════════════
    VIDEO STUDIO  🎥  (Phase 15 – AI Video Generator)
 ════════════════════════════════════════════════════════════════════ */
-
-// ── Studio switcher: extend to handle video ───────────────────────────────
-(function () {
-  const _prevSwitch = switchStudio;
-  switchStudio = function (mode) {
-    // Always hide dashboard panel when switching to any other studio
-    const _ds = el("dashboardStudio"), _dsb = el("dashboardStudioBtn");
-    if (_ds) _ds.classList.add("hidden");
-    if (_dsb) { _dsb.classList.remove("active"); _dsb.setAttribute("aria-selected", "false"); }
-
-    const vs  = el("videoStudio");
-    const btn = el("videoStudioBtn");
-
 
 // ── State ─────────────────────────────────────────────────────────────────
 let _vsScenes       = [];   // array of scene objects
