@@ -4306,19 +4306,6 @@ async function tsGenerateOutline() {
    ANIMATION STUDIO  🎬  (Phase 13 – AI Animation Generator)
 ════════════════════════════════════════════════════════════════════ */
 
-// ── Studio switcher: extend to handle animation ────────────────────────────
-(function () {
-  const _prevSwitch = switchStudio;
-  switchStudio = function (mode) {
-    // Always hide dashboard panel when switching to any other studio
-    const _ds = el("dashboardStudio"), _dsb = el("dashboardStudioBtn");
-    if (_ds) _ds.classList.add("hidden");
-    if (_dsb) { _dsb.classList.remove("active"); _dsb.setAttribute("aria-selected", "false"); }
-
-    const animStudio = el("animationStudio");
-    const animBtn    = el("animationStudioBtn");
-
-
 // ── Animation tool tab switching ──────────────────────────────────────────
 function switchAnimTool(tool) {
   document.querySelectorAll(".anim-tool-btn").forEach(b => {
@@ -5186,19 +5173,6 @@ function shareProjectInDm(projectId, title, type) {
 /* ════════════════════════════════════════════════════════════════════
    VIDEO STUDIO  🎥  (Phase 15 – AI Video Generator)
 ════════════════════════════════════════════════════════════════════ */
-
-// ── Studio switcher: extend to handle video ───────────────────────────────
-(function () {
-  const _prevSwitch = switchStudio;
-  switchStudio = function (mode) {
-    // Always hide dashboard panel when switching to any other studio
-    const _ds = el("dashboardStudio"), _dsb = el("dashboardStudioBtn");
-    if (_ds) _ds.classList.add("hidden");
-    if (_dsb) { _dsb.classList.remove("active"); _dsb.setAttribute("aria-selected", "false"); }
-
-    const vs  = el("videoStudio");
-    const btn = el("videoStudioBtn");
-
 
 // ── State ─────────────────────────────────────────────────────────────────
 let _vsScenes       = [];   // array of scene objects
@@ -6957,6 +6931,112 @@ async function pcDistribute() {
 
 // ── 3D Studio ──────────────────────────────────────────────────────────────
 
+let _vs3dRenderer = null;
+let _vs3dAnimId = null;
+
+function _vs3dDisposePreview() {
+  if (_vs3dAnimId) {
+    cancelAnimationFrame(_vs3dAnimId);
+    _vs3dAnimId = null;
+  }
+  if (_vs3dRenderer) {
+    try { _vs3dRenderer.dispose(); } catch (_) {}
+    const elCanvas = _vs3dRenderer.domElement;
+    if (elCanvas && elCanvas.parentNode) elCanvas.parentNode.removeChild(elCanvas);
+    _vs3dRenderer = null;
+  }
+}
+
+function _vs3dMakeGeometry(THREE, type) {
+  switch ((type || "box").toLowerCase()) {
+    case "sphere": return new THREE.SphereGeometry(0.6, 24, 16);
+    case "cylinder": return new THREE.CylinderGeometry(0.45, 0.45, 1.2, 20);
+    case "cone": return new THREE.ConeGeometry(0.55, 1.3, 20);
+    case "torus": return new THREE.TorusGeometry(0.55, 0.18, 12, 24);
+    default: return new THREE.BoxGeometry(1, 1, 1);
+  }
+}
+
+function _vs3dMakeMaterial(THREE, materialName, colorHex, style) {
+  const color = new THREE.Color(colorHex || "#4488ff");
+  const name = (materialName || "").toLowerCase();
+  if (name.includes("toon")) return new THREE.MeshToonMaterial({ color });
+  if (name.includes("phong")) return new THREE.MeshPhongMaterial({ color, shininess: 80 });
+  if (name.includes("lambert")) return new THREE.MeshLambertMaterial({ color });
+  if (style === "cartoon") return new THREE.MeshToonMaterial({ color });
+  return new THREE.MeshStandardMaterial({ color, metalness: 0.2, roughness: 0.55 });
+}
+
+function _vs3dRenderPreview(host, data) {
+  if (typeof THREE === "undefined") {
+    throw new Error("Three.js failed to load");
+  }
+  if (!data || !Array.isArray(data.objects) || !data.objects.length) {
+    throw new Error("Scene has no objects to render");
+  }
+  _vs3dDisposePreview();
+  host.innerHTML = "";
+  host.style.display = "block";
+  host.style.padding = "0";
+
+  const width = host.clientWidth || 640;
+  const height = host.clientHeight || 300;
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(data.scene?.background_color || "#1a1a2e");
+  if (data.scene?.fog) {
+    scene.fog = new THREE.FogExp2(scene.background.getHex(), 0.045);
+  }
+
+  const camCfg = data.camera || {};
+  const camera = new THREE.PerspectiveCamera(camCfg.fov || 75, width / height, 0.1, 1000);
+  const cpos = camCfg.position || [0, 2, 8];
+  camera.position.set(cpos[0], cpos[1], cpos[2]);
+  const target = camCfg.target || [0, 0, 0];
+  camera.lookAt(target[0], target[1], target[2]);
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setSize(width, height, false);
+  host.appendChild(renderer.domElement);
+  _vs3dRenderer = renderer;
+
+  const lightCfg = data.lighting || {};
+  const ambient = new THREE.AmbientLight(0xffffff, lightCfg.ambient != null ? lightCfg.ambient : 0.35);
+  scene.add(ambient);
+  const key = new THREE.DirectionalLight(lightCfg.color || "#ffffff", lightCfg.intensity != null ? lightCfg.intensity : 1);
+  key.position.set(4, 8, 6);
+  scene.add(key);
+
+  const root = new THREE.Group();
+  data.objects.forEach((obj) => {
+    const geom = _vs3dMakeGeometry(THREE, obj.type);
+    const mat = _vs3dMakeMaterial(THREE, data.material, obj.color, data.style);
+    const mesh = new THREE.Mesh(geom, mat);
+    const pos = obj.position || [0, 0, 0];
+    const scl = obj.scale || [1, 1, 1];
+    mesh.position.set(pos[0], pos[1], pos[2]);
+    mesh.scale.set(scl[0], scl[1], scl[2]);
+    root.add(mesh);
+  });
+  scene.add(root);
+
+  const ground = new THREE.Mesh(
+    new THREE.CircleGeometry(12, 48),
+    new THREE.MeshStandardMaterial({ color: 0x111118, roughness: 0.95, metalness: 0 })
+  );
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.y = -0.02;
+  scene.add(ground);
+
+  const speed = (data.animation && data.animation.speed) || 0.5;
+  const animate = () => {
+    _vs3dAnimId = requestAnimationFrame(animate);
+    if (data.animation?.rotate !== false) root.rotation.y += 0.01 * speed;
+    renderer.render(scene, camera);
+  };
+  animate();
+}
+
 async function vs3dGenerate() {
   const prompt = el('vs3dPrompt')?.value?.trim();
   if (!prompt) { showToast('Enter a scene description'); return; }
@@ -6976,12 +7056,18 @@ async function vs3dGenerate() {
     const canvas = el('vs3dCanvas');
     const config = el('vs3dConfig');
     if (preview) preview.classList.remove('hidden');
-    if (canvas) {
-      canvas.style.background = data.scene?.background_color || '#0a0a1a';
-      canvas.innerHTML = `<div style="text-align:center;color:#fff"><div style="font-size:3rem">🎲</div><div style="opacity:.7;margin-top:.5rem">${style} scene</div><div style="font-size:.8rem;opacity:.5;margin-top:.25rem">${data.objects?.length || 0} objects</div></div>`;
+    if (!canvas) throw new Error('Preview canvas missing');
+    try {
+      _vs3dRenderPreview(canvas, data);
+    } catch (renderErr) {
+      _vs3dDisposePreview();
+      canvas.innerHTML = `<div style="text-align:center;color:#f87171;padding:1rem">Preview failed: ${escHtml(renderErr.message || String(renderErr))}</div>`;
+      if (st) st.textContent = 'Scene config ready, but WebGL preview failed.';
+      if (config) config.textContent = JSON.stringify({lighting: data.lighting, material: data.material, camera: data.camera, objects: data.objects}, null, 2);
+      return;
     }
-    if (config) config.textContent = JSON.stringify({lighting: data.lighting, material: data.material, camera: data.camera}, null, 2);
-    if (st) st.textContent = `✔ Scene generated — ${data.objects?.length || 0} objects, ${style} style`;
+    if (config) config.textContent = JSON.stringify({lighting: data.lighting, material: data.material, camera: data.camera, objects: data.objects}, null, 2);
+    if (st) st.textContent = `Scene preview ready — ${data.objects?.length || 0} objects, ${style} style`;
   } catch(e) {
     if (st) st.textContent = 'Generation failed. Check your connection.';
   } finally {

@@ -1146,6 +1146,14 @@ class TestGenerate3dScene:
         assert "objects" in result
         assert "camera" in result
 
+    def test_distinct_prompts_produce_distinct_object_sets(self):
+        from kalacore.kalavisual import generate_3d_scene
+        castle = generate_3d_scene("fantasy castle", style="fantasy")
+        bridge = generate_3d_scene("architectural bridge", style="architectural")
+        assert castle["objects"] != bridge["objects"]
+        assert any(o["type"] == "cone" for o in castle["objects"])
+        assert any(o["type"] == "cylinder" for o in bridge["objects"])
+
     def test_all_styles(self):
         from kalacore.kalavisual import generate_3d_scene
         for style in ["realistic", "cartoon", "abstract", "architectural", "sci-fi", "fantasy"]:
