@@ -21,7 +21,7 @@ from __future__ import annotations
 import datetime
 import hashlib
 import uuid
-from typing import Any
+from typing import Any, Optional
 
 # ---------------------------------------------------------------------------
 # Valid values
@@ -106,6 +106,20 @@ def _detect_format(url: str) -> str:
 # ---------------------------------------------------------------------------
 
 
+_EXPORT_REGISTRY: dict[str, dict[str, Any]] = {}
+
+
+def clear_export_registry() -> None:
+    """Test helper: wipe registered exports."""
+    _EXPORT_REGISTRY.clear()
+
+
+def get_export(export_id: str) -> Optional[dict[str, Any]]:
+    if not export_id or not str(export_id).strip():
+        return None
+    return _EXPORT_REGISTRY.get(str(export_id).strip())
+
+
 def prepare_export(
     studio: str,
     format: str,
@@ -148,10 +162,11 @@ def prepare_export(
     content_stripped = content.strip()
     estimated_size = _estimate_size(format, quality, len(content_stripped))
 
-    return {
+    manifest = {
         "export_id": export_id,
         "studio": studio,
         "format": format,
+        "content": content_stripped,
         "content_preview": content_stripped[:120],
         "quality": quality,
         "estimated_size_mb": estimated_size,
@@ -160,6 +175,124 @@ def prepare_export(
             "base_size_mb": _FORMAT_SIZE_MB.get(format, 1.0),
         },
         "status": "ready",
+        "created_at": _now(),
+    }
+    # Persist for quality checks / later retrieval (without exposing full content in API copies).
+    _EXPORT_REGISTRY[export_id] = dict(manifest)
+    public = dict(manifest)
+    public.pop("content", None)
+    return public
+
+
+def analyze_export_quality(
+    export_id: str,
+    format: str,
+    content_preview: str = "",
+) -> dict[str, Any]:
+    """Score a registered export from measurable content properties.
+
+    Raises
+    ------
+    FileNotFoundError if export_id is unknown.
+    ValueError for invalid inputs / format mismatch / empty artifact content.
+    """
+    if not export_id or not str(export_id).strip():
+        raise ValueError("export_id must not be empty")
+    if not format or not str(format).strip():
+        raise ValueError("format must not be empty")
+
+    export_id = str(export_id).strip()
+    fmt = str(format).strip().lower()
+    record = get_export(export_id)
+    if record is None:
+        raise FileNotFoundError(f"export '{export_id}' not found")
+
+    stored_fmt = str(record.get("format", "")).lower()
+    if stored_fmt and stored_fmt != fmt:
+        raise ValueError(
+            f"format '{fmt}' does not match registered export format '{stored_fmt}'"
+        )
+
+    content = str(record.get("content") or "").strip()
+    if not content:
+        raise ValueError("registered export has no analyzable content")
+
+    # Preview text must not override artifact analysis.
+    preview = (content_preview or "").strip()
+    preview_ignored = bool(preview) and preview != content and preview != content[:120]
+
+    length = len(content)
+    unique_ratio = len(set(content.lower())) / max(1, length)
+    quality = str(record.get("quality") or "medium")
+    size_mb = float(record.get("estimated_size_mb") or 0)
+
+    score = 40
+    issues: list[str] = []
+    suggestions: list[str] = [
+        "Verify codec compatibility with target platform",
+        "Run a preview before final distribution",
+    ]
+
+    # Length / substance
+    if length < 20:
+        score -= 15
+        issues.append("Export content is very short")
+    elif length < 80:
+        score += 5
+    else:
+        score += 15
+
+    # Diversity of content characters
+    if unique_ratio < 0.08:
+        score -= 20
+        issues.append("Content looks repetitive or low-entropy")
+    elif unique_ratio > 0.2:
+        score += 10
+
+    # Format-aware heuristics
+    if fmt in {"mp3", "wav", "flac", "ogg", "aac", "mp4", "webm", "mov", "avi", "mkv", "gif"}:
+        if size_mb < 0.5:
+            score -= 10
+            issues.append("Estimated media size is unusually small")
+        if quality in {"high", "lossless"}:
+            score += 8
+        elif quality == "low":
+            score -= 8
+            issues.append("Export quality is set to low")
+    elif fmt in {"png", "jpg", "webp", "svg", "bmp"}:
+        if length < 40:
+            issues.append("Visual export payload metadata is thin")
+            score -= 5
+        else:
+            score += 8
+    elif fmt in {"pdf", "docx", "txt", "markdown"}:
+        words = [w for w in content.replace("\n", " ").split(" ") if w]
+        if len(words) < 10:
+            issues.append("Text export has few words")
+            score -= 8
+        else:
+            score += 10
+
+    score = max(0, min(100, int(round(score))))
+    grade = "A" if score >= 90 else ("B" if score >= 80 else ("C" if score >= 70 else "D"))
+    if score < 75:
+        issues.append("Bitrate / quality below recommended threshold")
+    if score < 85 and "Consider increasing export quality setting" not in issues:
+        issues.append("Consider increasing export quality setting")
+
+    return {
+        "export_id": export_id,
+        "format": fmt,
+        "quality_score": score,
+        "grade": grade,
+        "issues": issues,
+        "suggestions": suggestions,
+        "passed": score >= 70,
+        "analysis_source": "registered_export",
+        "preview_ignored": preview_ignored,
+        "content_length": length,
+        "studio": record.get("studio"),
+        "export_quality": quality,
     }
 
 

@@ -4306,19 +4306,6 @@ async function tsGenerateOutline() {
    ANIMATION STUDIO  🎬  (Phase 13 – AI Animation Generator)
 ════════════════════════════════════════════════════════════════════ */
 
-// ── Studio switcher: extend to handle animation ────────────────────────────
-(function () {
-  const _prevSwitch = switchStudio;
-  switchStudio = function (mode) {
-    // Always hide dashboard panel when switching to any other studio
-    const _ds = el("dashboardStudio"), _dsb = el("dashboardStudioBtn");
-    if (_ds) _ds.classList.add("hidden");
-    if (_dsb) { _dsb.classList.remove("active"); _dsb.setAttribute("aria-selected", "false"); }
-
-    const animStudio = el("animationStudio");
-    const animBtn    = el("animationStudioBtn");
-
-
 // ── Animation tool tab switching ──────────────────────────────────────────
 function switchAnimTool(tool) {
   document.querySelectorAll(".anim-tool-btn").forEach(b => {
@@ -5186,19 +5173,6 @@ function shareProjectInDm(projectId, title, type) {
 /* ════════════════════════════════════════════════════════════════════
    VIDEO STUDIO  🎥  (Phase 15 – AI Video Generator)
 ════════════════════════════════════════════════════════════════════ */
-
-// ── Studio switcher: extend to handle video ───────────────────────────────
-(function () {
-  const _prevSwitch = switchStudio;
-  switchStudio = function (mode) {
-    // Always hide dashboard panel when switching to any other studio
-    const _ds = el("dashboardStudio"), _dsb = el("dashboardStudioBtn");
-    if (_ds) _ds.classList.add("hidden");
-    if (_dsb) { _dsb.classList.remove("active"); _dsb.setAttribute("aria-selected", "false"); }
-
-    const vs  = el("videoStudio");
-    const btn = el("videoStudioBtn");
-
 
 // ── State ─────────────────────────────────────────────────────────────────
 let _vsScenes       = [];   // array of scene objects
@@ -6412,8 +6386,13 @@ async function runQualityCheck() {
       body: JSON.stringify({ export_id, format, content_preview }),
     });
     const data = await resp.json();
-    if (!resp.ok) { if (statusEl) statusEl.textContent = `Error: ${data.detail || "Failed"}`; return; }
-    if (statusEl) statusEl.textContent = `✓ Quality score: ${data.quality_score}/100 (Grade ${data.grade})`;
+    if (!resp.ok) {
+      if (statusEl) statusEl.textContent = `Error: ${data.detail || "Failed"}`;
+      return;
+    }
+    if (statusEl) {
+      statusEl.textContent = `Quality score: ${data.quality_score}/100 (Grade ${data.grade}) — analyzed registered export`;
+    }
     renderResultCard(resultEl, data, "Quality Report");
   } catch (err) {
     if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`;

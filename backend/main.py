@@ -62,7 +62,7 @@ from kalacore.kalavideo import (
 from kalacore.kalaintelligence import transform as intelligence_transform, ai_assist, VALID_INPUT_TYPES, VALID_OUTPUT_TYPES
 from kalacore.kalacollab import create_collab_workspace, add_collaborator, get_collab_activity, generate_collab_suggestions
 from kalacore.kalastream import setup_stream, get_stream_analytics, generate_stream_overlay
-from kalacore.kalaexport import prepare_export, import_from_url, batch_export
+from kalacore.kalaexport import prepare_export, import_from_url, batch_export, analyze_export_quality
 from kalacore.kalaplatformconnect import (
     connect_oauth_platform,
     distribute_release,
@@ -2835,7 +2835,7 @@ class AIQualityCheckBody(BaseModel):
     content_preview: str = ""
 
 
-@app.post("/ai/quality-check", summary="AI quality assessment of exports")
+@app.post("/ai/quality-check", summary="Quality assessment of a registered export")
 @limiter.limit("20/minute")
 def ai_quality_check(request: Request, body: AIQualityCheckBody):
     if not body.export_id or not body.export_id.strip():
@@ -2843,29 +2843,16 @@ def ai_quality_check(request: Request, body: AIQualityCheckBody):
     if not body.format or not body.format.strip():
         raise HTTPException(status_code=422, detail="format must not be empty")
 
-    import hashlib as _hl
-    seed = body.export_id.strip()
-    digest = int(_hl.md5(seed.encode()).hexdigest(), 16)
-
-    score = 60 + (digest % 40)
-    issues = []
-    if score < 75:
-        issues.append("Bitrate below recommended threshold")
-    if score < 85:
-        issues.append("Consider increasing export quality setting")
-
-    return {
-        "export_id": seed,
-        "format": body.format.strip(),
-        "quality_score": score,
-        "grade": "A" if score >= 90 else ("B" if score >= 80 else ("C" if score >= 70 else "D")),
-        "issues": issues,
-        "suggestions": [
-            "Verify codec compatibility with target platform",
-            "Run a preview before final distribution",
-        ],
-        "passed": score >= 70,
-    }
+    try:
+        return analyze_export_quality(
+            body.export_id.strip(),
+            body.format.strip(),
+            body.content_preview or "",
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
 
 
 
