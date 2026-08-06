@@ -1180,50 +1180,67 @@ class TestGenerate3dScene:
 
 
 class TestApplyAiPhotoEdit:
-    def test_remove_bg(self):
+    @pytest.fixture
+    def sample_png(self, tmp_path):
+        from PIL import Image
+        path = tmp_path / "sample.png"
+        Image.new("RGB", (32, 24), (200, 40, 40)).save(path)
+        return str(path)
+
+    def test_remove_bg(self, sample_png, tmp_path):
         from kalacore.kalavisual import apply_ai_photo_edit
-        r = apply_ai_photo_edit("https://example.com/photo.jpg", "remove_bg")
+        r = apply_ai_photo_edit(sample_png, "remove_bg", export_dir=str(tmp_path / "out"))
         assert r["operation"] == "remove_bg"
         assert r["background_removed"] is True
         assert r["status"] == "processed"
+        assert r["download_url"].startswith("/visual-studio/photo-edits/")
+        assert not r["result_url"].startswith("https://example.com")
 
-    def test_upscale(self):
+    def test_upscale(self, sample_png, tmp_path):
         from kalacore.kalavisual import apply_ai_photo_edit
-        r = apply_ai_photo_edit("https://example.com/photo.jpg", "upscale")
+        r = apply_ai_photo_edit(sample_png, "upscale", export_dir=str(tmp_path / "out"))
         assert r["operation"] == "upscale"
-        assert r["model"] == "Real-ESRGAN"
+        assert r["model"] == "pillow-lanczos"
+        assert r["width"] == 128
+        assert r["height"] == 96
 
-    def test_colorize(self):
+    def test_colorize(self, sample_png, tmp_path):
         from kalacore.kalavisual import apply_ai_photo_edit
-        r = apply_ai_photo_edit("https://example.com/bw.jpg", "colorize")
+        r = apply_ai_photo_edit(sample_png, "colorize", export_dir=str(tmp_path / "out"))
         assert r["operation"] == "colorize"
         assert r["colorized"] is True
 
-    def test_denoise(self):
+    def test_denoise(self, sample_png, tmp_path):
         from kalacore.kalavisual import apply_ai_photo_edit
-        r = apply_ai_photo_edit("https://example.com/noisy.jpg", "denoise")
+        r = apply_ai_photo_edit(sample_png, "denoise", export_dir=str(tmp_path / "out"))
         assert r["operation"] == "denoise"
         assert "noise_reduction_pct" in r
 
-    def test_invalid_operation_raises(self):
+    def test_invalid_operation_raises(self, sample_png):
         from kalacore.kalavisual import apply_ai_photo_edit
         with pytest.raises(ValueError):
-            apply_ai_photo_edit("https://example.com/photo.jpg", "invalid_op")
+            apply_ai_photo_edit(sample_png, "invalid_op")
 
     def test_empty_url_raises(self):
         from kalacore.kalavisual import apply_ai_photo_edit
         with pytest.raises(ValueError):
             apply_ai_photo_edit("", "remove_bg")
 
-    def test_result_has_processed_at(self):
+    def test_invalid_source_raises(self, tmp_path):
         from kalacore.kalavisual import apply_ai_photo_edit
-        r = apply_ai_photo_edit("https://example.com/photo.jpg", "upscale")
+        with pytest.raises(ValueError):
+            apply_ai_photo_edit(str(tmp_path / "missing.png"), "upscale", export_dir=str(tmp_path / "out"))
+
+    def test_result_has_processed_at(self, sample_png, tmp_path):
+        from kalacore.kalavisual import apply_ai_photo_edit
+        r = apply_ai_photo_edit(sample_png, "upscale", export_dir=str(tmp_path / "out"))
         assert "processed_at" in r
 
-    def test_custom_options_upscale(self):
+    def test_custom_options_upscale(self, sample_png, tmp_path):
         from kalacore.kalavisual import apply_ai_photo_edit
-        r = apply_ai_photo_edit("https://example.com/photo.jpg", "upscale", {"scale": 2})
+        r = apply_ai_photo_edit(sample_png, "upscale", {"scale": 2}, export_dir=str(tmp_path / "out"))
         assert r["scale_factor"] == 2
+        assert r["width"] == 64
 
 
 # ---------------------------------------------------------------------------
@@ -1273,27 +1290,50 @@ class TestAiPhotoEditEndpoint:
         from fastapi.testclient import TestClient
         return TestClient(app)
 
-    def test_remove_bg(self, client):
-        resp = client.post("/visual-studio/ai-photo-edit", json={"image_url": "https://example.com/photo.jpg", "operation": "remove_bg"})
-        assert resp.status_code == 200
-        assert resp.json()["operation"] == "remove_bg"
+    @pytest.fixture
+    def sample_data_uri(self):
+        import base64
+        import io
+        from PIL import Image
+        buf = io.BytesIO()
+        Image.new("RGB", (24, 24), (10, 120, 200)).save(buf, format="PNG")
+        return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode("ascii")
 
-    def test_upscale(self, client):
-        resp = client.post("/visual-studio/ai-photo-edit", json={"image_url": "https://example.com/photo.jpg", "operation": "upscale"})
+    def test_remove_bg(self, client, sample_data_uri):
+        resp = client.post("/visual-studio/ai-photo-edit", json={"image_url": sample_data_uri, "operation": "remove_bg"})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["operation"] == "remove_bg"
+        assert data["status"] == "processed"
+        assert "artifact_path" not in data
+        dl = client.get(data["download_url"])
+        assert dl.status_code == 200
+        assert len(dl.content) > 0
+
+    def test_upscale(self, client, sample_data_uri):
+        resp = client.post("/visual-studio/ai-photo-edit", json={"image_url": sample_data_uri, "operation": "upscale"})
+        assert resp.status_code == 200
+        assert resp.json()["download_url"].startswith("/visual-studio/photo-edits/")
+
+    def test_colorize(self, client, sample_data_uri):
+        resp = client.post("/visual-studio/ai-photo-edit", json={"image_url": sample_data_uri, "operation": "colorize"})
         assert resp.status_code == 200
 
-    def test_colorize(self, client):
-        resp = client.post("/visual-studio/ai-photo-edit", json={"image_url": "https://example.com/photo.jpg", "operation": "colorize"})
+    def test_denoise(self, client, sample_data_uri):
+        resp = client.post("/visual-studio/ai-photo-edit", json={"image_url": sample_data_uri, "operation": "denoise"})
         assert resp.status_code == 200
 
-    def test_denoise(self, client):
-        resp = client.post("/visual-studio/ai-photo-edit", json={"image_url": "https://example.com/photo.jpg", "operation": "denoise"})
-        assert resp.status_code == 200
-
-    def test_invalid_operation(self, client):
-        resp = client.post("/visual-studio/ai-photo-edit", json={"image_url": "https://example.com/photo.jpg", "operation": "invalid_op_xyz"})
+    def test_invalid_operation(self, client, sample_data_uri):
+        resp = client.post("/visual-studio/ai-photo-edit", json={"image_url": sample_data_uri, "operation": "invalid_op_xyz"})
         assert resp.status_code == 422
 
     def test_empty_url_rejected(self, client):
         resp = client.post("/visual-studio/ai-photo-edit", json={"image_url": "", "operation": "remove_bg"})
+        assert resp.status_code == 422
+
+    def test_invalid_remote_source_rejected(self, client):
+        resp = client.post("/visual-studio/ai-photo-edit", json={
+            "image_url": "https://example.invalid/no-such-image.png",
+            "operation": "upscale",
+        })
         assert resp.status_code == 422
