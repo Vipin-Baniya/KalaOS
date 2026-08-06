@@ -10,6 +10,22 @@ permissions:
   contents: read
 
 jobs:
+  worker-test:
+    name: worker tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Run worker chat tests
+        working-directory: worker
+        run: npm test
+
   test:
     name: pytest
     runs-on: ubuntu-latest

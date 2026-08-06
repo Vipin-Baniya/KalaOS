@@ -2,8 +2,10 @@
   "name": "kalaos-worker",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "deploy": "bash deploy.sh",
-    "dev": "wrangler dev"
+    "dev": "wrangler dev",
+    "test": "node --test chat.test.js"
   }
 }
