@@ -420,7 +420,7 @@ function _restoreSidebarPanel(state) {
   }
   if (state.aiPanelOpen === false && typeof _hideAiPanel === "function") {
     _hideAiPanel();
-  } else if (state.aiPanelOpen === true && typeof _showAiPanel === "function") {
+  } else if (state.aiPanelOpen  && typeof _showAiPanel === "function") {
     _showAiPanel();
   }
 }
