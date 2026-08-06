@@ -73,6 +73,7 @@ from kalacore.kalaplatformconnect import (
     schedule_release,
     get_royalty_report,
     get_oauth_url,
+    authorize_oauth_demo,
     connect_platform,
     disconnect_platform,
     get_connected_platforms,
@@ -2950,6 +2951,15 @@ def platform_connect_oauth_url(request: Request, platform: str, user_id: str):
     try:
         result = get_oauth_url(platform, user_id)
         return result
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+@app.get("/platform-connect/oauth-authorize", summary="Complete demo OAuth authorization and issue auth code")
+@limiter.limit("20/minute")
+def platform_connect_oauth_authorize(request: Request, state: str):
+    try:
+        return authorize_oauth_demo(state)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
 

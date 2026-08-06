@@ -19,6 +19,9 @@ from kalacore.kalaplatformconnect import (
     get_oauth_url,
     connect_platform,
     disconnect_platform,
+    issue_auth_code_for_tests,
+    clear_oauth_state,
+    authorize_oauth_demo,
     get_connected_platforms,
     distribute_to_platforms,
     get_analytics_summary,
@@ -27,6 +30,14 @@ from kalacore.kalaplatformconnect import (
 )
 
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def _reset_oauth_state():
+    clear_oauth_state()
+    yield
+    clear_oauth_state()
+
 
 
 # ---------------------------------------------------------------------------
@@ -1832,7 +1843,7 @@ def test_get_oauth_url_unknown_platform_raises():
 # ---------------------------------------------------------------------------
 
 def test_connect_platform_basic():
-    result = connect_platform("spotify", "user123", "auth_code_abc")
+    result = connect_platform("spotify", "user123", issue_auth_code_for_tests("spotify", "user123"))
     assert result["platform"] == "spotify"
     assert result["user_id"] == "user123"
     assert result["connected"] is True
@@ -1841,21 +1852,21 @@ def test_connect_platform_basic():
     assert "connected_at" in result
 
 def test_connect_platform_username_format():
-    result = connect_platform("tiktok", "abcdef1234", "code")
+    result = connect_platform("tiktok", "abcdef1234", issue_auth_code_for_tests("tiktok", "abcdef1234"))
     assert result["username"] == "tiktok_user_abcdef"
 
 def test_connect_platform_short_user_id():
-    result = connect_platform("instagram", "abc", "code")
+    result = connect_platform("instagram", "abc", issue_auth_code_for_tests("instagram", "abc"))
     assert "username" in result
     assert result["connected"] is True
 
 def test_connect_platform_followers_range():
-    result = connect_platform("youtube", "user1", "code")
+    result = connect_platform("youtube", "user1", issue_auth_code_for_tests("youtube", "user1"))
     assert 1 <= result["followers"] <= 100000
 
 def test_connect_platform_invalid_platform():
     with pytest.raises(ValueError, match="platform"):
-        connect_platform("myspace", "user1", "code")
+        connect_platform("myspace", "user1", "unused-code")
 
 def test_connect_platform_empty_auth_code():
     with pytest.raises(ValueError, match="auth_code"):
@@ -1864,6 +1875,19 @@ def test_connect_platform_empty_auth_code():
 def test_connect_platform_whitespace_auth_code():
     with pytest.raises(ValueError, match="auth_code"):
         connect_platform("spotify", "user1", "   ")
+
+def test_connect_platform_rejects_raw_state_as_code():
+    started = get_oauth_url("spotify", "user1")
+    with pytest.raises(ValueError, match="authorization"):
+        connect_platform("spotify", "user1", started["state"])
+
+def test_connect_platform_persists_for_list():
+    code = issue_auth_code_for_tests("spotify", "persist_user")
+    connect_platform("spotify", "persist_user", code)
+    listed = get_connected_platforms("persist_user")
+    spotify = next(p for p in listed["platforms"] if p["platform"] == "spotify")
+    assert spotify["connected"] is True
+    assert spotify["username"]
 
 
 # ---------------------------------------------------------------------------
@@ -2078,13 +2102,18 @@ def test_api_oauth_url_missing_params():
 # ---------------------------------------------------------------------------
 
 def test_api_connect_valid():
+    code = issue_auth_code_for_tests("spotify", "user1")
     resp = client.post("/platform-connect/connect", json={
-        "platform": "spotify", "user_id": "user1", "auth_code": "abc123"
+        "platform": "spotify", "user_id": "user1", "auth_code": code
     })
     assert resp.status_code == 200
     data = resp.json()
     assert data["connected"] is True
     assert data["platform"] == "spotify"
+    listed = client.get("/platform-connect/platforms/user1")
+    assert listed.status_code == 200
+    spotify = next(p for p in listed.json()["platforms"] if p["platform"] == "spotify")
+    assert spotify["connected"] is True
 
 def test_api_connect_invalid_platform():
     resp = client.post("/platform-connect/connect", json={
@@ -2097,6 +2126,21 @@ def test_api_connect_empty_auth_code():
         "platform": "spotify", "user_id": "user1", "auth_code": ""
     })
     assert resp.status_code == 422
+
+def test_api_connect_rejects_state_without_authorize():
+    oauth = client.get("/platform-connect/oauth-url", params={"platform": "spotify", "user_id": "user1"}).json()
+    resp = client.post("/platform-connect/connect", json={
+        "platform": "spotify", "user_id": "user1", "auth_code": oauth["state"]
+    })
+    assert resp.status_code == 422
+
+def test_api_oauth_authorize_issues_code():
+    oauth = client.get("/platform-connect/oauth-url", params={"platform": "tiktok", "user_id": "u9"}).json()
+    resp = client.get("/platform-connect/oauth-authorize", params={"state": oauth["state"]})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["auth_code"]
+    assert data["status"] == "authorized"
 
 
 # ---------------------------------------------------------------------------

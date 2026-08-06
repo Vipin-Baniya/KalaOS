@@ -4306,19 +4306,6 @@ async function tsGenerateOutline() {
    ANIMATION STUDIO  🎬  (Phase 13 – AI Animation Generator)
 ════════════════════════════════════════════════════════════════════ */
 
-// ── Studio switcher: extend to handle animation ────────────────────────────
-(function () {
-  const _prevSwitch = switchStudio;
-  switchStudio = function (mode) {
-    // Always hide dashboard panel when switching to any other studio
-    const _ds = el("dashboardStudio"), _dsb = el("dashboardStudioBtn");
-    if (_ds) _ds.classList.add("hidden");
-    if (_dsb) { _dsb.classList.remove("active"); _dsb.setAttribute("aria-selected", "false"); }
-
-    const animStudio = el("animationStudio");
-    const animBtn    = el("animationStudioBtn");
-
-
 // ── Animation tool tab switching ──────────────────────────────────────────
 function switchAnimTool(tool) {
   document.querySelectorAll(".anim-tool-btn").forEach(b => {
@@ -5186,19 +5173,6 @@ function shareProjectInDm(projectId, title, type) {
 /* ════════════════════════════════════════════════════════════════════
    VIDEO STUDIO  🎥  (Phase 15 – AI Video Generator)
 ════════════════════════════════════════════════════════════════════ */
-
-// ── Studio switcher: extend to handle video ───────────────────────────────
-(function () {
-  const _prevSwitch = switchStudio;
-  switchStudio = function (mode) {
-    // Always hide dashboard panel when switching to any other studio
-    const _ds = el("dashboardStudio"), _dsb = el("dashboardStudioBtn");
-    if (_ds) _ds.classList.add("hidden");
-    if (_dsb) { _dsb.classList.remove("active"); _dsb.setAttribute("aria-selected", "false"); }
-
-    const vs  = el("videoStudio");
-    const btn = el("videoStudioBtn");
-
 
 // ── State ─────────────────────────────────────────────────────────────────
 let _vsScenes       = [];   // array of scene objects
@@ -6429,21 +6403,39 @@ const _PC_USER_ID = () => (_currentUser && _currentUser.id) ? _currentUser.id : 
 async function pcConnectPlatform(platform) {
   const statusEl = el("pcConnectStatus");
   const resultEl = el("pcConnectResult");
-  if (statusEl) statusEl.textContent = `Connecting to ${platform}…`;
+  if (statusEl) statusEl.textContent = `Starting ${platform} authorization…`;
   if (resultEl) resultEl.classList.add("hidden");
   try {
     const oauthResp = await fetch(`${API_BASE}/platform-connect/oauth-url?platform=${encodeURIComponent(platform)}&user_id=${encodeURIComponent(_PC_USER_ID())}`);
     const oauthData = await oauthResp.json();
     if (!oauthResp.ok) { if (statusEl) statusEl.textContent = `Error: ${oauthData.detail || "Failed"}`; return; }
 
+    // Demo providers: complete consent via authorize_url. Never treat OAuth state as an auth code.
+    const authorizePath = oauthData.authorize_url || `/platform-connect/oauth-authorize?state=${encodeURIComponent(oauthData.state)}`;
+    if (statusEl) {
+      statusEl.textContent = oauthData.demo_mode
+        ? `Demo OAuth: complete authorization for ${platform}…`
+        : `Open the provider window to authorize ${platform}…`;
+    }
+    const authResp = await fetch(`${API_BASE}${authorizePath}`);
+    const authData = await authResp.json();
+    if (!authResp.ok) {
+      if (statusEl) statusEl.textContent = `Authorization failed: ${authData.detail || authResp.status}`;
+      return;
+    }
+    if (!authData.auth_code) {
+      if (statusEl) statusEl.textContent = "Authorization did not return an auth code.";
+      return;
+    }
+
     const connectResp = await fetch(`${API_BASE}/platform-connect/connect`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ platform, user_id: _PC_USER_ID(), auth_code: oauthData.state }),
+      body: JSON.stringify({ platform, user_id: _PC_USER_ID(), auth_code: authData.auth_code }),
     });
     const data = await connectResp.json();
     if (!connectResp.ok) { if (statusEl) statusEl.textContent = `Error: ${data.detail || "Failed"}`; return; }
-    if (statusEl) statusEl.textContent = `✓ Connected to ${platform} as @${data.username}`;
+    if (statusEl) statusEl.textContent = `Connected to ${platform} as @${data.username}`;
     if (resultEl) { resultEl.textContent = JSON.stringify(data, null, 2); resultEl.classList.remove("hidden"); }
   } catch (err) {
     if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`;
