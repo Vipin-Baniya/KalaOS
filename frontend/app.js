@@ -4547,20 +4547,18 @@ function _renderAnimTimeline(plan) {
 // ── Animation MP4 Export ────────────────────────────────────────
 async function animExportMp4() {
   const fps = parseInt(el('animFpsSelect')?.value || '24', 10);
-  // Collect frames from timeline or generate demo frames
   const frames = [];
   const frameEls = document.querySelectorAll('#animTimeline .anim-frame, #animFrameList .frame-item');
-  if (frameEls.length > 0) {
-    frameEls.forEach((f, i) => frames.push({index: i, duration: 1/fps}));
-  } else {
-    // Demo: 3 frames
-    for (let i = 0; i < 3; i++) frames.push({index: i, duration: 1/fps});
-  }
+  frameEls.forEach((f, i) => frames.push({index: i, duration: 1/fps}));
   const st = el('animMp4Status');
   const result = el('animMp4Result');
   const btn = el('animExportMp4Btn');
+  if (!frames.length) {
+    if (st) st.textContent = 'Add frames to the timeline before exporting.';
+    return;
+  }
   if (btn) btn.disabled = true;
-  if (st) st.textContent = 'Preparing MP4 export\u2026';
+  if (st) st.textContent = 'Rendering export\u2026';
   const resolution = el('animResSelect')?.value || '1920x1080';
   try {
     const resp = await fetch(`${API_BASE}/animation/export-mp4`, {
@@ -4569,17 +4567,22 @@ async function animExportMp4() {
     });
     if (!resp.ok) throw new Error(await resp.text());
     const data = await resp.json();
+    if (data.status !== 'completed' || !data.download_url) {
+      if (st) st.textContent = 'Export did not produce a downloadable file.';
+      return;
+    }
+    const href = data.download_url.startsWith('http') ? data.download_url : `${API_BASE}${data.download_url}`;
     if (result) {
       result.classList.remove('hidden');
-      result.innerHTML = `<strong>\u2714 MP4 Export Ready</strong><br>
+      result.innerHTML = `<strong>Export ready (${escHtml(data.format || 'file')})</strong><br>
         Frames: ${data.frame_count} | FPS: ${data.fps} | Duration: ${data.duration_seconds}s<br>
-        Resolution: ${data.resolution} | Codec: ${data.codec}<br>
-        Estimated size: ${data.estimated_size_mb} MB<br>
-        <code style="font-size:.75rem;opacity:.7">${escHtml(data.ffmpeg_command)}</code>`;
+        Resolution: ${escHtml(data.resolution)} | Codec: ${escHtml(data.codec)}<br>
+        Size: ${data.file_size_kb || data.estimated_size_mb} ${data.file_size_kb != null ? 'KB' : 'MB'}<br>
+        <a href="${escHtml(href)}" download>Download export</a>`;
     }
-    if (st) st.textContent = `\u2714 Export prepared \u2014 ${data.duration_seconds}s @ ${data.fps}fps`;
+    if (st) st.textContent = `Export completed \u2014 ${data.duration_seconds}s @ ${data.fps}fps`;
   } catch(e) {
-    if (st) st.textContent = 'Export preparation failed.';
+    if (st) st.textContent = 'Export failed.';
   } finally {
     if (btn) btn.disabled = false;
   }

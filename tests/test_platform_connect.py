@@ -911,52 +911,44 @@ def test_api_ai_photo_edit_empty_description():
 
 def test_api_export_mp4_valid():
     resp = client.post("/animation/export-mp4", json={
-        "animation_id": "anim-001",
+        "frames": [{"index": 0}, {"index": 1}, {"index": 2}],
         "fps": 30,
-        "resolution": "1080p",
-        "quality": "high",
+        "resolution": "1280x720",
     })
     assert resp.status_code == 200
     data = resp.json()
-    assert data["format"] == "mp4"
+    assert data["format"] in ("mp4", "gif")
     assert data["fps"] == 30
-    assert data["resolution"] == "1080p"
+    assert data["resolution"] == "1280x720"
     assert data["status"] == "completed"
     assert "export_id" in data
-    assert "file_size_kb" in data
-    assert data["codec"] == "h264"
+    assert data["file_size_kb"] > 0
+    assert data["download_url"].startswith("/animation/exports/")
+    dl = client.get(data["download_url"])
+    assert dl.status_code == 200
+    assert len(dl.content) > 0
 
 
 def test_api_export_mp4_all_resolutions():
-    for res in ("720p", "1080p", "2k", "4k"):
-        resp = client.post("/animation/export-mp4", json={"animation_id": "a1", "resolution": res})
+    for res in ("640x480", "1280x720", "1920x1080", "3840x2160"):
+        resp = client.post("/animation/export-mp4", json={
+            "frames": [{"index": 0}],
+            "resolution": res,
+        })
         assert resp.status_code == 200
-
-
-def test_api_export_mp4_all_qualities():
-    for quality in ("draft", "standard", "high", "ultra"):
-        resp = client.post("/animation/export-mp4", json={"animation_id": "a1", "quality": quality})
-        assert resp.status_code == 200
+        assert resp.json()["status"] == "completed"
 
 
 def test_api_export_mp4_invalid_resolution():
     resp = client.post("/animation/export-mp4", json={
-        "animation_id": "a1",
+        "frames": [{"index": 0}],
         "resolution": "8k",
     })
     assert resp.status_code == 422
 
 
-def test_api_export_mp4_invalid_quality():
-    resp = client.post("/animation/export-mp4", json={
-        "animation_id": "a1",
-        "quality": "supreme",
-    })
-    assert resp.status_code == 422
-
-
-def test_api_export_mp4_empty_animation_id():
-    resp = client.post("/animation/export-mp4", json={"animation_id": ""})
+def test_api_export_mp4_empty_frames():
+    resp = client.post("/animation/export-mp4", json={"frames": []})
     assert resp.status_code == 422
 
 
@@ -1372,33 +1364,50 @@ def test_api_ai_photo_edit_enhancement_score_range():
 
 
 def test_api_export_mp4_duration_positive():
-    resp = client.post("/animation/export-mp4", json={"animation_id": "a1"})
+    resp = client.post("/animation/export-mp4", json={
+        "frames": [{"index": i} for i in range(6)],
+        "fps": 24,
+        "resolution": "640x480",
+    })
     assert resp.status_code == 200
     assert resp.json()["duration_seconds"] > 0
 
 
 def test_api_export_mp4_file_size_positive():
     resp = client.post("/animation/export-mp4", json={
-        "animation_id": "a1", "resolution": "4k", "quality": "ultra"
+        "frames": [{"index": 0}, {"index": 1}],
+        "resolution": "640x480",
     })
     assert resp.status_code == 200
     assert resp.json()["file_size_kb"] > 0
 
 
 def test_api_export_mp4_invalid_fps_zero():
-    resp = client.post("/animation/export-mp4", json={"animation_id": "a1", "fps": 0})
+    resp = client.post("/animation/export-mp4", json={
+        "frames": [{"index": 0}],
+        "fps": 0,
+        "resolution": "640x480",
+    })
     assert resp.status_code == 422
 
 
 def test_api_export_mp4_invalid_fps_too_high():
-    resp = client.post("/animation/export-mp4", json={"animation_id": "a1", "fps": 200})
+    resp = client.post("/animation/export-mp4", json={
+        "frames": [{"index": 0}],
+        "fps": 200,
+        "resolution": "640x480",
+    })
     assert resp.status_code == 422
 
 
-def test_api_export_mp4_codec_is_h264():
-    resp = client.post("/animation/export-mp4", json={"animation_id": "test-anim"})
+def test_api_export_mp4_produces_downloadable_codec():
+    resp = client.post("/animation/export-mp4", json={
+        "frames": [{"index": 0}],
+        "resolution": "640x480",
+    })
     assert resp.status_code == 200
-    assert resp.json()["codec"] == "h264"
+    assert resp.json()["codec"] in ("H.264", "gif", "h264")
+    assert resp.json()["status"] == "completed"
 
 
 # ---------------------------------------------------------------------------
@@ -1634,27 +1643,34 @@ def test_api_ai_photo_edit_custom_edits():
     assert "crop" in resp.json()["edits_applied"]
 
 
-def test_api_export_mp4_draft_quality():
+def test_api_export_mp4_completed_only_with_artifact():
     resp = client.post("/animation/export-mp4", json={
-        "animation_id": "anim-test", "quality": "draft",
+        "frames": [{"index": 0}],
+        "resolution": "640x480",
     })
     assert resp.status_code == 200
-    assert resp.json()["status"] == "completed"
+    data = resp.json()
+    assert data["status"] == "completed"
+    assert data["download_url"]
+    assert client.get(data["download_url"]).status_code == 200
 
 
 def test_api_export_mp4_720p_resolution():
     resp = client.post("/animation/export-mp4", json={
-        "animation_id": "anim-test", "resolution": "720p",
+        "frames": [{"index": 0}],
+        "resolution": "1280x720",
     })
     assert resp.status_code == 200
-    assert resp.json()["resolution"] == "720p"
+    assert resp.json()["resolution"] == "1280x720"
 
 
-def test_api_export_mp4_2k_resolution():
+def test_api_export_mp4_hd_resolution():
     resp = client.post("/animation/export-mp4", json={
-        "animation_id": "anim-2k", "resolution": "2k",
+        "frames": [{"index": 0}],
+        "resolution": "1920x1080",
     })
     assert resp.status_code == 200
+    assert resp.json()["status"] == "completed"
 
 
 def test_distribute_release_trimmed_inputs():

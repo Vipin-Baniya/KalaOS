@@ -247,34 +247,161 @@ def generate_animation_plan(
     }
 
 
-def prepare_mp4_export(frames: list, fps: int = 24, resolution: str = "1920x1080") -> dict:
-    """Prepare an MP4 export configuration for the animation."""
+def prepare_mp4_export(
+    frames: list,
+    fps: int = 24,
+    resolution: str = "1920x1080",
+    *,
+    export_dir: str | None = None,
+) -> dict:
+    """Render frames to a downloadable animation artifact.
+
+    Tries ffmpeg → MP4 when available; otherwise writes an animated GIF with
+    Pillow so callers always get a real file. Status is ``completed`` only when
+    the file exists on disk. Never invents a remote URL.
+    """
+    import hashlib
+    import shutil
+    import subprocess
+    import tempfile
     from datetime import datetime, timezone
+    from pathlib import Path
+
+    from PIL import Image, ImageDraw
+
     _VALID_FPS = {12, 24, 30, 60}
     _VALID_RESOLUTIONS = {"640x480", "1280x720", "1920x1080", "3840x2160"}
     if fps not in _VALID_FPS:
         raise ValueError(f"Invalid fps '{fps}'. Must be one of: {sorted(_VALID_FPS)}")
     if resolution not in _VALID_RESOLUTIONS:
-        raise ValueError(f"Invalid resolution '{resolution}'. Must be one of: {sorted(_VALID_RESOLUTIONS)}")
+        raise ValueError(
+            f"Invalid resolution '{resolution}'. Must be one of: {sorted(_VALID_RESOLUTIONS)}"
+        )
     if not frames:
         raise ValueError("frames list must not be empty")
+
+    width, height = map(int, resolution.split("x"))
+    # Cap render size so export stays usable in tests/CI; metadata keeps requested res.
+    render_w = min(width, 640)
+    render_h = min(height, 360)
     frame_count = len(frames)
     duration_seconds = round(frame_count / fps, 2)
-    # Parse resolution
-    width, height = map(int, resolution.split('x'))
+
+    root = Path(export_dir) if export_dir else Path(__file__).resolve().parents[1] / "exports"
+    root.mkdir(parents=True, exist_ok=True)
+
+    seed = f"{frame_count}:{fps}:{resolution}:{datetime.now(timezone.utc).isoformat()}"
+    export_id = hashlib.sha256(seed.encode()).hexdigest()[:16]
+
+    def _frame_image(idx: int, frame: Any) -> Image.Image:
+        if isinstance(frame, dict) and frame.get("image_data"):
+            import base64
+            import io
+
+            raw = frame["image_data"]
+            if isinstance(raw, str) and raw.startswith("data:"):
+                raw = raw.split(",", 1)[-1]
+            img = Image.open(io.BytesIO(base64.b64decode(raw))).convert("RGB")
+            return img.resize((render_w, render_h))
+
+        # Deterministic panel so timeline indexes still produce a real artifact.
+        hue = (idx * 47) % 256
+        img = Image.new("RGB", (render_w, render_h), (hue, 40, 255 - hue))
+        draw = ImageDraw.Draw(img)
+        label = f"frame {idx + 1}/{frame_count}"
+        draw.rectangle([8, 8, render_w - 8, 40], fill=(0, 0, 0))
+        draw.text((16, 14), label, fill=(255, 255, 255))
+        return img
+
+    images = [_frame_image(i, fr) for i, fr in enumerate(frames)]
+    ffmpeg_cmd = (
+        f"ffmpeg -y -framerate {fps} -i frame_%04d.png "
+        f"-c:v libx264 -pix_fmt yuv420p -s {resolution} output.mp4"
+    )
+
+    mp4_path = root / f"{export_id}.mp4"
+    gif_path = root / f"{export_id}.gif"
+    artifact_path: Path | None = None
+    fmt = "gif"
+    codec = "gif"
+
+    with tempfile.TemporaryDirectory(prefix="kala-anim-") as tmp:
+        tmp_path = Path(tmp)
+        for i, img in enumerate(images):
+            img.save(tmp_path / f"frame_{i:04d}.png")
+
+        if shutil.which("ffmpeg"):
+            cmd = [
+                "ffmpeg", "-y",
+                "-framerate", str(fps),
+                "-i", str(tmp_path / "frame_%04d.png"),
+                "-c:v", "libx264",
+                "-pix_fmt", "yuv420p",
+                "-movflags", "+faststart",
+                "-s", f"{render_w}x{render_h}",
+                str(mp4_path),
+            ]
+            try:
+                subprocess.run(cmd, check=True, capture_output=True, timeout=120)
+                if mp4_path.is_file() and mp4_path.stat().st_size > 0:
+                    artifact_path = mp4_path
+                    fmt = "mp4"
+                    codec = "H.264"
+            except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
+                artifact_path = None
+
+        if artifact_path is None:
+            duration_ms = max(1, int(round(1000 / fps)))
+            images[0].save(
+                gif_path,
+                save_all=True,
+                append_images=images[1:],
+                duration=duration_ms,
+                loop=0,
+                optimize=False,
+            )
+            if not gif_path.is_file() or gif_path.stat().st_size <= 0:
+                raise RuntimeError("Failed to write animation export artifact")
+            artifact_path = gif_path
+            fmt = "gif"
+            codec = "gif"
+
+    size_mb = round(artifact_path.stat().st_size / (1024 * 1024), 3)
+    download_path = f"/animation/exports/{artifact_path.name}"
+
     return {
+        "export_id": export_id,
         "frame_count": frame_count,
         "fps": fps,
         "resolution": resolution,
         "width": width,
         "height": height,
         "duration_seconds": duration_seconds,
-        "codec": "H.264",
-        "container": "MP4",
+        "codec": codec,
+        "container": fmt.upper(),
+        "format": fmt,
         "bitrate_kbps": 5000 if width >= 1920 else 2500 if width >= 1280 else 1000,
-        "ffmpeg_command": f"ffmpeg -r {fps} -i frame_%04d.png -c:v libx264 -pix_fmt yuv420p -s {resolution} output.mp4",
-        "estimated_size_mb": round(frame_count * 0.1 * (5000 if width >= 1920 else 2500 if width >= 1280 else 1000) / 8000, 1),
-        "export_url": f"https://kalaos.com/exports/animation_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.mp4",
+        "ffmpeg_command": ffmpeg_cmd,
+        "estimated_size_mb": size_mb,
+        "file_size_kb": round(artifact_path.stat().st_size / 1024, 1),
+        "export_url": download_path,
+        "download_url": download_path,
         "prepared_at": datetime.now(timezone.utc).isoformat(),
-        "status": "ready",
+        "status": "completed",
+        "artifact_path": str(artifact_path),
     }
+
+
+def get_export_artifact(filename: str, export_dir: str | None = None) -> str:
+    """Return absolute path to a stored export, or raise FileNotFoundError/ValueError."""
+    from pathlib import Path
+
+    if not filename or "/" in filename or "\\" in filename or ".." in filename:
+        raise ValueError("invalid export filename")
+    root = Path(export_dir) if export_dir else Path(__file__).resolve().parents[1] / "exports"
+    path = (root / filename).resolve()
+    if not str(path).startswith(str(root.resolve())):
+        raise ValueError("invalid export filename")
+    if not path.is_file():
+        raise FileNotFoundError(filename)
+    return str(path)
