@@ -8,6 +8,9 @@ services:
       - "8000:8000"
     environment:
       - OLLAMA_HOST=http://ollama:11434
+      # Persist auth/platform SQLite outside the container filesystem so
+      # `docker compose up --force-recreate` keeps registered users.
+      - KALA_DB_PATH=${KALA_DB_PATH:-/data/kalaos.db}
       # Set a stable secret so session tokens survive restarts across deployments.
       # In production, generate one with: python -c "import secrets; print(secrets.token_hex(32))"
       # If unset, each process restart uses a random secret, invalidating all existing tokens.
@@ -22,6 +25,8 @@ services:
       # - KALA_SMTP_PASS=your-sendgrid-api-key
       # - KALA_SMTP_FROM=noreply@example.com
       # - KALA_APP_URL=https://studio.example.com
+    volumes:
+      - backend_data:/data
     depends_on:
       ollama:
         condition: service_healthy
@@ -70,6 +75,7 @@ services:
     restart: unless-stopped
 
 volumes:
+  backend_data:
   ollama_data:
   redis_data:
   postgres_data:
