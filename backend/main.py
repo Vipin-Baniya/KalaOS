@@ -1338,23 +1338,22 @@ class DesignCanvasGenerateResponse(BaseModel):
     width: int
     height: int
     theme: str
+    is_placeholder: bool = True
+    mode: str = "concept_preview"
 
 
 @app.post(
     "/visual-studio/generate-image",
     response_model=DesignCanvasGenerateResponse,
-    summary="Phase 14 Design Canvas: generate an AI image concept from a text prompt",
+    summary="Phase 14 Design Canvas: concept preview (placeholder) from a text prompt",
 )
 def design_canvas_generate_image(request: DesignCanvasGenerateRequest):
     """
-    AI image concept generator for the Design Canvas.
+    Design Canvas concept preview.
 
-    Takes a text prompt and an optional style, analyses the prompt to detect
-    visual themes, selects a fitting colour palette, and returns a structured
-    SVG placeholder image alongside a concept description.
-
-    This provides immediate visual feedback on the canvas while acting as a
-    drop-in integration point for a real text-to-image model backend.
+    Returns a clearly labelled SVG concept placeholder derived from the prompt
+    and style. This is not a text-to-image model result unless a provider is
+    wired up later; clients must treat ``is_placeholder`` / ``mode`` as truth.
     """
     try:
         result = generate_image_concept(prompt=request.prompt, style=request.style)

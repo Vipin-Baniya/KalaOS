@@ -616,6 +616,16 @@ class TestGenerateImageConceptUnit:
         for key in ("prompt", "style", "description", "palette", "image_data", "width", "height", "theme"):
             assert key in result, f"Missing key: {key}"
 
+    def test_result_is_labelled_concept_placeholder(self):
+        import base64
+        result = generate_image_concept("futuristic cyberpunk city at night")
+        assert result["is_placeholder"] is True
+        assert result["mode"] == "concept_preview"
+        assert "placeholder" in result["description"].lower()
+        raw = base64.b64decode(result["image_data"].split(",", 1)[1]).decode("utf-8")
+        assert "CONCEPT PLACEHOLDER" in raw
+        assert "KalaOS AI Image" not in raw
+
     def test_image_data_is_svg_data_uri(self):
         result = generate_image_concept("a misty mountain landscape")
         assert result["image_data"].startswith("data:image/svg+xml;base64,")
@@ -729,6 +739,8 @@ class TestDesignCanvasGenerateImageEndpoint:
         data = resp.json()
         for key in ("prompt", "style", "description", "palette", "image_data", "width", "height", "theme"):
             assert key in data
+        assert data["is_placeholder"] is True
+        assert data["mode"] == "concept_preview"
 
     def test_svg_data_uri_returned(self):
         resp = client.post(
