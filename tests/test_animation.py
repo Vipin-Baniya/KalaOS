@@ -356,34 +356,39 @@ class TestAnimationGenerateEndpoint:
 # ---------------------------------------------------------------------------
 
 class TestPrepareMp4Export:
-    def test_basic_export(self):
+    def test_basic_export(self, tmp_path):
         from kalacore.kalaanimation import prepare_mp4_export
-        frames = [{"index": i} for i in range(24)]
-        result = prepare_mp4_export(frames, fps=24, resolution="1920x1080")
-        assert result["frame_count"] == 24
+        frames = [{"index": i} for i in range(6)]
+        result = prepare_mp4_export(frames, fps=24, resolution="640x480", export_dir=str(tmp_path))
+        assert result["frame_count"] == 6
         assert result["fps"] == 24
-        assert result["duration_seconds"] == 1.0
-        assert result["codec"] == "H.264"
-        assert result["status"] == "ready"
+        assert result["duration_seconds"] == 0.25
+        assert result["status"] == "completed"
+        assert result["download_url"].startswith("/animation/exports/")
+        assert not result["export_url"].startswith("https://")
+        from pathlib import Path
+        assert Path(result["artifact_path"]).is_file()
 
-    def test_all_fps(self):
+    def test_all_fps(self, tmp_path):
         from kalacore.kalaanimation import prepare_mp4_export
         frames = [{"i": 0}]
         for fps in [12, 24, 30, 60]:
-            r = prepare_mp4_export(frames, fps=fps)
+            r = prepare_mp4_export(frames, fps=fps, resolution="640x480", export_dir=str(tmp_path / str(fps)))
             assert r["fps"] == fps
+            assert r["status"] == "completed"
 
     def test_invalid_fps_raises(self):
         from kalacore.kalaanimation import prepare_mp4_export
         with pytest.raises(ValueError):
             prepare_mp4_export([{"i": 0}], fps=25)
 
-    def test_all_resolutions(self):
+    def test_all_resolutions(self, tmp_path):
         from kalacore.kalaanimation import prepare_mp4_export
         frames = [{"i": 0}]
         for res in ["640x480", "1280x720", "1920x1080", "3840x2160"]:
-            r = prepare_mp4_export(frames, resolution=res)
+            r = prepare_mp4_export(frames, resolution=res, export_dir=str(tmp_path / res.replace("x", "_")))
             assert r["resolution"] == res
+            assert r["status"] == "completed"
 
     def test_invalid_resolution_raises(self):
         from kalacore.kalaanimation import prepare_mp4_export
@@ -395,19 +400,19 @@ class TestPrepareMp4Export:
         with pytest.raises(ValueError):
             prepare_mp4_export([])
 
-    def test_ffmpeg_command_present(self):
+    def test_ffmpeg_command_present(self, tmp_path):
         from kalacore.kalaanimation import prepare_mp4_export
-        r = prepare_mp4_export([{"i": 0}])
+        r = prepare_mp4_export([{"i": 0}], resolution="640x480", export_dir=str(tmp_path))
         assert "ffmpeg" in r["ffmpeg_command"]
 
-    def test_export_url_present(self):
+    def test_export_url_is_local_download(self, tmp_path):
         from kalacore.kalaanimation import prepare_mp4_export
-        r = prepare_mp4_export([{"i": 0}])
-        assert r["export_url"].startswith("https://")
+        r = prepare_mp4_export([{"i": 0}], resolution="640x480", export_dir=str(tmp_path))
+        assert r["export_url"].startswith("/animation/exports/")
 
-    def test_width_height_parsed(self):
+    def test_width_height_parsed(self, tmp_path):
         from kalacore.kalaanimation import prepare_mp4_export
-        r = prepare_mp4_export([{"i": 0}], resolution="1280x720")
+        r = prepare_mp4_export([{"i": 0}], resolution="1280x720", export_dir=str(tmp_path))
         assert r["width"] == 1280
         assert r["height"] == 720
 
@@ -421,17 +426,22 @@ class TestExportMp4Endpoint:
 
     def test_valid_export(self, client):
         resp = client.post("/animation/export-mp4", json={
-            "frames": [{"index": i} for i in range(24)],
+            "frames": [{"index": i} for i in range(6)],
             "fps": 24,
-            "resolution": "1920x1080"
+            "resolution": "640x480"
         })
         assert resp.status_code == 200
         data = resp.json()
-        assert data["frame_count"] == 24
-        assert data["status"] == "ready"
+        assert data["frame_count"] == 6
+        assert data["status"] == "completed"
+        assert "artifact_path" not in data
+        assert data["download_url"].startswith("/animation/exports/")
+        dl = client.get(data["download_url"])
+        assert dl.status_code == 200
+        assert len(dl.content) > 0
 
     def test_default_fps(self, client):
-        resp = client.post("/animation/export-mp4", json={"frames": [{"i": 0}]})
+        resp = client.post("/animation/export-mp4", json={"frames": [{"i": 0}], "resolution": "640x480"})
         assert resp.status_code == 200
         assert resp.json()["fps"] == 24
 
@@ -446,3 +456,7 @@ class TestExportMp4Endpoint:
     def test_empty_frames_rejected(self, client):
         resp = client.post("/animation/export-mp4", json={"frames": [], "fps": 24})
         assert resp.status_code == 422
+
+    def test_missing_export_404(self, client):
+        resp = client.get("/animation/exports/does-not-exist.gif")
+        assert resp.status_code == 404

@@ -50,7 +50,12 @@ from kalacore.kalacustody import custody, assess_artistic_lineage
 from kalacore.temporal import analyze_temporal
 from kalacore.kalavisual import analyze_visual, generate_image_concept, animate_canvas_objects, export_canvas_gif, generate_3d_scene, apply_ai_photo_edit
 from kalacore.kalaproducer import produce, generate_ai_beat, generate_sampler_bank, generate_virtual_keyboard_config
-from kalacore.kalaanimation import generate_animation_plan, parse_storyboard, prepare_mp4_export
+from kalacore.kalaanimation import (
+    generate_animation_plan,
+    get_export_artifact,
+    parse_storyboard,
+    prepare_mp4_export,
+)
 from kalacore.kalavideo import (
     generate_video_script,
     build_scene,
@@ -1582,16 +1587,34 @@ class AnimationExportMp4Request(BaseModel):
     resolution: str = "1920x1080"
 
 
-@app.post("/animation/export-mp4", summary="Prepare MP4 export configuration for animation")
+@app.post("/animation/export-mp4", summary="Export animation frames to a downloadable file")
 def animation_export_mp4(body: AnimationExportMp4Request):
-    """Prepare an MP4 export configuration for the animation."""
+    """Render frames to a stored artifact and return a verified download URL."""
     if not body.frames:
         raise HTTPException(status_code=422, detail="frames list must not be empty")
     try:
         result = prepare_mp4_export(body.frames, body.fps, body.resolution)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+    # Do not expose local filesystem paths to clients.
+    result.pop("artifact_path", None)
     return result
+
+
+@app.get("/animation/exports/{filename}", summary="Download a completed animation export")
+def animation_download_export(filename: str):
+    from fastapi.responses import FileResponse
+
+    try:
+        path = get_export_artifact(filename)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="export not found")
+    media = "video/mp4" if filename.endswith(".mp4") else "image/gif"
+    return FileResponse(path, media_type=media, filename=filename)
 
 class AuthRegisterRequest(BaseModel):
     email: str
@@ -3556,58 +3579,6 @@ def visual_studio_ai_photo_edit_v1(request: Request, body: AIPhotoEditBody):
         "enhancement_score": round(0.6 + (d % 40) / 100, 2),
         "style_match": round(0.7 + (d % 30) / 100, 2),
         "export_ready": True,
-    }
-
-
-# ---------------------------------------------------------------------------
-# Animation Studio – Export MP4
-# ---------------------------------------------------------------------------
-
-class AnimationExportMP4Body(BaseModel):
-    animation_id: str
-    fps: int = 30
-    resolution: str = "1080p"
-    quality: str = "high"
-
-
-_VALID_RESOLUTIONS: set = {"720p", "1080p", "2k", "4k"}
-_VALID_QUALITIES: set = {"draft", "standard", "high", "ultra"}
-
-_RESOLUTION_MAP: dict = {"720p": (1280, 720), "1080p": (1920, 1080), "2k": (2560, 1440), "4k": (3840, 2160)}
-
-
-@app.post("/animation/export-mp4", summary="Export animation as MP4")
-@limiter.limit("20/minute")
-def animation_export_mp4(request: Request, body: AnimationExportMP4Body):
-    if not body.animation_id or not body.animation_id.strip():
-        raise HTTPException(status_code=422, detail="animation_id must not be empty")
-    if body.resolution not in _VALID_RESOLUTIONS:
-        raise HTTPException(status_code=422, detail=f"resolution must be one of {sorted(_VALID_RESOLUTIONS)}")
-    if body.quality not in _VALID_QUALITIES:
-        raise HTTPException(status_code=422, detail=f"quality must be one of {sorted(_VALID_QUALITIES)}")
-    if body.fps < 1 or body.fps > 120:
-        raise HTTPException(status_code=422, detail="fps must be between 1 and 120")
-
-    import hashlib as _hl
-    anim_id = body.animation_id.strip()
-    seed = f"{anim_id}{body.fps}{body.resolution}{body.quality}"
-    export_id = _hl.md5(seed.encode()).hexdigest()[:16]
-    d = int(_hl.md5(seed.encode()).hexdigest(), 16)
-
-    quality_multipliers = {"draft": 0.3, "standard": 0.6, "high": 1.0, "ultra": 2.5}
-    w, h = _RESOLUTION_MAP[body.resolution]
-    duration = 5 + (d % 55)
-    file_size_kb = int(w * h * body.fps * duration * quality_multipliers[body.quality] / 8000)
-
-    return {
-        "export_id": export_id,
-        "format": "mp4",
-        "fps": body.fps,
-        "resolution": body.resolution,
-        "duration_seconds": duration,
-        "file_size_kb": file_size_kb,
-        "codec": "h264",
-        "status": "completed",
     }
 
 
