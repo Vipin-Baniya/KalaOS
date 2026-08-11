@@ -7110,10 +7110,14 @@ async function vs3dGenerate() {
 // ── AI Photo Edit ──────────────────────────────────────────────────────────
 
 async function vsPhotoAiEdit(operation) {
-  const url = el('vsPhotoAiUrl')?.value?.trim() || 'https://example.com/photo.jpg';
+  const url = el('vsPhotoAiUrl')?.value?.trim() || '';
   const st = el('vsPhotoAiStatus');
   const result = el('vsPhotoAiResult');
   const opLabels = {remove_bg:'Removing background', upscale:'Upscaling', colorize:'Colorizing', denoise:'Denoising'};
+  if (!url) {
+    if (st) st.textContent = 'Provide a source image URL (or data URI) first.';
+    return;
+  }
   if (st) st.textContent = `${opLabels[operation] || operation}…`;
   try {
     const resp = await fetch(`${API_BASE}/visual-studio/ai-photo-edit`, {
@@ -7122,14 +7126,20 @@ async function vsPhotoAiEdit(operation) {
     });
     if (!resp.ok) throw new Error(await resp.text());
     const data = await resp.json();
+    if (data.status !== 'processed' || !data.download_url) {
+      if (st) st.textContent = 'Edit did not produce a downloadable image.';
+      return;
+    }
+    const href = data.download_url.startsWith('http') ? data.download_url : `${API_BASE}${data.download_url}`;
     if (result) {
       result.classList.remove('hidden');
-      result.innerHTML = `<div><strong>✔ ${data.operation.replace('_',' ')}</strong></div>
-        <div>Result: ${data.result_url}</div>
-        <div>Processing: ${data.processing_time_ms}ms | Status: ${data.status}</div>`;
+      result.innerHTML = `<div><strong>${escHtml(data.operation.replace('_',' '))}</strong></div>
+        <div><a href="${escHtml(href)}" target="_blank" rel="noopener">Open result</a></div>
+        <div>Processing: ${data.processing_time_ms}ms | Status: ${escHtml(data.status)} | Model: ${escHtml(data.model || '')}</div>
+        <img src="${escHtml(href)}" alt="Edited result" style="max-width:100%;margin-top:.5rem;border-radius:4px" />`;
     }
-    if (st) st.textContent = `✔ ${operation.replace('_',' ')} complete`;
+    if (st) st.textContent = `${operation.replace('_',' ')} complete`;
   } catch(e) {
-    if (st) st.textContent = 'Processing failed. Check your connection.';
+    if (st) st.textContent = 'Processing failed. Check the source image URL.';
   }
 }

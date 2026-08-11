@@ -1392,51 +1392,198 @@ def generate_3d_scene(prompt: str, style: str = "realistic", objects: list = Non
 # Phase 15 – AI Photo Editor
 # ---------------------------------------------------------------------------
 
-def apply_ai_photo_edit(image_url: str, operation: str, options: dict = None) -> dict:
-    """Apply AI-powered photo editing operations."""
+def apply_ai_photo_edit(
+    image_url: str,
+    operation: str,
+    options: dict = None,
+    *,
+    export_dir: str | None = None,
+) -> dict:
+    """Load a source image, apply a real edit with Pillow, store the artifact.
+
+    ``status`` is ``processed`` only when a downloadable file was written.
+    Invalid/unreachable sources raise ``ValueError``.
+    """
+    import hashlib
+    import io
+    import time
+    import urllib.error
+    import urllib.request
     from datetime import datetime, timezone
+    from pathlib import Path
+
+    from PIL import Image, ImageEnhance, ImageFilter, ImageOps
+
     _VALID_OPS = {"remove_bg", "upscale", "colorize", "denoise"}
     operation = operation.lower().replace("-", "_").replace(" ", "_")
     if operation not in _VALID_OPS:
-        raise ValueError(f"Invalid operation '{operation}'. Must be one of: {', '.join(sorted(_VALID_OPS))}")
-    if not image_url or not image_url.strip():
+        raise ValueError(
+            f"Invalid operation '{operation}'. Must be one of: {', '.join(sorted(_VALID_OPS))}"
+        )
+    if not image_url or not str(image_url).strip():
         raise ValueError("image_url must not be empty")
     if options is None:
         options = {}
-    op_results = {
-        "remove_bg": {
-            "operation": "remove_bg",
-            "result_url": image_url.replace(".", "_no_bg.") if "." in image_url else image_url + "_no_bg",
+
+    source = str(image_url).strip()
+    started = time.perf_counter()
+
+    def _load_image(src: str) -> Image.Image:
+        if src.startswith("data:"):
+            import base64
+
+            try:
+                header, b64 = src.split(",", 1)
+            except ValueError as exc:
+                raise ValueError("invalid data URI") from exc
+            try:
+                raw = base64.b64decode(b64, validate=True)
+            except Exception as exc:
+                raise ValueError("invalid data URI payload") from exc
+            try:
+                return Image.open(io.BytesIO(raw))
+            except Exception as exc:
+                raise ValueError("data URI is not a valid image") from exc
+
+        path = Path(src)
+        if path.is_file():
+            try:
+                return Image.open(path)
+            except Exception as exc:
+                raise ValueError(f"cannot open image file: {exc}") from exc
+
+        if src.startswith(("http://", "https://")):
+            req = urllib.request.Request(
+                src,
+                headers={"User-Agent": "KalaOS-PhotoEdit/1.0"},
+                method="GET",
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=15) as resp:
+                    data = resp.read()
+                    ctype = (resp.headers.get("Content-Type") or "").lower()
+            except urllib.error.HTTPError as exc:
+                raise ValueError(f"source image HTTP {exc.code}") from exc
+            except Exception as exc:
+                raise ValueError(f"failed to fetch source image: {exc}") from exc
+            if not data:
+                raise ValueError("source image response was empty")
+            if ctype and not ctype.startswith("image/") and "octet-stream" not in ctype:
+                raise ValueError(f"source URL did not return an image ({ctype or 'unknown'})")
+            try:
+                return Image.open(io.BytesIO(data))
+            except Exception as exc:
+                raise ValueError("fetched bytes are not a valid image") from exc
+
+        raise ValueError("image_url must be an http(s) URL, data URI, or existing file path")
+
+    img = _load_image(source)
+    img.load()
+
+    root = Path(export_dir) if export_dir else Path(__file__).resolve().parents[1] / "exports" / "photo"
+    root.mkdir(parents=True, exist_ok=True)
+    export_id = hashlib.sha256(f"{source}:{operation}:{time.time_ns()}".encode()).hexdigest()[:16]
+
+    meta: dict = {"operation": operation, "source_url": source}
+
+    if operation == "remove_bg":
+        rgba = img.convert("RGBA")
+        pixels = rgba.getdata()
+        # Corner-sampled chroma key: approximate local bg removal without rembg.
+        corners = [pixels[0], pixels[rgba.width - 1], pixels[(rgba.height - 1) * rgba.width], pixels[-1]]
+        br = sum(c[0] for c in corners) // 4
+        bg = sum(c[1] for c in corners) // 4
+        bb = sum(c[2] for c in corners) // 4
+        threshold = int(options.get("threshold", 40))
+        out_pixels = []
+        for r, g, b, a in pixels:
+            if abs(r - br) + abs(g - bg) + abs(b - bb) <= threshold * 3:
+                out_pixels.append((r, g, b, 0))
+            else:
+                out_pixels.append((r, g, b, a))
+        rgba.putdata(out_pixels)
+        out = rgba
+        out_path = root / f"{export_id}_no_bg.png"
+        out.save(out_path, format="PNG")
+        meta.update({
             "background_removed": True,
             "alpha_channel": True,
             "format": "PNG",
-            "processing_time_ms": 1200,
-        },
-        "upscale": {
-            "operation": "upscale",
-            "result_url": image_url.replace(".", "_4x.") if "." in image_url else image_url + "_4x",
-            "scale_factor": options.get("scale", 4),
-            "model": "Real-ESRGAN",
-            "processing_time_ms": 3500,
-        },
-        "colorize": {
-            "operation": "colorize",
-            "result_url": image_url.replace(".", "_colorized.") if "." in image_url else image_url + "_colorized",
+            "method": "corner_chroma_key",
+            "model": "pillow-chroma",
+        })
+    elif operation == "upscale":
+        scale = int(options.get("scale", 4))
+        if scale not in (2, 3, 4):
+            raise ValueError("scale must be 2, 3, or 4")
+        rgb = img.convert("RGB")
+        out = rgb.resize((rgb.width * scale, rgb.height * scale), Image.Resampling.LANCZOS)
+        out_path = root / f"{export_id}_{scale}x.png"
+        out.save(out_path, format="PNG")
+        meta.update({
+            "scale_factor": scale,
+            "width": out.width,
+            "height": out.height,
+            "format": "PNG",
+            "model": "pillow-lanczos",
+        })
+    elif operation == "colorize":
+        gray = ImageOps.grayscale(img)
+        # Map luminance into a warm duotone so B&W sources get visible color.
+        colorized = ImageOps.colorize(gray, black="#1a1030", white="#f2c14e")
+        render_factor = int(options.get("render_factor", 35))
+        render_factor = max(0, min(100, render_factor))
+        blend = Image.blend(img.convert("RGB"), colorized.convert("RGB"), render_factor / 100.0)
+        out = blend
+        out_path = root / f"{export_id}_colorized.png"
+        out.save(out_path, format="PNG")
+        meta.update({
             "colorized": True,
-            "model": "DeOldify",
-            "render_factor": options.get("render_factor", 35),
-            "processing_time_ms": 2800,
-        },
-        "denoise": {
-            "operation": "denoise",
-            "result_url": image_url.replace(".", "_denoised.") if "." in image_url else image_url + "_denoised",
-            "noise_reduction_pct": options.get("strength", 80),
-            "model": "NAFNet",
-            "processing_time_ms": 900,
-        },
-    }
-    result = op_results[operation]
-    result["source_url"] = image_url
-    result["processed_at"] = datetime.now(timezone.utc).isoformat()
-    result["status"] = "processed"
-    return result
+            "render_factor": render_factor,
+            "format": "PNG",
+            "model": "pillow-colorize",
+        })
+    else:  # denoise
+        strength = int(options.get("strength", 80))
+        strength = max(1, min(100, strength))
+        radius = 1 + strength // 25
+        rgb = img.convert("RGB")
+        out = rgb.filter(ImageFilter.MedianFilter(size=3 if radius < 3 else 5))
+        out = ImageEnhance.Sharpness(out).enhance(1.05)
+        out_path = root / f"{export_id}_denoised.png"
+        out.save(out_path, format="PNG")
+        meta.update({
+            "noise_reduction_pct": strength,
+            "format": "PNG",
+            "model": "pillow-median",
+        })
+
+    if not out_path.is_file() or out_path.stat().st_size <= 0:
+        raise RuntimeError("failed to write edited image artifact")
+
+    elapsed_ms = int((time.perf_counter() - started) * 1000)
+    download_path = f"/visual-studio/photo-edits/{out_path.name}"
+    meta.update({
+        "result_url": download_path,
+        "download_url": download_path,
+        "processing_time_ms": elapsed_ms,
+        "processed_at": datetime.now(timezone.utc).isoformat(),
+        "status": "processed",
+        "artifact_path": str(out_path),
+        "file_size_kb": round(out_path.stat().st_size / 1024, 1),
+    })
+    return meta
+
+
+def get_photo_edit_artifact(filename: str, export_dir: str | None = None) -> str:
+    from pathlib import Path
+
+    if not filename or "/" in filename or "\\" in filename or ".." in filename:
+        raise ValueError("invalid export filename")
+    root = Path(export_dir) if export_dir else Path(__file__).resolve().parents[1] / "exports" / "photo"
+    path = (root / filename).resolve()
+    if not str(path).startswith(str(root.resolve())):
+        raise ValueError("invalid export filename")
+    if not path.is_file():
+        raise FileNotFoundError(filename)
+    return str(path)

@@ -48,7 +48,7 @@ from kalacore.kalacomposer import compose
 from kalacore.kalaflow import flow
 from kalacore.kalacustody import custody, assess_artistic_lineage
 from kalacore.temporal import analyze_temporal
-from kalacore.kalavisual import analyze_visual, generate_image_concept, animate_canvas_objects, export_canvas_gif, generate_3d_scene, apply_ai_photo_edit
+from kalacore.kalavisual import analyze_visual, generate_image_concept, animate_canvas_objects, export_canvas_gif, generate_3d_scene, apply_ai_photo_edit, get_photo_edit_artifact
 from kalacore.kalaproducer import produce, generate_ai_beat, generate_sampler_bank, generate_virtual_keyboard_config
 from kalacore.kalaanimation import (
     generate_animation_plan,
@@ -3606,6 +3606,23 @@ class AiPhotoEditRequest(BaseModel):
 @app.post("/visual-studio/ai-photo-edit", summary="Apply AI photo editing operations")
 def visual_ai_photo_edit(body: AiPhotoEditRequest):
     try:
-        return apply_ai_photo_edit(body.image_url, body.operation, body.options)
+        result = apply_ai_photo_edit(body.image_url, body.operation, body.options)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+    result.pop("artifact_path", None)
+    return result
+
+
+@app.get("/visual-studio/photo-edits/{filename}", summary="Download a processed photo edit")
+def visual_download_photo_edit(filename: str):
+    from fastapi.responses import FileResponse
+
+    try:
+        path = get_photo_edit_artifact(filename)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="edited image not found")
+    return FileResponse(path, media_type="image/png", filename=filename)
