@@ -6386,8 +6386,13 @@ async function runQualityCheck() {
       body: JSON.stringify({ export_id, format, content_preview }),
     });
     const data = await resp.json();
-    if (!resp.ok) { if (statusEl) statusEl.textContent = `Error: ${data.detail || "Failed"}`; return; }
-    if (statusEl) statusEl.textContent = `✓ Quality score: ${data.quality_score}/100 (Grade ${data.grade})`;
+    if (!resp.ok) {
+      if (statusEl) statusEl.textContent = `Error: ${data.detail || "Failed"}`;
+      return;
+    }
+    if (statusEl) {
+      statusEl.textContent = `Quality score: ${data.quality_score}/100 (Grade ${data.grade}) — analyzed registered export`;
+    }
     renderResultCard(resultEl, data, "Quality Report");
   } catch (err) {
     if (statusEl) statusEl.textContent = `Error: ${esc(err.message)}`;

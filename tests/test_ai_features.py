@@ -7,8 +7,16 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "backend"))
 import pytest
 from fastapi.testclient import TestClient
 from main import app
+from kalacore.kalaexport import clear_export_registry, prepare_export
 
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def _clean_export_registry():
+    clear_export_registry()
+    yield
+    clear_export_registry()
 
 
 # ---------------------------------------------------------------------------
@@ -202,40 +210,56 @@ def test_ai_smart_search_with_content_types():
 # POST /ai/quality-check
 # ---------------------------------------------------------------------------
 
+def _register_export(content: str, fmt: str = "mp4", studio: str = "video", quality: str = "high") -> str:
+    return prepare_export(studio, fmt, content, quality)["export_id"]
+
+
 def test_ai_quality_check_valid():
+    export_id = _register_export(
+        "A substantial video timeline with scenes, audio cues, and motion notes " * 3,
+        "mp4",
+        "video",
+    )
     resp = client.post("/ai/quality-check", json={
-        "export_id": "exp-001",
+        "export_id": export_id,
         "format": "mp4",
-        "content_preview": "video preview text",
+        "content_preview": "ignored different preview text",
     })
     assert resp.status_code == 200
     data = resp.json()
-    assert data["export_id"] == "exp-001"
+    assert data["export_id"] == export_id
     assert data["format"] == "mp4"
     assert "quality_score" in data
     assert "grade" in data
     assert "issues" in data
     assert "passed" in data
     assert isinstance(data["passed"], bool)
+    assert data["analysis_source"] == "registered_export"
+    assert data["preview_ignored"] is True
 
 
 def test_ai_quality_check_grade_values():
+    export_id = _register_export("palette layers composition lighting depth " * 8, "png", "visual")
     resp = client.post("/ai/quality-check", json={
-        "export_id": "exp-gradetest",
+        "export_id": export_id,
         "format": "png",
     })
     assert resp.status_code == 200
     assert resp.json()["grade"] in ("A", "B", "C", "D")
 
 
-def test_ai_quality_check_grade_logic():
-    # exp-0 → score=65 → D, exp-1 → score=98 → A, exp-7 → score=87 → B, exp-3 → score=71 → C
-    cases = [("exp-0", "D"), ("exp-1", "A"), ("exp-7", "B"), ("exp-3", "C")]
-    for export_id, expected_grade in cases:
-        resp = client.post("/ai/quality-check", json={"export_id": export_id, "format": "mp3"})
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["grade"] == expected_grade, f"{export_id}: expected {expected_grade}, got {data['grade']} (score={data['quality_score']})"
+def test_ai_quality_check_uses_content_not_export_id():
+    rich = _register_export(
+        "rich soundtrack arrangement with verses choruses bridges dynamics " * 4,
+        "mp3",
+        "music",
+        "high",
+    )
+    thin = _register_export("x", "mp3", "music", "low")
+    rich_score = client.post("/ai/quality-check", json={"export_id": rich, "format": "mp3"}).json()["quality_score"]
+    thin_score = client.post("/ai/quality-check", json={"export_id": thin, "format": "mp3"}).json()["quality_score"]
+    assert rich_score != thin_score
+    assert rich_score > thin_score
 
 
 def test_ai_quality_check_empty_export_id():
@@ -247,16 +271,37 @@ def test_ai_quality_check_empty_export_id():
 
 
 def test_ai_quality_check_empty_format():
+    export_id = _register_export("content for format validation checks here", "mp4", "video")
     resp = client.post("/ai/quality-check", json={
-        "export_id": "exp-001",
+        "export_id": export_id,
         "format": "",
     })
     assert resp.status_code == 422
 
 
-def test_ai_quality_check_deterministic():
-    payload = {"export_id": "stable-exp-42", "format": "wav"}
+def test_ai_quality_check_missing_export_404():
+    resp = client.post("/ai/quality-check", json={
+        "export_id": "does-not-exist",
+        "format": "mp4",
+    })
+    assert resp.status_code == 404
+
+
+def test_ai_quality_check_deterministic_for_same_artifact():
+    export_id = _register_export("stable artifact body with enough substance for analysis " * 2, "wav", "music")
+    payload = {"export_id": export_id, "format": "wav", "content_preview": "preview A"}
     r1 = client.post("/ai/quality-check", json=payload).json()
-    r2 = client.post("/ai/quality-check", json=payload).json()
+    r2 = client.post("/ai/quality-check", json={
+        "export_id": export_id, "format": "wav", "content_preview": "totally different preview B",
+    }).json()
     assert r1["quality_score"] == r2["quality_score"]
     assert r1["grade"] == r2["grade"]
+
+
+def test_ai_quality_check_format_mismatch():
+    export_id = _register_export("mismatch check content payload here", "mp4", "video")
+    resp = client.post("/ai/quality-check", json={
+        "export_id": export_id,
+        "format": "png",
+    })
+    assert resp.status_code == 422
