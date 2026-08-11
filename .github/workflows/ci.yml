@@ -10,6 +10,21 @@ permissions:
   contents: read
 
 jobs:
+  frontend-syntax:
+    name: frontend syntax
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Check frontend bundle parses
+        run: node --check frontend/app.js
+
   test:
     name: pytest
     runs-on: ubuntu-latest
