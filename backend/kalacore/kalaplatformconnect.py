@@ -34,6 +34,7 @@ from __future__ import annotations
 import datetime
 import hashlib
 import random
+import secrets
 import uuid
 from typing import Any
 
@@ -109,6 +110,18 @@ _PLATFORM_CLIENT_IDS: dict[str, str] = {
 }
 
 _DEMO_PLATFORMS: list[str] = ["spotify", "youtube", "instagram", "tiktok", "soundcloud"]
+
+# Pending OAuth states and issued one-time auth codes (in-memory demo store).
+_PENDING_OAUTH: dict[str, dict[str, Any]] = {}
+_ISSUED_AUTH_CODES: dict[str, dict[str, Any]] = {}
+_CONNECTIONS: dict[str, dict[str, dict[str, Any]]] = {}
+
+
+def clear_oauth_state() -> None:
+    """Test helper: reset OAuth pending/codes/connections."""
+    _PENDING_OAUTH.clear()
+    _ISSUED_AUTH_CODES.clear()
+    _CONNECTIONS.clear()
 
 _GENRE_RELEASE_INFO: dict[str, dict[str, Any]] = {
     "pop":        {"day": "Friday",    "reasoning": "Pop audiences peak on Fridays with playlist refreshes", "multiplier": 2.1},
@@ -264,24 +277,81 @@ def get_oauth_url(platform: str, user_id: str) -> dict[str, Any]:
     ValueError for unknown platforms.
     """
     _validate_platform(platform)
+    if not user_id or not str(user_id).strip():
+        raise ValueError("user_id must not be empty")
+    user_id = str(user_id).strip()
     state = f"kalaos_{user_id}_{platform}_{random.randint(100000, 999999)}"
+    _PENDING_OAUTH[state] = {
+        "platform": platform,
+        "user_id": user_id,
+        "created_at": _now(),
+    }
+    # Provider authorize URL (not yet live without real client secrets).
+    base = _OAUTH_BASE_URLS.get(platform, f"https://accounts.{platform}.com/oauth")
+    client_id = _PLATFORM_CLIENT_IDS.get(platform, f"kalaos_{platform}_client_id")
+    scope = _PLATFORM_SCOPES.get(platform, "basic")
+    provider_url = (
+        f"{base}"
+        f"?client_id={client_id}"
+        f"&scope={scope.replace(' ', '%20')}"
+        f"&state={state}"
+        f"&response_type=code"
+    )
+    # Local demo authorize endpoint completes the consent step without faking success
+    # until the issued one-time auth_code is exchanged via /connect.
+    authorize_path = f"/platform-connect/oauth-authorize?state={state}"
     return {
         "platform":  platform,
-        "oauth_url": _OAUTH_BASE_URLS[platform],
-        "client_id": _PLATFORM_CLIENT_IDS[platform],
-        "scope":     _PLATFORM_SCOPES[platform],
+        "oauth_url": provider_url,
+        "authorize_url": authorize_path,
+        "demo_mode": True,
+        "client_id": client_id,
+        "scope":     scope,
         "state":     state,
     }
 
 
+def authorize_oauth_demo(state: str) -> dict[str, Any]:
+    """Complete the demo provider consent step and issue a one-time auth code."""
+    if not state or not str(state).strip():
+        raise ValueError("state must not be empty")
+    state = str(state).strip()
+    pending = _PENDING_OAUTH.get(state)
+    if not pending:
+        raise ValueError("unknown or expired OAuth state")
+    auth_code = secrets.token_urlsafe(24)
+    _ISSUED_AUTH_CODES[auth_code] = {
+        "state": state,
+        "platform": pending["platform"],
+        "user_id": pending["user_id"],
+        "used": False,
+        "issued_at": _now(),
+    }
+    return {
+        "status": "authorized",
+        "auth_code": auth_code,
+        "state": state,
+        "platform": pending["platform"],
+        "user_id": pending["user_id"],
+        "demo_mode": True,
+    }
+
+
+def issue_auth_code_for_tests(platform: str, user_id: str) -> str:
+    """Test helper: start OAuth and authorize in one step."""
+    started = get_oauth_url(platform, user_id)
+    issued = authorize_oauth_demo(started["state"])
+    return issued["auth_code"]
+
+
 def connect_platform(platform: str, user_id: str, auth_code: str) -> dict[str, Any]:
-    """Simulate connecting a platform via OAuth auth code.
+    """Connect a platform after a completed OAuth authorization.
 
     Parameters
     ----------
     platform:  Target platform name.
     user_id:   User performing the connection.
-    auth_code: OAuth authorization code.
+    auth_code: One-time OAuth authorization code from authorize_oauth_demo / provider.
 
     Returns
     -------
@@ -289,19 +359,46 @@ def connect_platform(platform: str, user_id: str, auth_code: str) -> dict[str, A
 
     Raises
     ------
-    ValueError for unknown platforms or empty inputs.
+    ValueError for unknown platforms, empty inputs, or invalid/unused codes.
     """
     _validate_platform(platform)
+    if not user_id or not str(user_id).strip():
+        raise ValueError("user_id must not be empty")
     if not auth_code or not auth_code.strip():
         raise ValueError("auth_code must not be empty")
-    return {
+    user_id = str(user_id).strip()
+    auth_code = auth_code.strip()
+
+    # Reject using the raw OAuth state as if it were an auth code.
+    if auth_code in _PENDING_OAUTH:
+        raise ValueError("auth_code is invalid: complete provider authorization first")
+
+    issued = _ISSUED_AUTH_CODES.get(auth_code)
+    if not issued:
+        raise ValueError("auth_code is invalid or expired")
+    if issued.get("used"):
+        raise ValueError("auth_code has already been used")
+    if issued["platform"] != platform:
+        raise ValueError("auth_code does not match platform")
+    if issued["user_id"] != user_id:
+        raise ValueError("auth_code does not match user_id")
+
+    issued["used"] = True
+    _PENDING_OAUTH.pop(issued["state"], None)
+
+    username = f"{platform}_user_{user_id[:6]}"
+    followers = random.randint(1, 100000)
+    connected_at = _now()
+    connection = {
         "platform":     platform,
         "user_id":      user_id,
         "connected":    True,
-        "username":     f"{platform}_user_{user_id[:6]}",
-        "followers":    random.randint(1, 100000),
-        "connected_at": _now(),
+        "username":     username,
+        "followers":    followers,
+        "connected_at": connected_at,
     }
+    _CONNECTIONS.setdefault(user_id, {})[platform] = dict(connection)
+    return connection
 
 
 def disconnect_platform(platform: str, user_id: str) -> dict[str, Any]:
@@ -321,6 +418,11 @@ def disconnect_platform(platform: str, user_id: str) -> dict[str, Any]:
     ValueError for unknown platforms.
     """
     _validate_platform(platform)
+    if user_id and str(user_id).strip():
+        user_id = str(user_id).strip()
+        user_conns = _CONNECTIONS.get(user_id)
+        if user_conns and platform in user_conns:
+            del user_conns[platform]
     return {
         "platform":        platform,
         "user_id":         user_id,
@@ -340,15 +442,25 @@ def get_connected_platforms(user_id: str) -> dict[str, Any]:
     -------
     Dict with user_id and a list of platform connection dicts.
     """
-    platforms = [
-        {
-            "platform":  p,
-            "connected": False,
-            "username":  None,
-            "followers": 0,
-        }
-        for p in _DEMO_PLATFORMS
-    ]
+    user_id = str(user_id or "").strip()
+    live = _CONNECTIONS.get(user_id, {})
+    platforms = []
+    for p in _DEMO_PLATFORMS:
+        if p in live:
+            platforms.append({
+                "platform":  p,
+                "connected": True,
+                "username":  live[p].get("username"),
+                "followers": live[p].get("followers", 0),
+                "connected_at": live[p].get("connected_at"),
+            })
+        else:
+            platforms.append({
+                "platform":  p,
+                "connected": False,
+                "username":  None,
+                "followers": 0,
+            })
     return {"user_id": user_id, "platforms": platforms}
 
 
