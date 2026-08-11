@@ -1263,6 +1263,8 @@ def export_canvas_gif(
 def generate_3d_scene(prompt: str, style: str = "realistic", objects: list = None) -> dict:
     """Generate a 3D scene configuration from a text prompt."""
     from datetime import datetime, timezone
+    import hashlib
+
     _VALID_3D_STYLES = {"realistic", "cartoon", "abstract", "architectural", "sci-fi", "fantasy"}
     style = style.lower()
     if style not in _VALID_3D_STYLES:
@@ -1288,13 +1290,82 @@ def generate_3d_scene(prompt: str, style: str = "realistic", objects: list = Non
         "sci-fi": "MeshPhongMaterial",
         "fantasy": "MeshLambertMaterial",
     }
-    if not objects:
-        objects = [
-            {"type": "box", "position": [0, 0, 0], "scale": [1, 1, 1], "color": "#4488ff"},
-            {"type": "sphere", "position": [2, 0, 0], "scale": [0.8, 0.8, 0.8], "color": "#ff8844"},
-        ]
+
+    def _normalize_objects(raw: list) -> list:
+        out = []
+        for i, o in enumerate(raw):
+            if isinstance(o, str):
+                out.append({
+                    "type": o,
+                    "position": [float(i), 0.0, 0.0],
+                    "scale": [1.0, 1.0, 1.0],
+                    "color": "#4488ff",
+                })
+            elif isinstance(o, dict):
+                out.append({
+                    "type": o.get("type", "box"),
+                    "position": list(o.get("position") or [float(i), 0.0, 0.0]),
+                    "scale": list(o.get("scale") or [1.0, 1.0, 1.0]),
+                    "color": o.get("color", "#4488ff"),
+                })
+        return out
+
+    if objects:
+        objects = _normalize_objects(objects)
     else:
-        objects = [{"type": o if isinstance(o, str) else o.get("type", "box"), "position": [0, 0, 0], "scale": [1, 1, 1], "color": "#4488ff"} for o in objects]
+        p = prompt.lower()
+        seed = int(hashlib.md5(f"{prompt}:{style}".encode()).hexdigest()[:8], 16)
+        palette = {
+            "realistic": ["#6b8f71", "#c2b280", "#4a6fa5"],
+            "cartoon": ["#ff6b6b", "#ffd93d", "#6bcb77"],
+            "abstract": ["#7c5af1", "#f0703a", "#2dd4bf"],
+            "architectural": ["#d9d2c5", "#8a8a8a", "#3d5a80"],
+            "sci-fi": ["#00aaff", "#112233", "#66ffcc"],
+            "fantasy": ["#9b5de5", "#f15bb5", "#fee440"],
+        }[style]
+        objects = []
+        # Prompt-driven primitives so different scenes are distinguishable.
+        if any(k in p for k in ("castle", "tower", "fortress", "keep")):
+            objects.extend([
+                {"type": "box", "position": [0, 1.2, 0], "scale": [2.2, 2.4, 2.2], "color": palette[0]},
+                {"type": "cone", "position": [-1.2, 2.8, -1.2], "scale": [0.7, 1.4, 0.7], "color": palette[1]},
+                {"type": "cone", "position": [1.2, 2.8, -1.2], "scale": [0.7, 1.4, 0.7], "color": palette[1]},
+                {"type": "cone", "position": [-1.2, 2.8, 1.2], "scale": [0.7, 1.4, 0.7], "color": palette[2]},
+                {"type": "cone", "position": [1.2, 2.8, 1.2], "scale": [0.7, 1.4, 0.7], "color": palette[2]},
+            ])
+        elif any(k in p for k in ("bridge", "span", "arch")):
+            objects.extend([
+                {"type": "box", "position": [0, 0.4, 0], "scale": [6, 0.35, 1.2], "color": palette[0]},
+                {"type": "cylinder", "position": [-2.2, -0.4, 0], "scale": [0.35, 1.6, 0.35], "color": palette[1]},
+                {"type": "cylinder", "position": [2.2, -0.4, 0], "scale": [0.35, 1.6, 0.35], "color": palette[1]},
+                {"type": "torus", "position": [0, 0.1, 0], "scale": [1.4, 1.4, 1.4], "color": palette[2]},
+            ])
+        elif any(k in p for k in ("planet", "space", "station", "orbit")):
+            objects.extend([
+                {"type": "sphere", "position": [0, 0.8, 0], "scale": [1.6, 1.6, 1.6], "color": palette[0]},
+                {"type": "torus", "position": [0, 0.8, 0], "scale": [2.2, 2.2, 0.4], "color": palette[1]},
+                {"type": "box", "position": [3, 0.4, -1], "scale": [1.2, 0.4, 0.8], "color": palette[2]},
+            ])
+        elif any(k in p for k in ("tree", "forest", "grove")):
+            objects.extend([
+                {"type": "cylinder", "position": [0, 0.5, 0], "scale": [0.25, 1.2, 0.25], "color": "#8b5a2b"},
+                {"type": "cone", "position": [0, 1.8, 0], "scale": [1.1, 1.8, 1.1], "color": palette[0]},
+                {"type": "cylinder", "position": [1.6, 0.4, 0.8], "scale": [0.2, 1.0, 0.2], "color": "#8b5a2b"},
+                {"type": "cone", "position": [1.6, 1.5, 0.8], "scale": [0.9, 1.4, 0.9], "color": palette[1]},
+            ])
+        else:
+            # Deterministic fallback unique to prompt+style (not a fixed box/sphere pair).
+            count = 3 + (seed % 3)
+            types = ["box", "sphere", "cylinder", "cone", "torus"]
+            for i in range(count):
+                t = types[(seed + i) % len(types)]
+                objects.append({
+                    "type": t,
+                    "position": [((seed >> i) % 7) - 3, (i % 3) * 0.6, ((seed >> (i + 2)) % 5) - 2],
+                    "scale": [0.6 + (i % 3) * 0.3, 0.6 + ((i + 1) % 3) * 0.3, 0.6 + ((i + 2) % 3) * 0.3],
+                    "color": palette[i % len(palette)],
+                })
+
     return {
         "prompt": prompt,
         "style": style,
@@ -1311,6 +1382,7 @@ def generate_3d_scene(prompt: str, style: str = "realistic", objects: list = Non
         "animation": {"rotate": True, "speed": 0.5},
         "three_js_version": "r160",
         "generated_at": datetime.now(timezone.utc).isoformat(),
+        "preview_ready": True,
     }
 
 
