@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.orm import DeclarativeBase
 
 from app.config import settings
+from app.models import *  # noqa: F401, F403
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +83,6 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 async def init_db() -> None:
     """Create all tables. Use Alembic migrations in production."""
-    from app.models import *  # noqa: F401, F403 — import all models for metadata
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     logger.info("Database tables initialized.")
